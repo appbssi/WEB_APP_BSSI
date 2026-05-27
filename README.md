@@ -1,20 +1,5 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Firebase Studio
 
-# Run and deploy your AI Studio app
+This is a NextJS starter in Firebase Studio.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/797c69cb-d035-45d3-9e74-c00db60e6050
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+To get started, take a look at src/app/page.tsx.

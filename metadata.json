@@ -1,0 +1,6 @@
+{
+  "name": "BSSI Portal",
+  "description": "Système de Brigade Spéciale de Surveillance et d'Intervention",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

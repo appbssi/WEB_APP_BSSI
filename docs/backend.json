@@ -1,0 +1,86 @@
+
+{
+  "entities": {
+    "Agent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Agent",
+      "type": "object",
+      "description": "Represents an agent who can be assigned to missions.",
+      "properties": {
+        "fullName": { "type": "string" },
+        "registrationNumber": { "type": "string" },
+        "rank": { "type": "string" },
+        "contact": { "type": "string" },
+        "address": { "type": "string" },
+        "section": { "type": "string" },
+        "photo": { "type": "string", "description": "Data URI de la photo d'identité" },
+        "leaveStartDate": { "type": "string", "format": "date-time" },
+        "leaveEndDate": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "rank", "address", "section"]
+    },
+    "Mission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Mission",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Planification", "En cours", "Terminée", "Annulée"] },
+        "assignedAgentIds": { "type": "array", "items": { "type": "string" } },
+        "vehicleId": { "type": "string" }
+      },
+      "required": ["name", "location", "startDate", "endDate", "status", "assignedAgentIds"]
+    },
+    "Vehicle": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Vehicle",
+      "type": "object",
+      "properties": {
+        "plateNumber": { "type": "string" },
+        "model": { "type": "string" },
+        "type": { "type": "string", "enum": ["Pick-up", "4x4", "Moto", "Camion", "Berline"] },
+        "status": { "type": "string", "enum": ["Opérationnel", "En panne", "En maintenance"] },
+        "mileage": { "type": "number" },
+        "lastMaintenanceDate": { "type": "string", "format": "date-time" },
+        "nextMaintenanceMileage": { "type": "number" }
+      },
+      "required": ["plateNumber", "model", "type", "status"]
+    },
+    "VehicleAnomaly": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VehicleAnomaly",
+      "type": "object",
+      "properties": {
+        "vehicleId": { "type": "string" },
+        "description": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Faible", "Moyenne", "Critique"] },
+        "date": { "type": "string", "format": "date-time" },
+        "isResolved": { "type": "boolean" },
+        "reportedBy": { "type": "string", "description": "System or User Name" }
+      },
+      "required": ["vehicleId", "description", "severity", "date"]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/agents/{agentId}": { "schema": { "$ref": "#/entities/Agent" } },
+    "/missions/{missionId}": { "schema": { "$ref": "#/entities/Mission" } },
+    "/vehicles/{vehicleId}": { "schema": { "$ref": "#/entities/Vehicle" } },
+    "/vehicleAnomalies/{anomalyId}": { "schema": { "$ref": "#/entities/VehicleAnomaly" } },
+    "/messages/{messageId}": { "schema": { "$ref": "#/entities/ChatMessage" } }
+  }
+}

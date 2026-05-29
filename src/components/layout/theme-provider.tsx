@@ -1,11 +1,10 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
+// This component is kept for potential future use (e.g., re-introducing themes)
+// but currently it just renders its children as the theme is hardcoded to light.
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
   return <>{children}</>;
 }

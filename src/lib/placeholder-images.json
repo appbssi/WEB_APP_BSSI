@@ -1,0 +1,40 @@
+{
+  "placeholderImages": [
+    {
+      "id": "user-avatar",
+      "description": "Default user avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1521119989659-a83eee488004?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGVyc29uJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzU5NjI0NTg2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "agent-1",
+      "description": "Avatar for agent 1",
+      "imageUrl": "https://images.unsplash.com/photo-1647235354099-9b05551d692a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxwZXJzb24lMjBzcHl8ZW58MHx8fHwxNzU5NjM1OTMxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person spy"
+    },
+    {
+      "id": "agent-2",
+      "description": "Avatar for agent 2",
+      "imageUrl": "https://images.unsplash.com/flagged/photo-1573162915884-74c45ba4cfe6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHx3b21hbiUyMHRlY2h8ZW58MHx8fHwxNzU5NTc5ODA3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman tech"
+    },
+    {
+      "id": "agent-3",
+      "description": "Avatar for agent 3",
+      "imageUrl": "https://images.unsplash.com/photo-1609853935854-ef4ad65e0bdd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxtYW4lMjBzZXJpb3VzfGVufDB8fHx8MTc1OTU5MDE0MXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man serious"
+    },
+    {
+      "id": "agent-4",
+      "description": "Avatar for agent 4",
+      "imageUrl": "https://images.unsplash.com/photo-1580894732444-8ecded7900cd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHx3b21hbiUyMHByb2Zlc3Npb25hbHxlbnwwfHx8fDE3NTk1OTgzMDd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman professional"
+    },
+    {
+      "id": "agent-5",
+      "description": "Avatar for agent 5",
+      "imageUrl": "https://images.unsplash.com/photo-1559837568-d76b6a9c92f0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtYW4lMjBpbnRlbnNlfGVufDB8fHx8MTc1OTYzNTkzMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man intense"
+    }
+  ]
+}

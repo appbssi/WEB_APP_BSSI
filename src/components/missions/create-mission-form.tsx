@@ -14,7 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { CalendarIcon, Loader2, Check, Search, Truck, Sparkles } from 'lucide-react';
+import { CalendarIcon, Loader2, Check, Search, Truck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
@@ -31,7 +31,6 @@ import { ScrollArea } from '../ui/scroll-area';
 import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
-import { suggestAgentsForMission } from '@/ai/flows/suggest-agents-for-mission';
 
 const missionSchema = z.object({
   name: z.string().min(3, 'Le nom de la mission est requis'),
@@ -74,78 +73,8 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
   const [currentStep, setCurrentStep] = useState(1);
   const [agentSearch, setAgentSearch] = useState('');
   const [sectionFilter, setSectionFilter] = useState('all');
-  const [isSuggestingAgents, setIsSuggestingAgents] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<Array<{ name: string; reason: string }>>([]);
   const { toast } = useToast();
   const firestore = useFirestore();
-
-  const handleAISuggestions = async () => {
-    setIsSuggestingAgents(true);
-    try {
-      const missionName = form.getValues('name') || '';
-      const missionLocation = form.getValues('location') || '';
-      const missionDetails = `Nom de la mission: ${missionName}. Lieu: ${missionLocation}.`;
-      
-      const inputAgents = availableAgents.map(a => ({
-        name: a.fullName,
-        skills: [a.section, a.rank].filter(Boolean) as string[],
-        availability: 'Disponible',
-        completedMissions: a.missionCount || 0,
-      }));
-
-      const res = await suggestAgentsForMission({
-        missionDetails,
-        availableAgents: inputAgents,
-      });
-
-      if (res && res.length > 0) {
-        setAiSuggestions(res);
-        toast({
-          title: "Suggestions générées",
-          description: "L'IA a analysé et suggéré les agents les plus adaptés (rotation équitable).",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Aucune suggestion",
-          description: "L'IA n'a pas pu émettre de suggestions spécifiques.",
-        });
-      }
-    } catch (error) {
-      console.error("AI flow error:", error);
-      toast({
-        variant: "destructive",
-        title: "Erreur de chargement",
-        description: "Une erreur est survenue lors de l'appel de l'assistant IA.",
-      });
-    } finally {
-      setIsSuggestingAgents(false);
-    }
-  };
-
-  const handleSelectSuggestedAgent = (agentName: string) => {
-    const matchedAgent = availableAgents.find(a => a.fullName.toLowerCase() === agentName.toLowerCase());
-    if (matchedAgent) {
-      const currentValues = form.getValues('assignedAgentIds') || [];
-      if (!currentValues.includes(matchedAgent.id)) {
-        form.setValue('assignedAgentIds', [...currentValues, matchedAgent.id]);
-        toast({
-          title: "Agent assigné",
-          description: `${matchedAgent.fullName} a été assigné à la mission.`,
-        });
-      } else {
-        toast({
-          description: `${matchedAgent.fullName} est déjà sélectionné.`,
-        });
-      }
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Agent introuvable",
-        description: `L'agent "${agentName}" suggéré n'est pas ou plus disponible pour ces dates.`,
-      });
-    }
-  };
 
   const form = useForm<MissionFormValues>({
     resolver: zodResolver(missionSchema),
@@ -486,49 +415,6 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                 <h3 className="text-lg font-semibold">2. Assigner les agents</h3>
                 <p className="text-sm text-muted-foreground">Sélectionnez les agents à assigner à cette mission. Seuls les agents disponibles pour les dates choisies sont affichés.</p>
                 
-                <div className="bg-orange-50/50 dark:bg-orange-950/20 border border-orange-200/50 dark:border-orange-900/40 rounded-xl p-4 transition-all flex flex-col gap-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary animate-pulse" />
-                      <span className="font-semibold text-xs sm:text-sm">Suggestions d'agents (Assistant IA)</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAISuggestions}
-                      disabled={isSuggestingAgents || availableAgents.length === 0}
-                      className="gap-2 text-[11px] h-8"
-                    >
-                      {isSuggestingAgents ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin text-primary" /> Analyse...
-                        </>
-                      ) : (
-                        <>Suggérer via IA</>
-                      )}
-                    </Button>
-                  </div>
-                  {aiSuggestions.length > 0 && (
-                    <div className="text-xs text-muted-foreground bg-background/50 p-3 rounded-lg border space-y-2 max-h-40 overflow-y-auto">
-                      <p className="font-semibold text-foreground border-b pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                        Agents recommandés (Rotation Équitable) :
-                      </p>
-                      {aiSuggestions.map((sug, i) => (
-                        <div key={i} className="flex flex-col gap-0.5 border-b pb-2 last:border-b-0 last:pb-0">
-                          <span 
-                            className="font-semibold text-primary cursor-pointer hover:underline text-[12px] flex items-center gap-1"
-                            onClick={() => handleSelectSuggestedAgent(sug.name)}
-                          >
-                            ➕ {sug.name}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">{sug.reason}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                  <div className="flex flex-col sm:flex-row gap-4">
                   <div className="relative flex-grow">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

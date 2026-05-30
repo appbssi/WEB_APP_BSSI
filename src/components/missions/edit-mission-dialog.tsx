@@ -86,6 +86,8 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
   const { toast } = useToast();
   const firestore = useFirestore();
   const [agentSearch, setAgentSearch] = useState('');
+  const [isStartOpen, setStartOpen] = useState(false);
+  const [isEndOpen, setEndOpen] = useState(false);
 
   const form = useForm<MissionFormValues>({
     resolver: zodResolver(missionSchema),
@@ -269,10 +271,11 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Date de début</FormLabel>
-                    <Popover>
+                    <Popover open={isStartOpen} onOpenChange={setStartOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
+                            type="button"
                             variant={"outline"}
                             className={cn(
                               "w-full pl-3 text-left font-normal",
@@ -292,7 +295,10 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setStartOpen(false);
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -307,10 +313,11 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Date de fin</FormLabel>
-                    <Popover>
+                    <Popover open={isEndOpen} onOpenChange={setEndOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
+                            type="button"
                             variant={"outline"}
                             className={cn(
                               "w-full pl-3 text-left font-normal",
@@ -330,10 +337,16 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date < (form.getValues("startDate") || new Date(new Date().setHours(0,0,0,0)))
-                          }
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setEndOpen(false);
+                          }}
+                          disabled={(date) => {
+                            const start = startDate || new Date();
+                            const limit = new Date(start);
+                            limit.setHours(0, 0, 0, 0);
+                            return date < limit;
+                          }}
                           initialFocus
                         />
                       </PopoverContent>

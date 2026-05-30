@@ -73,6 +73,8 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
   const [currentStep, setCurrentStep] = useState(1);
   const [agentSearch, setAgentSearch] = useState('');
   const [sectionFilter, setSectionFilter] = useState('all');
+  const [isStartOpen, setStartOpen] = useState(false);
+  const [isEndOpen, setEndOpen] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
 
@@ -153,6 +155,33 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
             startDate: newMissionData.startDate.toDate().toISOString(),
             endDate: newMissionData.endDate.toDate().toISOString(),
             agents: agentNames,
+        });
+
+        // Publier un message système de création de mission dans le chat
+        const missionMessageText = JSON.stringify({
+          type: 'mission_created',
+          name: data.name,
+          location: data.location,
+          startDate: newMissionData.startDate.toDate().toISOString(),
+          endDate: newMissionData.endDate.toDate().toISOString(),
+          startTime: newMissionData.startTime || null,
+          endTime: newMissionData.endTime || null,
+          checklist: [
+            { id: 'briefing', label: "Briefing d'équipe & tactique", checked: false },
+            { id: 'equipment', label: "Vérification et chargement du matériel", checked: false },
+            { id: 'vehicle', label: "Attribution/préparation du véhicule de service", checked: false },
+            { id: 'validation', label: "Validation finale de l'ordre de mission", checked: false }
+          ],
+          agents: agentNames,
+        });
+
+        addDoc(collection(firestore, 'messages'), {
+          senderId: 'system',
+          senderName: 'Système',
+          text: missionMessageText,
+          timestamp: Timestamp.now(),
+        }).catch((err) => {
+          console.error("Erreur lors de la création du message de mission:", err);
         });
 
         form.reset();
@@ -268,10 +297,11 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                         render={({ field }) => (
                         <FormItem className="flex flex-col">
                             <FormLabel>Date de début</FormLabel>
-                            <Popover>
+                            <Popover open={isStartOpen} onOpenChange={setStartOpen}>
                             <PopoverTrigger asChild>
                                 <FormControl>
                                 <Button
+                                    type="button"
                                     variant={"outline"}
                                     className={cn(
                                     "w-full pl-3 text-left font-normal",
@@ -291,10 +321,15 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                                 <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) =>
-                                    date < new Date(new Date().setHours(0,0,0,0))
-                                }
+                                onSelect={(date) => {
+                                    field.onChange(date);
+                                    setStartOpen(false);
+                                }}
+                                disabled={(date) => {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    return date < today;
+                                }}
                                 initialFocus
                                 />
                             </PopoverContent>
@@ -309,10 +344,11 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                         render={({ field }) => (
                         <FormItem className="flex flex-col">
                             <FormLabel>Date de fin</FormLabel>
-                            <Popover>
+                            <Popover open={isEndOpen} onOpenChange={setEndOpen}>
                             <PopoverTrigger asChild>
                                 <FormControl>
                                 <Button
+                                    type="button"
                                     variant={"outline"}
                                     className={cn(
                                     "w-full pl-3 text-left font-normal",
@@ -332,10 +368,16 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                                 <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) =>
-                                    date < (form.getValues("startDate") || new Date(new Date().setHours(0,0,0,0)))
-                                }
+                                onSelect={(date) => {
+                                    field.onChange(date);
+                                    setEndOpen(false);
+                                }}
+                                disabled={(date) => {
+                                    const start = startDate || new Date();
+                                    const limit = new Date(start);
+                                    limit.setHours(0, 0, 0, 0);
+                                    return date < limit;
+                                }}
                                 initialFocus
                                 />
                             </PopoverContent>

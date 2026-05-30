@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -10,7 +9,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Search, Trash2, Loader2, FileDown, LogOut } from 'lucide-react';
+import { 
+  MoreHorizontal, 
+  PlusCircle, 
+  Search, 
+  Trash2, 
+  Loader2, 
+  FileDown, 
+  LogOut,
+  Mail,
+  Phone,
+  BookOpen,
+  Plus,
+  Edit,
+  User,
+  ExternalLink
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,9 +66,12 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { RegisterVisitorForm } from '@/components/secretariat/register-visitor-form';
+import { CustomContactForm } from '@/components/secretariat/custom-contacts-form';
+import { BroadcastTab } from '@/components/secretariat/broadcast-tab';
 import { logActivity } from '@/lib/activity-logger';
-import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
 export default function SecretariatPage() {
   return (
@@ -68,19 +85,36 @@ function SecretariatContent() {
   const firestore = useFirestore();
   const { isObserver } = useRole();
   const { logo } = useLogo();
+  const { toast } = useToast();
+
+  // State Tabs
+  const [activeTab, setActiveTab] = useState('visitors');
+
+  // Visitor Tab States
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterOpen, setRegisterOpen] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
   const [visitorToDelete, setVisitorToDelete] = useState<Visitor | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { toast } = useToast();
 
+  // Custom Contact Tab States
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
+  const [contactCategoryFilter, setContactCategoryFilter] = useState('all');
+  const [isContactOpen, setContactOpen] = useState(false);
+  const [contactToEdit, setContactToEdit] = useState<any | null>(null);
+  const [contactToDelete, setContactToDelete] = useState<any | null>(null);
+  const [isDeletingContact, setIsDeletingContact] = useState(false);
+
+  // Queries
   const visitorsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'visitors') : null), [firestore]);
   const { data: visitors, isLoading: visitorsLoading } = useCollection<Visitor>(visitorsQuery);
 
+  const contactsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'contacts') : null), [firestore]);
+  const { data: contacts = [], isLoading: contactsLoading } = useCollection<any>(contactsQuery);
+
+  // Sorted list of visitors
   const sortedVisitors = useMemo(() => {
     if (!visitors) return [];
-    // Filter out visitors with no entryTime and then sort
     return visitors
       .filter(v => v.entryTime)
       .sort((a, b) => b.entryTime.toMillis() - a.entryTime.toMillis());
@@ -91,6 +125,17 @@ function SecretariatContent() {
     return searchString.includes(searchQuery.toLowerCase());
   });
 
+  // Filtered lists of Custom Contacts
+  const filteredContacts = useMemo(() => {
+    return contacts.filter((contact: any) => {
+      const searchString = `${contact.firstName} ${contact.lastName} ${contact.email} ${contact.phone} ${contact.category}`.toLowerCase();
+      const matchesSearch = searchString.includes(contactSearchQuery.toLowerCase());
+      const matchesCategory = contactCategoryFilter === 'all' || contact.category === contactCategoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [contacts, contactSearchQuery, contactCategoryFilter]);
+
+  // Visitor Actions
   const handleDeleteVisitor = async () => {
     if (!firestore || !visitorToDelete) return;
     setIsDeleting(true);
@@ -98,8 +143,8 @@ function SecretariatContent() {
     const visitorRef = doc(firestore, 'visitors', visitorToDelete.id);
     deleteDoc(visitorRef).then(() => {
         toast({
-        title: 'Visiteur supprimé',
-        description: `Le visiteur ${visitorToDelete.firstName} ${visitorToDelete.lastName} a été supprimé.`,
+          title: 'Visiteur supprimé',
+          description: `Le visiteur ${visitorToDelete.firstName} ${visitorToDelete.lastName} a été supprimé.`,
         });
         logActivity(firestore, `Le visiteur ${visitorToDelete.firstName} ${visitorToDelete.lastName} a été supprimé.`, 'Visiteur', '/secretariat');
         setVisitorToDelete(null);
@@ -136,6 +181,31 @@ function SecretariatContent() {
     });
   };
 
+  // Custom Contact Actions
+  const handleDeleteContact = async () => {
+    if (!firestore || !contactToDelete) return;
+    setIsDeletingContact(true);
+
+    const contactRef = doc(firestore, 'contacts', contactToDelete.id);
+    deleteDoc(contactRef).then(() => {
+        toast({
+          title: 'Contact supprimé',
+          description: `Le contact-annuaire ${contactToDelete.firstName} ${contactToDelete.lastName} a été supprimé de la base.`,
+        });
+        logActivity(firestore, `Le contact ${contactToDelete.firstName} ${contactToDelete.lastName} de l'annuaire de diffusion a été supprimé.`, 'Général', '/secretariat');
+        setContactToDelete(null);
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: contactRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }).finally(() => {
+        setIsDeletingContact(false);
+    });
+  };
+
+  // Export Documents Functions
   const handleExportXLSX = () => {
     const dataToExport = filteredVisitors.map(visitor => ({
         'Date': visitor.entryTime.toDate().toLocaleDateString('fr-FR'),
@@ -212,121 +282,315 @@ function SecretariatContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Secrétariat - Registre des Visiteurs</h1>
-      </div>
+    <div className="space-y-6">
       
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-10"
-              placeholder="Rechercher un visiteur..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+      {/* Title block */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Secrétariat Général</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gestion administrative, registre d'accueil des visiteurs externes et modules de liaisons d'urgence simultanées.
+          </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-           <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="button-13 flex items-center justify-center">
-                  <FileDown className="mr-2 h-4 w-4" /> Exporter
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onSelect={handleExportPDF}>Exporter en PDF</DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleExportXLSX}>Exporter en XLSX</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      </div>
 
-          {!isObserver && (
-             <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
-                <DialogTrigger asChild>
-                    <button className="button-13 flex items-center justify-center !w-auto px-4">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        
+        {/* Navigation tabs */}
+        <div className="border-b">
+          <TabsList className="bg-transparent h-12 p-0 space-x-6 border-b border-transparent">
+            <TabsTrigger 
+              value="visitors" 
+              className="relative rounded-none border-b-2 border-transparent px-2 pb-3 pt-2 text-sm font-semibold text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent hover:text-foreground hover:border-border transition-all"
+            >
+              Registre des Visiteurs
+            </TabsTrigger>
+            <TabsTrigger 
+              value="contacts"
+              className="relative rounded-none border-b-2 border-transparent px-2 pb-3 pt-2 text-sm font-semibold text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent hover:text-foreground hover:border-border transition-all"
+            >
+              Annuaire de Liaison ({contacts.length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="broadcast"
+              className="relative rounded-none border-b-2 border-transparent px-2 pb-3 pt-2 text-sm font-semibold text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent hover:text-foreground hover:border-border transition-all"
+            >
+              Messagerie & Diffusion Simultanée
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Tab 1: Visitors Registry */}
+        <TabsContent value="visitors" className="space-y-4 outline-none">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="relative w-full max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-10 text-sm"
+                  placeholder="Rechercher un visiteur..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="button-13 flex items-center justify-center text-sm font-medium">
+                      <FileDown className="mr-2 h-4 w-4" /> Exporter
                     </button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Enregistrer un nouveau visiteur</DialogTitle>
-                        <DialogDescription>
-                            Remplissez les détails du visiteur ci-dessous.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <RegisterVisitorForm onVisitorRegistered={() => setRegisterOpen(false)} />
-                </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={handleExportPDF}>Exporter en PDF</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={handleExportXLSX}>Exporter en XLSX</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-      <div className="border rounded-lg overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Visiteur</TableHead>
-              <TableHead>Fonction</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Heure d'entrée</TableHead>
-              <TableHead>Heure de sortie</TableHead>
-              {!isObserver && <TableHead><span className="sr-only">Actions</span></TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visitorsLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center">Chargement des visiteurs...</TableCell>
-              </TableRow>
-            ) : (
-              filteredVisitors.map((visitor) => (
-                  <TableRow key={visitor.id}>
-                    <TableCell>
-                      <div className="font-medium">{visitor.lastName.toUpperCase()} {visitor.firstName}</div>
-                      <div className="text-sm text-muted-foreground">{visitor.contact}</div>
-                    </TableCell>
-                    <TableCell>{visitor.occupation}</TableCell>
-                    <TableCell>{visitor.entryTime.toDate().toLocaleDateString('fr-FR')}</TableCell>
-                    <TableCell>{visitor.entryTime.toDate().toLocaleTimeString('fr-FR')}</TableCell>
-                    <TableCell>{visitor.exitTime ? visitor.exitTime.toDate().toLocaleTimeString('fr-FR') : '...'}</TableCell>
-                    {!isObserver && (
-                        <TableCell>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                            </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onSelect={() => handleRecordExit(visitor)} disabled={!!visitor.exitTime}>
-                                <LogOut className="mr-2 h-4 w-4" />
-                                Enregistrer la sortie
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setEditingVisitor(visitor)}>Modifier</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => setVisitorToDelete(visitor)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                                Supprimer
-                            </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        </TableCell>
-                    )}
-                  </TableRow>
-                ))
-            )}
-            {!visitorsLoading && filteredVisitors.length === 0 && (
+              {!isObserver && (
+                 <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
+                    <DialogTrigger asChild>
+                        <button className="button-13 flex items-center justify-center !w-auto px-4 text-sm font-medium">
+                            <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer un Visiteur
+                        </button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Enregistrer un nouveau visiteur</DialogTitle>
+                            <DialogDescription>
+                                Remplissez les détails du visiteur pour l'enregistrer au registre de garde.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <RegisterVisitorForm onVisitorRegistered={() => setRegisterOpen(false)} />
+                    </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-border/80 rounded-xl overflow-x-auto shadow-sm bg-card">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        Aucun visiteur trouvé.
-                    </TableCell>
+                  <TableHead>Visiteur</TableHead>
+                  <TableHead>Fonction</TableHead>
+                  <TableHead>Date d'entrée</TableHead>
+                  <TableHead>Heure d'entrée</TableHead>
+                  <TableHead>Heure de sortie</TableHead>
+                  {!isObserver && <TableHead className="w-[80px]"><span className="sr-only">Actions</span></TableHead>}
                 </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      
+              </TableHeader>
+              <TableBody>
+                {visitorsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Chargement des visiteurs...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredVisitors.map((visitor) => (
+                      <TableRow key={visitor.id} className="hover:bg-muted/30">
+                        <TableCell>
+                          <div className="font-semibold text-sm">{visitor.lastName.toUpperCase()} {visitor.firstName}</div>
+                          <div className="text-xs text-muted-foreground font-mono mt-0.5">{visitor.contact}</div>
+                        </TableCell>
+                        <TableCell className="text-sm font-medium text-foreground">{visitor.occupation}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{visitor.entryTime.toDate().toLocaleDateString('fr-FR')}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{visitor.entryTime.toDate().toLocaleTimeString('fr-FR')}</TableCell>
+                        <TableCell className="text-sm">
+                          {visitor.exitTime ? (
+                            <Badge variant="secondary" className="bg-emerald-550/10 text-emerald-650 hover:bg-emerald-550/15 font-semibold text-[11px] border border-emerald-550/20">
+                              Sorti({visitor.exitTime.toDate().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})})
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 animate-pulse text-[11px] font-semibold">
+                              Présent dans l'enceinte
+                            </Badge>
+                          )}
+                        </TableCell>
+                        {!isObserver && (
+                            <TableCell>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button aria-haspopup="true" size="icon" variant="ghost" className="h-8 w-8 hover:bg-muted rounded-full">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Toggle menu</span>
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onSelect={() => handleRecordExit(visitor)} disabled={!!visitor.exitTime} className="cursor-pointer">
+                                    <LogOut className="mr-2 h-4 w-4" />
+                                    Enregistrer la sortie
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setEditingVisitor(visitor)} className="cursor-pointer">
+                                    Modifier la fiche
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setVisitorToDelete(visitor)} className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer">
+                                    Supprimer du registre
+                                </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                )}
+                {!visitorsLoading && filteredVisitors.length === 0 && (
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-sm">
+                            Aucun visiteur enregistré aujourd'hui.
+                        </TableCell>
+                    </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Tab 2: Directory / saved contacts */}
+        <TabsContent value="contacts" className="space-y-4 outline-none">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2 w-full max-w-lg">
+              <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-10 text-sm"
+                    placeholder="Rechercher un contact dans l'annuaire..."
+                    value={contactSearchQuery}
+                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                  />
+              </div>
+              <select
+                value={contactCategoryFilter}
+                onChange={(e) => setContactCategoryFilter(e.target.value)}
+                className="text-xs h-10 rounded-md border border-input bg-background px-3 py-1 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="all">Toutes Catégories</option>
+                <option value="Partenaire">Partenaire</option>
+                <option value="Ministère">Ministère / Hiérarchie</option>
+                <option value="Garde Civile">Garde Civile / Police</option>
+                <option value="Urgence">Urgence / Sécurité</option>
+                <option value="Autre">Autre Institution</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2 justify-end">
+              {!isObserver && (
+                 <Dialog open={isContactOpen} onOpenChange={(open) => {
+                   setContactOpen(open);
+                   if (!open) setContactToEdit(null);
+                 }}>
+                    <DialogTrigger asChild>
+                        <button className="button-13 flex items-center justify-center !w-auto px-4 text-sm font-medium">
+                            <Plus className="mr-2 h-4 w-4" /> Enregistrer un Contact d'Urgence
+                        </button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>{contactToEdit ? 'Modifier le Contact' : 'Enregistrer dans l\'Annuaire'}</DialogTitle>
+                            <DialogDescription>
+                              Enregistrez des contacts diplomatiques ou officiels pour une liaison simultanée ultérieure.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <CustomContactForm 
+                          contactToEdit={contactToEdit} 
+                          onContactSaved={() => {
+                            setContactOpen(false);
+                            setContactToEdit(null);
+                          }} 
+                        />
+                    </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-border/80 rounded-xl overflow-x-auto shadow-sm bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Officiel / Contact</TableHead>
+                  <TableHead>Institution</TableHead>
+                  <TableHead>Adresse E-mail</TableHead>
+                  <TableHead>N° Téléphone</TableHead>
+                  {!isObserver && <TableHead className="w-[80px]"><span className="sr-only">Actions</span></TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contactsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8">
+                      <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Chargement de l'annuaire...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredContacts.map((contact) => (
+                      <TableRow key={contact.id} className="hover:bg-muted/30">
+                        <TableCell>
+                          <div className="font-semibold text-sm flex items-center gap-2">
+                            <span className="text-foreground">{contact.lastName.toUpperCase()} {contact.firstName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="border-cyan-500/20 text-cyan-600 bg-cyan-500/5 font-semibold text-[11px] uppercase">
+                            {contact.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm font-mono text-muted-foreground">{contact.email || '—'}</TableCell>
+                        <TableCell className="text-sm font-mono text-muted-foreground">{contact.phone || '—'}</TableCell>
+                        {!isObserver && (
+                            <TableCell>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-muted rounded-full">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onSelect={() => {
+                                  setContactToEdit(contact);
+                                  setContactOpen(true);
+                                }} className="cursor-pointer">
+                                    <Edit className="mr-2 h-4 w-4" /> Modifier la fiche
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setContactToDelete(contact)} className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Supprimer de l'annuaire
+                                </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                )}
+                {!contactsLoading && filteredContacts.length === 0 && (
+                    <TableRow>
+                        <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-sm">
+                            Aucun contact trouvé dans l'annuaire de liaison. 
+                        </TableCell>
+                    </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Tab 3: Simultaneous Broadcast Component */}
+        <TabsContent value="broadcast" className="outline-none">
+          <BroadcastTab />
+        </TabsContent>
+
+      </Tabs>
+
+      {/* Visitor Edit Dialog */}
       {editingVisitor && (
         <EditVisitorSheet
           visitor={editingVisitor}
@@ -335,21 +599,44 @@ function SecretariatContent() {
         />
       )}
 
+      {/* Visitor Delete Alert Dialog */}
       {visitorToDelete && (
         <AlertDialog open={!!visitorToDelete} onOpenChange={(open) => !open && setVisitorToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Êtes-vous absolument sûr?</AlertDialogTitle>
               <AlertDialogDescription>
-                Cette action est irréversible. Le visiteur{' '}
-                <span className="font-semibold">{`${visitorToDelete.firstName} ${visitorToDelete.lastName}`}</span> sera définitivement supprimé.
+                Cette action est définitive. Le visiteur{' '}
+                <span className="font-semibold">{`${visitorToDelete.firstName} ${visitorToDelete.lastName}`}</span> sera effacé des archives.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => setVisitorToDelete(null)}>Annuler</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteVisitor} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
                  {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Supprimer
+                Supprimer de force
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Contact Delete Alert Dialog */}
+      {contactToDelete && (
+        <AlertDialog open={!!contactToDelete} onOpenChange={(open) => !open && setContactToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer le contact d'urgence ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Vous êtes sur le point de retirer{' '}
+                <span className="font-semibold">{`${contactToDelete.firstName} ${contactToDelete.lastName}`}</span> de votre annuaire public d'envoi simultané. 
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setContactToDelete(null)}>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteContact} className="bg-destructive hover:bg-destructive/90" disabled={isDeletingContact}>
+                 {isDeletingContact && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirmer la suppression
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

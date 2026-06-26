@@ -110,7 +110,8 @@ function SecretariatContent() {
   const { data: visitors, isLoading: visitorsLoading } = useCollection<Visitor>(visitorsQuery);
 
   const contactsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'contacts') : null), [firestore]);
-  const { data: contacts = [], isLoading: contactsLoading } = useCollection<any>(contactsQuery);
+  const { data: rawContacts, isLoading: contactsLoading } = useCollection<any>(contactsQuery);
+  const contacts = rawContacts || [];
 
   // Sorted list of visitors
   const sortedVisitors = useMemo(() => {
@@ -335,7 +336,10 @@ function SecretariatContent() {
             <div className="flex items-center gap-2 flex-wrap justify-end">
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="button-13 flex items-center justify-center text-sm font-medium">
+                    <button 
+                      className="button-13 flex items-center justify-center text-sm font-medium border-none text-white hover:opacity-90 transition-opacity"
+                      style={{ backgroundColor: '#4d5d43', color: '#ffffff' }}
+                    >
                       <FileDown className="mr-2 h-4 w-4" /> Exporter
                     </button>
                   </DropdownMenuTrigger>

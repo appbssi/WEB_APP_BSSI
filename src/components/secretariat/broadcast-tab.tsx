@@ -52,15 +52,20 @@ export function BroadcastTab() {
   const visitorsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'visitors') : null), [firestore]);
   const contactsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'contacts') : null), [firestore]);
 
-  const { data: agents = [] } = useCollection<any>(agentsQuery);
-  const { data: visitors = [] } = useCollection<any>(visitorsQuery);
-  const { data: customContacts = [] } = useCollection<any>(contactsQuery);
+  const { data: rawAgents } = useCollection<any>(agentsQuery);
+  const { data: rawVisitors } = useCollection<any>(visitorsQuery);
+  const { data: rawCustomContacts } = useCollection<any>(contactsQuery);
+
+  const agents = rawAgents || [];
+  const visitors = rawVisitors || [];
+  const customContacts = rawCustomContacts || [];
 
   // Broadcast campaign history
   const broadcastsQuery = useMemoFirebase(() => {
     return firestore ? query(collection(firestore, 'broadcasts'), orderBy('sentAt', 'desc')) : null;
   }, [firestore]);
-  const { data: pastBroadcasts = [], isLoading: historyLoading } = useCollection<any>(broadcastsQuery);
+  const { data: rawPastBroadcasts, isLoading: historyLoading } = useCollection<any>(broadcastsQuery);
+  const pastBroadcasts = rawPastBroadcasts || [];
 
   // Form State
   const [subject, setSubject] = useState('');

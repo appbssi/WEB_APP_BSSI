@@ -18,11 +18,12 @@ export function UserNav() {
   };
 
   return (
-    <button onClick={handleLogout} className="logout-btn">
-      <div className="logout-sign">
-        <LogOut size={17} />
-      </div>
-      <div className="logout-text">Se déconnecter</div>
+    <button
+      onClick={handleLogout}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/35 transition-all duration-200 text-xs font-bold tracking-tight shadow-sm active:scale-95 cursor-pointer"
+    >
+      <LogOut size={14} className="stroke-[2.5]" />
+      <span>Se déconnecter</span>
     </button>
   );
 }

@@ -9,6 +9,7 @@ import {
 import { FirebaseClientProvider } from '@/firebase';
 import { AuthGuard } from '@/components/layout/auth-guard';
 import { LogoProvider } from '@/context/logo-context';
+import { DeviceTracker } from '@/components/layout/device-tracker';
 import Loading from './loading';
 
 
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <FirebaseClientProvider>
       <AuthGuard>
         <LogoProvider>
+          <DeviceTracker />
           <SidebarProvider>
             <Sidebar>
               <SidebarNav />

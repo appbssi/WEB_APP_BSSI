@@ -13,6 +13,7 @@ import {
   Lock,
   Sword,
   Truck,
+  Map,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -41,6 +42,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { href: '/cartographie', label: 'Cartographie', icon: Map },
   { href: '/agents', label: 'Agents', icon: Users, roles: ['admin', 'observer'] },
   { href: '/missions', label: 'Missions', icon: Rocket, roles: ['admin', 'observer'] },
   { href: '/gatherings', label: 'Rassemblements', icon: CalendarClock, roles: ['admin', 'observer', 'secretariat'] },

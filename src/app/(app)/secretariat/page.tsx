@@ -49,9 +49,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
 import type { Visitor } from '@/lib/types';
@@ -111,7 +108,7 @@ function SecretariatContent() {
 
   const contactsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'contacts') : null), [firestore]);
   const { data: rawContacts, isLoading: contactsLoading } = useCollection<any>(contactsQuery);
-  const contacts = rawContacts || [];
+  const contacts = useMemo(() => rawContacts || [], [rawContacts]);
 
   // Sorted list of visitors
   const sortedVisitors = useMemo(() => {
@@ -121,10 +118,12 @@ function SecretariatContent() {
       .sort((a, b) => b.entryTime.toMillis() - a.entryTime.toMillis());
   }, [visitors]);
 
-  const filteredVisitors = sortedVisitors.filter(visitor => {
-    const searchString = `${visitor.firstName} ${visitor.lastName} ${visitor.occupation}`.toLowerCase();
-    return searchString.includes(searchQuery.toLowerCase());
-  });
+  const filteredVisitors = useMemo(() => {
+    return sortedVisitors.filter(visitor => {
+      const searchString = `${visitor.firstName} ${visitor.lastName} ${visitor.occupation}`.toLowerCase();
+      return searchString.includes(searchQuery.toLowerCase());
+    });
+  }, [sortedVisitors, searchQuery]);
 
   // Filtered lists of Custom Contacts
   const filteredContacts = useMemo(() => {
@@ -207,7 +206,8 @@ function SecretariatContent() {
   };
 
   // Export Documents Functions
-  const handleExportXLSX = () => {
+  const handleExportXLSX = async () => {
+    const XLSX = await import('xlsx');
     const dataToExport = filteredVisitors.map(visitor => ({
         'Date': visitor.entryTime.toDate().toLocaleDateString('fr-FR'),
         'Heure d\'entrée': visitor.entryTime.toDate().toLocaleTimeString('fr-FR'),
@@ -223,7 +223,9 @@ function SecretariatContent() {
     XLSX.writeFile(workbook, 'registre_visiteurs.xlsx');
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
     const tableTitle = "Registre des Visiteurs";
     const generationDate = new Date().toLocaleDateString('fr-FR');

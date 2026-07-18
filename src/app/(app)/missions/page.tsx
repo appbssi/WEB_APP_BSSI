@@ -55,9 +55,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
 import { differenceInDays, isSameDay } from 'date-fns';
@@ -84,7 +81,9 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
         (agent.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
+        const { default: jsPDF } = await import('jspdf');
+        const { default: autoTable } = await import('jspdf-autotable');
         const doc = new jsPDF();
         const mainTitle = `Mission: ${missionName}`;
         const subTitle = "Agents en Mission";
@@ -151,7 +150,8 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
         }
     };
 
-    const handleExportXLSX = () => {
+    const handleExportXLSX = async () => {
+        const XLSX = await import('xlsx');
         const dataToExport = filteredAgents.map(agent => ({
             'Nom complet': agent.fullName,
             'Contact': agent.contact,

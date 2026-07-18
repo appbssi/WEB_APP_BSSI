@@ -48,8 +48,6 @@ import { useToast } from '@/hooks/use-toast';
 import { AddWeaponForm } from '@/components/armurerie/add-weapon-form';
 import { AssignWeaponForm } from '@/components/armurerie/assign-weapon-form';
 import { logActivity } from '@/lib/activity-logger';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { useLogo } from '@/context/logo-context';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -205,7 +203,9 @@ function ArmurerieContent() {
     }
   };
 
-  const generateDailyReport = () => {
+  const generateDailyReport = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const today = new Date().toLocaleDateString('fr-FR');

@@ -13,6 +13,9 @@ export function UserNav() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('app-user-idc');
+    }
     clearRole();
     router.push('/');
   };

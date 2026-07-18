@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { useRole } from '@/hooks/use-role';
@@ -9,6 +9,7 @@ export function DeviceTracker() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { role } = useRole();
+  const lastWriteTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!firestore || typeof window === 'undefined') return;
@@ -23,6 +24,13 @@ export function DeviceTracker() {
     let watchId: number | null = null;
 
     const updateLocation = async (position: GeolocationPosition) => {
+      const now = Date.now();
+      // Throttle writes to once every 30 seconds
+      if (now - lastWriteTimeRef.current < 30000) {
+        return;
+      }
+      lastWriteTimeRef.current = now;
+
       try {
         const deviceDocRef = doc(firestore, 'device_locations', deviceId!);
         

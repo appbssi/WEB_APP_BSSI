@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useLogo } from '@/context/logo-context';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
 import { useIsMounted } from '@/hooks/use-is-mounted';
@@ -32,16 +32,12 @@ import { ClientOnly } from '@/components/layout/client-only';
 
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Veuillez saisir votre login.'),
-  password: z.string().min(1, 'Le mot de passe est requis.'),
+  email: z.string().min(1, 'Veuillez saisir votre identifiant (IDC).'),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const ADMIN_LOGIN = 'bssi';
-const ADMIN_PASS = 'bssiA';
-const OBSERVER_PASS = 'admin';
-const SECRETARIAT_PASS = 'bssiB';
 
 const images = [
   'https://i.imgur.com/kPlJEwW.jpeg',
@@ -65,7 +61,6 @@ function LoginContent() {
   const auth = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [currentImage, setCurrentImage] = useState(0);
 
@@ -79,24 +74,33 @@ function LoginContent() {
   
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: '' },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setHasError(false);
     try {
-      const { email: login, password } = data;
+      const { email: rawLogin } = data;
+      const login = rawLogin.trim().toUpperCase();
       let userRole: 'admin' | 'observer' | 'secretariat' | null = null;
 
-      if (login.toLowerCase() === ADMIN_LOGIN) {
-        if (password === ADMIN_PASS) userRole = 'admin';
-        else if (password === OBSERVER_PASS) userRole = 'observer';
-        else if (password === SECRETARIAT_PASS) userRole = 'secretariat';
+      if (login === '0CWKIX') {
+        userRole = 'admin';
+      } else if (rawLogin.toLowerCase() === ADMIN_LOGIN) {
+        userRole = 'admin';
+      } else if (rawLogin.toLowerCase() === 'secretariat') {
+        userRole = 'secretariat';
+      } else if (login.length >= 3) {
+        // Any other non-empty IDC/login of at least 3 chars can log in as observer (restricted)
+        userRole = 'observer';
       }
 
       if (userRole) {
         await signInAnonymously(auth);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('app-user-idc', login);
+        }
         setRole(userRole);
         // The AuthGuard will handle the redirection
       } else {
@@ -104,7 +108,7 @@ function LoginContent() {
          toast({
             variant: 'destructive',
             title: 'Erreur de connexion',
-            description: "Les identifiants fournis sont invalides.",
+            description: "Identifiant (IDC) incorrect.",
         });
       }
     } catch (error) {
@@ -154,7 +158,7 @@ function LoginContent() {
                         </div>
                     </div>
                     <CardTitle><span className="text-primary">s</span>BSSI</CardTitle>
-                    <CardDescription>Connectez-vous pour accéder à votre tableau de bord</CardDescription>
+                    <CardDescription>Saisissez votre Identifiant (IDC) pour vous connecter</CardDescription>
                 </CardHeader>
                 <CardContent>
                 <Form {...form}>
@@ -164,38 +168,16 @@ function LoginContent() {
                         name="email"
                         render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Login</FormLabel>
+                            <FormLabel>Identifiant (IDC)</FormLabel>
                             <FormControl>
                             <Input 
                                 type="text" 
+                                placeholder="ex: 0CWKIX"
                                 {...field}
                                 onChange={(e) => handleInputChange(field, e.target.value)}
                                 className="rounded-full neon-orange-input"
                             />
                             </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Mot de passe</FormLabel>
-                            <div className="relative">
-                            <FormControl>
-                            <Input 
-                                type={showPassword ? 'text' : 'password'} 
-                                {...field} 
-                                className="pr-10 rounded-full neon-orange-input" 
-                                onChange={(e) => handleInputChange(field, e.target.value)}
-                            />
-                            </FormControl>
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">
-                                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                            </button>
-                            </div>
                             <FormMessage />
                         </FormItem>
                         )}

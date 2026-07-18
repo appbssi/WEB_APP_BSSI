@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +30,7 @@ import { Loader2 } from 'lucide-react';
 import * as z from 'zod';
 import { logActivity } from '@/lib/activity-logger';
 
-type AgentImportData = Omit<Agent, 'id' | 'leaveStartDate' | 'leaveEndDate'>;
+type AgentImportData = Omit<Agent, 'id' | 'leaveStartDate' | 'leaveEndDate'> & { idc?: string };
 
 
 const contactSchema = z.string()
@@ -54,6 +53,7 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
 
     setAgentsToImport([]);
 
+    const XLSX = await import('xlsx');
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -62,31 +62,113 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        const json = XLSX.utils.sheet_to_json(worksheet, {
-            header: ["fullName", "registrationNumber", "rank", "contact", "address", "section"],
-            range: 1 // Skip the header row
-        }) as any[];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        if (rows.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Fichier vide',
+                description: "Le fichier sélectionné ne contient aucune donnée.",
+            });
+            return;
+        }
 
+        const headerRow = rows[0].map(h => String(h || '').trim().toLowerCase());
+        
+        // Find indices of columns
+        const findColIndex = (names: string[]) => {
+          return headerRow.findIndex(h => names.includes(h));
+        };
+
+        const fullNameIdx = findColIndex(['nom complet', 'fullname', 'nom', 'name', 'nom et prénom(s)', 'nom et prenoms']);
+        const registrationNumberIdx = findColIndex(['matricule', 'registrationnumber', 'registration_number', 'matricule/reg']);
+        const rankIdx = findColIndex(['grade', 'rank', 'grade/rang']);
+        const contactIdx = findColIndex(['contact', 'téléphone', 'telephone', 'phone']);
+        const addressIdx = findColIndex(['adresse', 'address', 'localisation']);
+        const sectionIdx = findColIndex(['section', 'détachement', 'detachement', 'groupement']);
+        const idcIdx = findColIndex(['idc', 'id_code', 'code idc', 'identifiant']);
+
+        const getVal = (row: any[], index: number, defaultValue = '') => {
+          if (index !== -1 && index < row.length) {
+            return String(row[index] || '').trim();
+          }
+          return defaultValue;
+        };
 
         let invalidContacts = 0;
         const validAgents: AgentImportData[] = [];
 
-        for (const row of json) {
-          if (!row.fullName && !row.registrationNumber) {
-            continue; // Skip rows that don't have at least a name or a registration number
+        // Loop starting from row 1 (skipping headers)
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+
+          let fullName = '';
+          let registrationNumber = '';
+          let rank = '';
+          let rawContact = '';
+          let address = '';
+          let rawSection = 'Non assigné';
+          let idc = '';
+
+          // Match header name if index found, else use position fallback
+          if (fullNameIdx !== -1) {
+            fullName = getVal(row, fullNameIdx);
+          } else {
+            fullName = getVal(row, 0);
           }
-          const rawContact = String(row.contact || '').trim();
+
+          if (registrationNumberIdx !== -1) {
+            registrationNumber = getVal(row, registrationNumberIdx);
+          } else {
+            registrationNumber = getVal(row, 1);
+          }
+
+          if (rankIdx !== -1) {
+            rank = getVal(row, rankIdx);
+          } else {
+            rank = getVal(row, 2);
+          }
+
+          if (contactIdx !== -1) {
+            rawContact = getVal(row, contactIdx);
+          } else {
+            rawContact = getVal(row, 3);
+          }
+
+          if (addressIdx !== -1) {
+            address = getVal(row, addressIdx);
+          } else if (sectionIdx === -1) {
+            address = getVal(row, 4);
+          }
+
+          if (sectionIdx !== -1) {
+            rawSection = getVal(row, sectionIdx, 'Non assigné');
+          } else if (addressIdx === -1) {
+            rawSection = getVal(row, 5, 'Non assigné');
+          }
+
+          if (idcIdx !== -1) {
+            idc = getVal(row, idcIdx).toUpperCase();
+          } else {
+            idc = getVal(row, 6).toUpperCase();
+          }
+
+          if (!fullName && !registrationNumber && !idc) {
+            continue; // Skip empty rows
+          }
+
           const contactValidation = contactSchema.safeParse(rawContact);
           // Allow empty contacts, but sanitize if present
           const sanitizedContact = rawContact ? (contactValidation.success ? contactValidation.data : '') : '';
 
           const agent: AgentImportData = {
-              fullName: String(row.fullName || '').trim(),
-              registrationNumber: String(row.registrationNumber || '').trim(),
-              rank: String(row.rank || '').trim(),
+              fullName,
+              registrationNumber,
+              rank,
               contact: sanitizedContact,
-              address: String(row.address || '').trim(),
-              section: String(row.section || 'Non assigné').trim() as Agent['section'],
+              address,
+              section: rawSection as Agent['section'],
+              idc: idc || undefined
           };
 
           if (rawContact && !contactValidation.success) {
@@ -109,13 +191,13 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
         }
         
         if (validAgents.length === 0) {
-            if (invalidContacts === 0 && json.length > 0) {
+            if (invalidContacts === 0 && rows.length > 1) {
                  toast({
                     variant: 'destructive',
                     title: 'Fichier invalide ou vide',
-                    description: "Aucun agent valide trouvé. Assurez-vous que les colonnes sont correctes: fullName, registrationNumber, rank, contact, address, section.",
+                    description: "Aucun agent valide trouvé. Assurez-vous que les colonnes sont correctes: Nom complet, Matricule, Grade, Contact, Section, IDC.",
                 });
-            } else if (json.length === 0) {
+            } else if (rows.length <= 1) {
                  toast({
                     variant: 'destructive',
                     title: 'Fichier vide',
@@ -145,18 +227,23 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
     const batch = writeBatch(firestore);
     const agentsRef = collection(firestore, 'agents');
     
-    // Fetch all existing agents to check for duplicates by reg number OR name
+    // Fetch all existing agents to check for duplicates by IDC, reg number, OR name
     const querySnapshot = await getDocs(agentsRef);
     const existingByReg = new Map<string, string>(); // registrationNumber -> docId
     const existingByName = new Map<string, string>(); // fullName (lowercase) -> docId
+    const existingByIdc = new Map<string, string>(); // idc -> docId
     
     querySnapshot.forEach(docSnap => {
         const agent = docSnap.data() as Agent;
+        const docId = docSnap.id;
+        const idc = docId.substring(0, 6).toUpperCase();
+        existingByIdc.set(idc, docId);
+
         if (agent.registrationNumber) {
-            existingByReg.set(agent.registrationNumber.trim(), docSnap.id);
+            existingByReg.set(agent.registrationNumber.trim(), docId);
         }
         if (agent.fullName) {
-            existingByName.set(agent.fullName.trim().toLowerCase(), docSnap.id);
+            existingByName.set(agent.fullName.trim().toLowerCase(), docId);
         }
     });
 
@@ -166,39 +253,48 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
     for (const agentData of agentsToImport) {
         const nameKey = agentData.fullName.trim().toLowerCase();
         const regKey = agentData.registrationNumber?.trim() || '';
+        const idcKey = agentData.idc?.trim().toUpperCase() || '';
         
-        let docId = (regKey && existingByReg.has(regKey)) 
-            ? existingByReg.get(regKey) 
-            : existingByName.get(nameKey);
+        let docId = '';
+        if (idcKey && existingByIdc.has(idcKey)) {
+            docId = existingByIdc.get(idcKey)!;
+        } else if (regKey && existingByReg.has(regKey)) {
+            docId = existingByReg.get(regKey)!;
+        } else {
+            docId = existingByName.get(nameKey) || '';
+        }
+
+        const { idc, ...restData } = agentData;
 
         if (docId) {
             // Update existing agent
             const docRef = doc(firestore, 'agents', docId);
             batch.update(docRef, {
-              fullName: agentData.fullName,
-              rank: agentData.rank,
-              contact: agentData.contact,
-              address: agentData.address,
-              section: agentData.section,
+              fullName: restData.fullName,
+              rank: restData.rank,
+              contact: restData.contact,
+              address: restData.address,
+              section: restData.section,
             });
             agentsUpdated++;
         } else {
             // Add new agent
             const newAgentRef = doc(agentsRef);
-            batch.set(newAgentRef, { ...agentData, leaveStartDate: null, leaveEndDate: null });
+            batch.set(newAgentRef, { ...restData, leaveStartDate: null, leaveEndDate: null });
             agentsAdded++;
             // Update local maps to prevent adding same agent twice within the same import
             if (regKey) existingByReg.set(regKey, newAgentRef.id);
             existingByName.set(nameKey, newAgentRef.id);
+            existingByIdc.set(newAgentRef.id.substring(0, 6).toUpperCase(), newAgentRef.id);
         }
     }
 
     batch.commit().then(() => {
         toast({
             title: 'Importation terminée !',
-            description: `${agentsAdded} agent(s) ajouté(s) et ${agentsUpdated} agent(s) mis à jour. Les doublons ont été évités.`,
+            description: `${agentsAdded} agent(s) ajouté(s) et ${agentsUpdated} agent(s) mis à jour. Les doublons ont été évités grâce aux clés IDC et Matricules.`,
         });
-        const logMessage = `Importation : ${agentsAdded} ajoutés, ${agentsUpdated} mis à jour. Doublons filtrés.`;
+        const logMessage = `Importation : ${agentsAdded} ajoutés, ${agentsUpdated} mis à jour. Utilisation clé IDC et Matricules.`;
         logActivity(firestore, logMessage, 'Agent', '/agents');
     }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -222,12 +318,13 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
         }
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>Importer et Mettre à jour des Agents</DialogTitle>
           <DialogDescription>
-            Sélectionnez un fichier .xlsx. Les agents sont identifiés par leur matricule ou leur nom complet pour éviter les doublons. 
-            Colonnes requises : fullName, registrationNumber, rank, contact, address, section (Détachement).
+            Sélectionnez un fichier .xlsx. Les agents sont identifiés de manière prioritaire par leur code unique IDC (6 caractères), puis par leur matricule ou leur nom complet pour mettre à jour les données existantes ou créer de nouveaux fiches sans doublons.
+            <br />
+            <span className="font-semibold text-white">Colonnes supportées :</span> IDC, Nom complet (fullName), Matricule (registrationNumber), Grade (rank), Contact (contact), Adresse (address), Section (section/Détachement).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -238,6 +335,7 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-[100px]">IDC</TableHead>
                                 <TableHead>Nom et Prénom(s)</TableHead>
                                 <TableHead>Matricule</TableHead>
                                 <TableHead>Grade</TableHead>
@@ -249,11 +347,20 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
                         <TableBody>
                             {agentsToImport.map((agent, index) => (
                                 <TableRow key={index}>
-                                    <TableCell>{agent.fullName}</TableCell>
-                                    <TableCell>{agent.registrationNumber}</TableCell>
+                                    <TableCell>
+                                      {agent.idc ? (
+                                        <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground font-semibold">
+                                          {agent.idc}
+                                        </code>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground font-mono">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="font-medium">{agent.fullName}</TableCell>
+                                    <TableCell>{agent.registrationNumber || <span className="text-xs text-muted-foreground italic">N/A</span>}</TableCell>
                                     <TableCell>{agent.rank}</TableCell>
-                                    <TableCell>{agent.contact}</TableCell>
-                                    <TableCell>{agent.address}</TableCell>
+                                    <TableCell>{agent.contact || <span className="text-xs text-muted-foreground italic">N/A</span>}</TableCell>
+                                    <TableCell>{agent.address || <span className="text-xs text-muted-foreground italic">N/A</span>}</TableCell>
                                     <TableCell>{agent.section}</TableCell>
                                 </TableRow>
                             ))}

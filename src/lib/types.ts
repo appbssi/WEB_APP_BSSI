@@ -153,3 +153,18 @@ export type ChatMessage = {
   text: string;
   timestamp: Timestamp;
 };
+
+export type Demande = {
+  id: string;
+  agentId: string;
+  agentName: string;
+  type: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  reason?: string;
+  status: 'en_attente' | 'acceptee' | 'refusee';
+  comment?: string;
+  createdAt: Timestamp;
+  notified: boolean;
+  vu_par_agent: boolean;
+};

@@ -15,6 +15,23 @@ let firestore: Firestore;
  * Utilise initializeFirestore avec un gestionnaire multi-onglets pour éviter les erreurs d'assertion.
  */
 export function initializeFirebase() {
+  if (typeof window === 'undefined') {
+    if (!getApps().length) {
+      firebaseApp = initializeApp(firebaseConfig);
+      auth = getAuth(firebaseApp);
+      firestore = getFirestore(firebaseApp);
+    } else {
+      firebaseApp = getApp();
+      auth = getAuth(firebaseApp);
+      firestore = getFirestore(firebaseApp);
+    }
+    return {
+      firebaseApp,
+      auth,
+      firestore,
+    };
+  }
+
   if (!getApps().length) {
     firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);

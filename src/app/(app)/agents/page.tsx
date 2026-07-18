@@ -47,9 +47,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { AgentDetailsSheet } from '@/components/agents/agent-details-sheet';
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
@@ -128,24 +125,27 @@ function AgentsContent() {
     });
   }, [agentsWithDetails]);
 
-  const filteredAgents = sortedAgents.filter(agent => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = (agent.fullName || '').toLowerCase().includes(searchLower) ||
-                          (agent.registrationNumber || '').toLowerCase().includes(searchLower) ||
-                          (agent.rank || '').toLowerCase().includes(searchLower);
-    const matchesAvailability = availabilityFilter === 'all' || agent.availability === availabilityFilter;
-    
-    let matchesSection;
-    if (sectionFilter === 'all') {
-        matchesSection = true;
-    } else if (sectionFilter === 'Non assigné') {
-        matchesSection = !agent.section || agent.section === 'Non assigné';
-    } else {
-        matchesSection = (agent.section || '').toLowerCase() === sectionFilter.toLowerCase();
-    }
-    
-    return matchesSearch && matchesAvailability && matchesSection;
-  });
+  const filteredAgents = useMemo(() => {
+    return sortedAgents.filter(agent => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = (agent.fullName || '').toLowerCase().includes(searchLower) ||
+                            (agent.registrationNumber || '').toLowerCase().includes(searchLower) ||
+                            (agent.rank || '').toLowerCase().includes(searchLower) ||
+                            (agent.id || '').toLowerCase().includes(searchLower);
+      const matchesAvailability = availabilityFilter === 'all' || agent.availability === availabilityFilter;
+      
+      let matchesSection;
+      if (sectionFilter === 'all') {
+          matchesSection = true;
+      } else if (sectionFilter === 'Non assigné') {
+          matchesSection = !agent.section || agent.section === 'Non assigné';
+      } else {
+          matchesSection = (agent.section || '').toLowerCase() === sectionFilter.toLowerCase();
+      }
+      
+      return matchesSearch && matchesAvailability && matchesSection;
+    });
+  }, [sortedAgents, searchQuery, availabilityFilter, sectionFilter]);
 
   const getBadgeVariant = (availability?: Availability) => {
     switch (availability) {
@@ -224,7 +224,8 @@ function AgentsContent() {
     }
   };
 
-  const handleExportXLSX = () => {
+  const handleExportXLSX = async () => {
+    const XLSX = await import('xlsx');
     const dataToExport = filteredAgents.map(agent => ({
         'Nom complet': agent.fullName,
         'Matricule': agent.registrationNumber,
@@ -232,6 +233,7 @@ function AgentsContent() {
         'Contact': agent.contact,
         'Section': agent.section || 'Non assigné',
         'Disponibilité': agent.availability,
+        'IDC': agent.id.substring(0, 6).toUpperCase(),
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -239,7 +241,9 @@ function AgentsContent() {
     XLSX.writeFile(workbook, 'liste_agents.xlsx');
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
     const tableTitle = "Liste des Agents";
     const generationDate = new Date().toLocaleDateString('fr-FR');
@@ -275,13 +279,14 @@ function AgentsContent() {
         currentY += 8;
 
         autoTable(doc, {
-            head: [['Nom complet', 'Matricule', 'Grade', 'Section', 'Disponibilité']],
+            head: [['Nom complet', 'Matricule', 'Grade', 'Section', 'Disponibilité', 'IDC']],
             body: filteredAgents.map(agent => [
                 agent.fullName,
                 agent.registrationNumber,
                 agent.rank,
                 agent.section === 'OFFICIER' ? 'N/A' : (agent.section || 'Non assigné').toUpperCase(),
                 agent.availability,
+                agent.id.substring(0, 6).toUpperCase(),
             ]),
             startY: currentY,
             theme: 'striped',
@@ -410,12 +415,13 @@ function AgentsContent() {
               <TableHead>Grade</TableHead>
               <TableHead>Missions</TableHead>
               <TableHead>Disponibilité</TableHead>
+              <TableHead>IDC</TableHead>
               <TableHead><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {agentsLoading || missionsLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center">Chargement des agents...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center">Chargement des agents...</TableCell></TableRow>
             ) : filteredAgents.length > 0 ? (
               filteredAgents.map((agent) => {
                 const isAgentOnMission = agent.availability === 'En mission';
@@ -442,6 +448,11 @@ function AgentsContent() {
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getBadgeVariant(agent.availability)}>{agent.availability || '...'}</Badge></TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                        {agent.id.substring(0, 6).toUpperCase()}
+                      </code>
+                    </TableCell>
                     <TableCell>
                       {!isObserver && (
                         <DropdownMenu>
@@ -476,7 +487,7 @@ function AgentsContent() {
                 );
               })
             ) : (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Aucun agent trouvé.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Aucun agent trouvé.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -484,7 +495,7 @@ function AgentsContent() {
 
       {editingAgent && (
         <Dialog open={!!editingAgent} onOpenChange={(open) => !open && setEditingAgent(null)}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-4 sm:p-6">
             <DialogTitle className="sr-only">Modifier l'agent</DialogTitle>
             <EditAgentSheet
               agent={editingAgent}

@@ -56,9 +56,9 @@ export function BroadcastTab() {
   const { data: rawVisitors } = useCollection<any>(visitorsQuery);
   const { data: rawCustomContacts } = useCollection<any>(contactsQuery);
 
-  const agents = rawAgents || [];
-  const visitors = rawVisitors || [];
-  const customContacts = rawCustomContacts || [];
+  const agents = useMemo(() => rawAgents || [], [rawAgents]);
+  const visitors = useMemo(() => rawVisitors || [], [rawVisitors]);
+  const customContacts = useMemo(() => rawCustomContacts || [], [rawCustomContacts]);
 
   // Broadcast campaign history
   const broadcastsQuery = useMemoFirebase(() => {

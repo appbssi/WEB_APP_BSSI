@@ -21,8 +21,6 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Agent, Gathering } from '@/lib/types';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { CreateMissionFromGatheringForm } from '../missions/create-mission-from-gathering-form';
 import { Rocket } from 'lucide-react';
 import { useLogo } from '@/context/logo-context';
@@ -72,7 +70,8 @@ export function ViewAttendanceDialog({ isOpen, onOpenChange, gathering, agentsBy
     setAgentsForMission([]);
   }
 
-  const generatePdfWithLogo = (doc: jsPDF, listTitle: string, dateTime: string, head: string[], body: any[][]) => {
+  const generatePdfWithLogo = async (doc: any, listTitle: string, dateTime: string, head: string[], body: any[][]) => {
+      const { default: autoTable } = await import('jspdf-autotable');
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 15;
 
@@ -124,7 +123,8 @@ export function ViewAttendanceDialog({ isOpen, onOpenChange, gathering, agentsBy
   };
 
 
-  const handleExportPDF = (listType: 'present' | 'absent' | 'all') => {
+  const handleExportPDF = async (listType: 'present' | 'absent' | 'all') => {
+    const { default: jsPDF } = await import('jspdf');
     const doc = new jsPDF();
     const dateTime = gathering.dateTime.toDate().toLocaleString('fr-FR');
     

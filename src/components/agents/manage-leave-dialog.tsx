@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -77,6 +77,16 @@ interface ManageLeaveDialogProps {
 export function ManageLeaveDialog({ agent, isOpen, onOpenChange }: ManageLeaveDialogProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const form = useForm<LeaveFormValues>({
     resolver: zodResolver(leaveSchema),
@@ -156,10 +166,10 @@ export function ManageLeaveDialog({ agent, isOpen, onOpenChange }: ManageLeaveDi
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Gérer le congé de {agent.fullName}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Gérer le congé de {agent.fullName}</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Sélectionnez la période de congé de l'agent. L'agent ne sera pas disponible pour les missions pendant cette période.
           </DialogDescription>
         </DialogHeader>
@@ -170,7 +180,7 @@ export function ManageLeaveDialog({ agent, isOpen, onOpenChange }: ManageLeaveDi
               name="leaveDates"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Période de congé</FormLabel>
+                  <FormLabel className="text-xs sm:text-sm">Période de congé</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -178,19 +188,19 @@ export function ManageLeaveDialog({ agent, isOpen, onOpenChange }: ManageLeaveDi
                           id="date"
                           variant={"outline"}
                           className={cn(
-                            "w-full justify-start text-left font-normal",
+                            "w-full justify-start text-left font-normal text-xs sm:text-sm",
                             !field.value?.from && "text-muted-foreground"
                           )}
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                           {field.value?.from ? (
                             field.value.to ? (
-                              <>
-                                {format(field.value.from, "LLL dd, y", { locale: fr })} -{" "}
-                                {format(field.value.to, "LLL dd, y", { locale: fr })}
-                              </>
+                              <span className="truncate">
+                                {format(field.value.from, "dd LLL y", { locale: fr })} -{" "}
+                                {format(field.value.to, "dd LLL y", { locale: fr })}
+                              </span>
                             ) : (
-                              format(field.value.from, "LLL dd, y", { locale: fr })
+                              <span>{format(field.value.from, "dd LLL y", { locale: fr })}</span>
                             )
                           ) : (
                             <span>Choisissez une période</span>
@@ -205,20 +215,20 @@ export function ManageLeaveDialog({ agent, isOpen, onOpenChange }: ManageLeaveDi
                         defaultMonth={field.value?.from}
                         selected={{ from: field.value?.from!, to: field.value?.to }}
                         onSelect={field.onChange}
-                        numberOfMonths={2}
+                        numberOfMonths={isMobile ? 1 : 2}
                       />
                     </PopoverContent>
                   </Popover>
-                  <FormMessage />
+                  <FormMessage className="text-xs" />
                 </FormItem>
               )}
             />
-            <DialogFooter className="!justify-between">
-              <Button type="button" variant="ghost" onClick={handleClearLeave} className="text-destructive hover:text-destructive">
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0 !justify-between">
+              <Button type="button" variant="ghost" onClick={handleClearLeave} className="text-destructive hover:text-destructive text-xs sm:text-sm w-full sm:w-auto justify-center">
                 <Trash2 className="mr-2 h-4 w-4" />
                 Annuler le congé
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="text-xs sm:text-sm w-full sm:w-auto justify-center">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Enregistrer
               </Button>

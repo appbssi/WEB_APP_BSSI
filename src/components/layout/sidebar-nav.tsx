@@ -42,6 +42,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { href: '/demandes', label: 'Mes Demandes', icon: CalendarClock },
   { href: '/cartographie', label: 'Cartographie', icon: Map },
   { href: '/agents', label: 'Agents', icon: Users, roles: ['admin', 'observer'] },
   { href: '/missions', label: 'Missions', icon: Rocket, roles: ['admin', 'observer'] },
@@ -66,6 +67,9 @@ export function SidebarNav() {
 
 
   const filteredNavItems = navItems.filter(item => {
+    if (role !== 'admin') {
+      return item.href === '/demandes';
+    }
     if (!item.roles) return true;
     return role ? item.roles.includes(role) : false;
   });

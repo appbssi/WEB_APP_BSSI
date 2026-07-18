@@ -11,6 +11,28 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error('App error:', error);
+    
+    // Automatically reload the page if it's a chunk load failure or dynamic import failure
+    const isChunkError = 
+      error?.message?.includes('Loading chunk') || 
+      error?.message?.includes('ChunkLoadError') || 
+      error?.name === 'ChunkLoadError' ||
+      error?.message?.includes('missing') ||
+      error?.message?.includes('Failed to fetch') ||
+      error?.message?.includes('unexpected token');
+
+    if (isChunkError && typeof window !== 'undefined') {
+      // Prevent infinite reloading loop
+      const lastReload = sessionStorage.getItem('last_chunk_reload');
+      const now = Date.now();
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        sessionStorage.setItem('last_chunk_reload', now.toString());
+        console.warn('Chunk loading error detected, reloading page...');
+        window.location.reload();
+      } else {
+        console.error('Chunk loading error persists after recent reload. Aborting auto-reload.');
+      }
+    }
   }, [error]);
 
   return (

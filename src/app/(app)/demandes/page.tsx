@@ -611,73 +611,79 @@ function DemandesContent() {
         <CardContent>
           {explications && explications.length > 0 ? (
             <div className="space-y-4">
-              {explications.map((exp) => (
-                <div key={exp.id} className="p-4 rounded-xl border bg-card text-xs space-y-3 shadow-sm hover:border-orange-500/20 transition-colors">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
-                    <span className="text-muted-foreground font-mono">
-                      Reçue le {exp.requestDate?.toDate().toLocaleDateString('fr-FR')} à {exp.requestDate?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {exp.status === 'en_attente' && (
-                        <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20">
-                          En attente de réponse
-                        </Badge>
-                      )}
-                      {exp.status === 'repondu' && (
-                        <Badge variant="secondary" className="text-blue-600 bg-blue-500/10 border-blue-500/20">
-                          Répondu - En attente d'arbitrage
-                        </Badge>
-                      )}
-                      {(exp.status === 'lu' || exp.status === 'archive' || exp.status === 'accepte') && (
-                        <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
-                          Pris acte (Sans sanction)
-                        </Badge>
-                      )}
-                      {exp.status === 'sanctionne' && (
-                        <Badge variant="destructive" className="text-red-600 bg-red-500/10 border-red-500/20 font-bold">
-                          Sanctionné
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="font-bold text-muted-foreground mb-1">Motif de l'administration :</div>
-                    <p className="font-semibold bg-muted/40 p-2.5 rounded border border-border mt-1">« {exp.requestText} »</p>
-                  </div>
+              {explications.map((exp) => {
+                const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
+                const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
+                const sancDate = exp.sanctionDate ? (typeof exp.sanctionDate.toDate === 'function' ? exp.sanctionDate.toDate() : new Date(exp.sanctionDate as any)) : null;
 
-                  {exp.replyText ? (
-                    <div className="pt-2 border-t border-dashed">
-                      <div className="font-bold text-primary mb-1">Votre réponse explicative :</div>
-                      <p className="italic bg-primary/5 p-2.5 rounded border border-primary/10">« {exp.replyText} »</p>
-                      {exp.replyDate && (
-                        <div className="text-[10px] text-muted-foreground text-right font-mono mt-1">
-                          Envoyée le {exp.replyDate.toDate().toLocaleDateString('fr-FR')} à {exp.replyDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-orange-600/80 font-medium italic">Vous n'avez pas encore répondu à cette demande d'explication.</div>
-                  )}
-
-                  {exp.status === 'sanctionne' && exp.sanctionText && (
-                    <div className="bg-orange-500/10 p-3.5 rounded-xl border border-orange-500/20 space-y-1 mt-2">
-                      <div className="text-[10px] text-orange-700 font-bold uppercase tracking-wider flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Sanction prononcée par l'autorité :
+                return (
+                  <div key={exp.id} className="p-4 rounded-xl border bg-card text-xs space-y-3 shadow-sm hover:border-orange-500/20 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
+                      <span className="text-muted-foreground font-mono">
+                        Reçue le {reqDate ? reqDate.toLocaleDateString('fr-FR') : 'N/A'} à {reqDate ? reqDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {exp.status === 'en_attente' && (
+                          <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20">
+                            En attente de réponse
+                          </Badge>
+                        )}
+                        {exp.status === 'repondu' && (
+                          <Badge variant="secondary" className="text-blue-600 bg-blue-500/10 border-blue-500/20">
+                            Répondu - En attente d'arbitrage
+                          </Badge>
+                        )}
+                        {(exp.status === 'lu' || exp.status === 'archive' || exp.status === 'accepte') && (
+                          <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
+                            Pris acte (Sans sanction)
+                          </Badge>
+                        )}
+                        {exp.status === 'sanctionne' && (
+                          <Badge variant="destructive" className="text-red-600 bg-red-500/10 border-red-500/20 font-bold">
+                            Sanctionné
+                          </Badge>
+                        )}
                       </div>
-                      <p className="font-extrabold text-foreground text-sm">
-                        « {exp.sanctionText} »
-                      </p>
-                      {exp.sanctionDate && (
-                        <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
-                          Prononcée le {exp.sanctionDate.toDate().toLocaleDateString('fr-FR')}
-                        </div>
-                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                    
+                    <div>
+                      <div className="font-bold text-muted-foreground mb-1">Motif de l'administration :</div>
+                      <p className="font-semibold bg-muted/40 p-2.5 rounded border border-border mt-1">« {exp.requestText} »</p>
+                    </div>
+
+                    {exp.replyText ? (
+                      <div className="pt-2 border-t border-dashed">
+                        <div className="font-bold text-primary mb-1">Votre réponse explicative :</div>
+                        <p className="italic bg-primary/5 p-2.5 rounded border border-primary/10">« {exp.replyText} »</p>
+                        {repDate && (
+                          <div className="text-[10px] text-muted-foreground text-right font-mono mt-1">
+                            Envoyée le {repDate.toLocaleDateString('fr-FR')} à {repDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-orange-600/80 font-medium italic">Vous n'avez pas encore répondu à cette demande d'explication.</div>
+                    )}
+
+                    {exp.status === 'sanctionne' && exp.sanctionText && (
+                      <div className="bg-orange-500/10 p-3.5 rounded-xl border border-orange-500/20 space-y-1 mt-2">
+                        <div className="text-[10px] text-orange-700 font-bold uppercase tracking-wider flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sanction prononcée par l'autorité :
+                        </div>
+                        <p className="font-extrabold text-foreground text-sm">
+                          « {exp.sanctionText} »
+                        </p>
+                        {sancDate && (
+                          <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
+                            Prononcée le {sancDate.toLocaleDateString('fr-FR')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12 border border-dashed rounded-lg text-muted-foreground">

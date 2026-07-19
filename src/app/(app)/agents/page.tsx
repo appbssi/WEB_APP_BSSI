@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Table,
@@ -72,7 +72,13 @@ import Image from 'next/image';
 export default function AgentsPage() {
   return (
     <ClientOnly>
-      <AgentsContent />
+      <Suspense fallback={
+        <div id="agents-loading" className="flex h-[calc(100vh-10rem)] w-full items-center justify-center">
+          <div className="loader"></div>
+        </div>
+      }>
+        <AgentsContent />
+      </Suspense>
     </ClientOnly>
   );
 }

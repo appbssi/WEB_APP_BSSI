@@ -689,80 +689,84 @@ function DashboardContent() {
                   <TableBody>
                     {[...explications]
                       .sort((a, b) => {
-                        const timeA = typeof a.requestDate?.toMillis === 'function' ? a.requestDate.toMillis() : new Date(a.requestDate as any).getTime();
-                        const timeB = typeof b.requestDate?.toMillis === 'function' ? b.requestDate.toMillis() : new Date(b.requestDate as any).getTime();
+                        const timeA = a.requestDate ? (typeof a.requestDate.toMillis === 'function' ? a.requestDate.toMillis() : new Date(a.requestDate as any).getTime()) : 0;
+                        const timeB = b.requestDate ? (typeof b.requestDate.toMillis === 'function' ? b.requestDate.toMillis() : new Date(b.requestDate as any).getTime()) : 0;
                         return timeB - timeA;
                       })
-                      .map((exp) => (
-                        <TableRow key={exp.id} className="hover:bg-muted/5 transition-colors">
-                          <TableCell className="font-bold whitespace-nowrap py-4">
-                            {exp.agentName}
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5 uppercase">
-                              IDC: {exp.agentId.substring(0, 6).toUpperCase()}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-[280px] py-4">
-                            <p className="font-medium text-foreground text-xs leading-relaxed">
-                              « {exp.requestText} »
-                            </p>
-                            {exp.requestDate && (
-                              <div className="text-[9px] text-muted-foreground font-mono mt-1">
-                                Émise le {exp.requestDate.toDate().toLocaleDateString('fr-FR')} à {exp.requestDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      .map((exp) => {
+                        const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
+                        const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
+                        return (
+                          <TableRow key={exp.id} className="hover:bg-muted/5 transition-colors">
+                            <TableCell className="font-bold whitespace-nowrap py-4">
+                              {exp.agentName}
+                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5 uppercase">
+                                IDC: {exp.agentId.substring(0, 6).toUpperCase()}
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-[280px] py-4">
-                            {exp.replyText ? (
-                              <>
-                                <p className="italic text-foreground text-xs leading-relaxed">
-                                  « {exp.replyText} »
-                                </p>
-                                {exp.replyDate && (
-                                  <div className="text-[9px] text-muted-foreground font-mono mt-1">
-                                    Répondu le {exp.replyDate.toDate().toLocaleDateString('fr-FR')}
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-orange-600/80 font-medium italic text-xs">
-                                Pas encore de réponse
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-4 whitespace-nowrap">
-                            <div className="flex flex-col gap-1.5">
-                              <div className="w-fit">
-                                {exp.status === 'en_attente' && (
-                                  <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20 text-[10px] font-semibold">
-                                    En attente
-                                  </Badge>
-                                )}
-                                {exp.status === 'repondu' && (
-                                  <Badge variant="secondary" className="text-blue-600 bg-blue-500/10 border-blue-500/20 text-[10px] font-semibold">
-                                    Répondu
-                                  </Badge>
-                                )}
-                                {(exp.status === 'lu' || exp.status === 'archive' || exp.status === 'accepte') && (
-                                  <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-500/20 text-[10px] font-semibold">
-                                    Pris acte (Classé)
-                                  </Badge>
-                                )}
-                                {exp.status === 'sanctionne' && (
-                                  <Badge variant="destructive" className="text-red-600 bg-red-500/10 border-red-500/20 text-[10px] font-bold">
-                                    Sanctionné
-                                  </Badge>
-                                )}
-                              </div>
-                              {exp.status === 'sanctionne' && exp.sanctionText && (
-                                <div className="text-[10px] bg-orange-500/5 border border-orange-500/15 p-1.5 rounded text-foreground max-w-[180px] whitespace-normal">
-                                  <span className="font-bold text-orange-600 uppercase text-[8px] tracking-wider block">Sanction :</span>
-                                  {exp.sanctionText}
+                            </TableCell>
+                            <TableCell className="max-w-[280px] py-4">
+                              <p className="font-medium text-foreground text-xs leading-relaxed">
+                                « {exp.requestText} »
+                              </p>
+                              {reqDate && (
+                                <div className="text-[9px] text-muted-foreground font-mono mt-1">
+                                  Émise le {reqDate.toLocaleDateString('fr-FR')} à {reqDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                               )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell className="max-w-[280px] py-4">
+                              {exp.replyText ? (
+                                <>
+                                  <p className="italic text-foreground text-xs leading-relaxed">
+                                    « {exp.replyText} »
+                                  </p>
+                                  {repDate && (
+                                    <div className="text-[9px] text-muted-foreground font-mono mt-1">
+                                      Répondu le {repDate.toLocaleDateString('fr-FR')}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-orange-600/80 font-medium italic text-xs">
+                                  Pas encore de réponse
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-4 whitespace-nowrap">
+                              <div className="flex flex-col gap-1.5">
+                                <div className="w-fit">
+                                  {exp.status === 'en_attente' && (
+                                    <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20 text-[10px] font-semibold">
+                                      En attente
+                                    </Badge>
+                                  )}
+                                  {exp.status === 'repondu' && (
+                                    <Badge variant="secondary" className="text-blue-600 bg-blue-500/10 border-blue-500/20 text-[10px] font-semibold">
+                                      Répondu
+                                    </Badge>
+                                  )}
+                                  {(exp.status === 'lu' || exp.status === 'archive' || exp.status === 'accepte') && (
+                                    <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-500/20 text-[10px] font-semibold">
+                                      Pris acte (Classé)
+                                    </Badge>
+                                  )}
+                                  {exp.status === 'sanctionne' && (
+                                    <Badge variant="destructive" className="text-red-600 bg-red-500/10 border-red-500/20 text-[10px] font-bold">
+                                      Sanctionné
+                                    </Badge>
+                                  )}
+                                </div>
+                                {exp.status === 'sanctionne' && exp.sanctionText && (
+                                  <div className="text-[10px] bg-orange-500/5 border border-orange-500/15 p-1.5 rounded text-foreground max-w-[180px] whitespace-normal">
+                                    <span className="font-bold text-orange-600 uppercase text-[8px] tracking-wider block">Sanction :</span>
+                                    {exp.sanctionText}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               </div>

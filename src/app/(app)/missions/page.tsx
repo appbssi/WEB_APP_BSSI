@@ -42,7 +42,7 @@ import { collection, deleteDoc, doc, updateDoc, writeBatch } from 'firebase/fire
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Mission, MissionStatus } from '@/lib/types';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
 import { EditMissionDialog } from '@/components/missions/edit-mission-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -222,7 +222,13 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
 export default function MissionsPage() {
   return (
     <ClientOnly>
-      <MissionsContent />
+      <Suspense fallback={
+        <div id="missions-loading" className="flex h-[calc(100vh-10rem)] w-full items-center justify-center">
+          <div className="loader"></div>
+        </div>
+      }>
+        <MissionsContent />
+      </Suspense>
     </ClientOnly>
   );
 }

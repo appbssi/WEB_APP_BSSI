@@ -6,6 +6,26 @@ import type { Agent, Mission, Availability, Demande } from './types';
 import { getDisplayStatus } from './missions';
 
 
+export function safeToDate(val: any): Date | null {
+  if (!val) return null;
+  if (typeof val.toDate === 'function') {
+    return val.toDate();
+  }
+  if (val instanceof Date) {
+    return val;
+  }
+  if (typeof val === 'string' || typeof val === 'number') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return d;
+    }
+  }
+  if (val.seconds !== undefined) {
+    return new Date(val.seconds * 1000);
+  }
+  return null;
+}
+
 /**
  * Determines the availability of an agent based on their missions and leave status.
  * An agent is "En congé" if the current date falls within their leave period.
@@ -41,8 +61,10 @@ export function getAgentAvailability(
         
       if (!isAgentMatch) return false;
       
-      const start = d.startDate.toDate();
-      const end = d.endDate.toDate();
+      const start = safeToDate(d.startDate);
+      const end = safeToDate(d.endDate);
+      if (!start || !end) return false;
+      
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
       
@@ -56,12 +78,14 @@ export function getAgentAvailability(
 
   // 2. Check manual leave (En congé)
   if (agent.leaveStartDate && agent.leaveEndDate) {
-    const leaveStart = agent.leaveStartDate.toDate();
-    const leaveEnd = agent.leaveEndDate.toDate();
-    leaveStart.setHours(0, 0, 0, 0);
-    leaveEnd.setHours(23, 59, 59, 999);
-    if (now >= leaveStart && now <= leaveEnd) {
-      return 'En congé';
+    const leaveStart = safeToDate(agent.leaveStartDate);
+    const leaveEnd = safeToDate(agent.leaveEndDate);
+    if (leaveStart && leaveEnd) {
+      leaveStart.setHours(0, 0, 0, 0);
+      leaveEnd.setHours(23, 59, 59, 999);
+      if (now >= leaveStart && now <= leaveEnd) {
+        return 'En congé';
+      }
     }
   }
 

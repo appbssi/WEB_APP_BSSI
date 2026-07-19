@@ -155,19 +155,30 @@ export function CreateGatheringForm({ onGatheringCreated }: CreateGatheringFormP
                         <FormField control={form.control} name="date" render={({ field }) => (
                             <FormItem className="flex flex-col">
                                 <FormLabel>Date</FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <FormControl>
-                                            <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                                {field.value ? format(field.value, "PPP", { locale: fr }) : <span>Choisissez une date</span>}
-                                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                            </Button>
-                                        </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                    </PopoverContent>
-                                </Popover>
+                                <FormControl>
+                                    <Input
+                                        type="date"
+                                        className="w-full"
+                                        value={field.value ? (() => {
+                                            const d = field.value instanceof Date ? field.value : new Date(field.value);
+                                            if (isNaN(d.getTime())) return '';
+                                            const year = d.getFullYear();
+                                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                                            const day = String(d.getDate()).padStart(2, '0');
+                                            return `${year}-${month}-${day}`;
+                                        })() : ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val) {
+                                                const [year, month, day] = val.split('-').map(Number);
+                                                const d = new Date(year, month - 1, day);
+                                                field.onChange(d);
+                                            } else {
+                                                field.onChange(undefined);
+                                            }
+                                        }}
+                                    />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )} />

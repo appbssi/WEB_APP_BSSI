@@ -108,7 +108,8 @@ export function Header() {
       return userIdc ? `Agent (${userIdc})` : 'Agent';
     }
     if (role === 'secretariat') return 'Secrétariat';
-    return role.charAt(0).toUpperCase() + role.slice(1);
+    const r = role as string;
+    return r.charAt(0).toUpperCase() + r.slice(1);
   }, [role, currentAgent, userIdc]);
 
   return (

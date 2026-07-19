@@ -202,7 +202,7 @@ export function BroadcastTab() {
     setSendLogs([]);
 
     const selectedContacts = unifiedContacts.filter(c => selectedIds.has(c.id));
-    const total = selectedContacts.size || selectedContacts.length;
+    const total = selectedContacts.length;
 
     addLog('🚀 Initialisation de la file d\'envoi simultané...');
     addLog(`📋 Planification de ${total} messages via canal : [${channel.toUpperCase()}]`);

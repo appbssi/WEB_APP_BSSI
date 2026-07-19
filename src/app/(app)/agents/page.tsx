@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User } from 'lucide-react';
+import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User, HelpCircle, Pencil, Calendar } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { RegisterAgentForm } from '@/components/agents/register-agent-form';
-import type { Agent, Availability, Mission } from '@/lib/types';
+import type { Agent, Availability, Mission, Demande } from '@/lib/types';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
@@ -48,6 +48,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AgentDetailsSheet } from '@/components/agents/agent-details-sheet';
+import { AgentExplicationForm } from '@/components/agents/agent-explication-form';
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
 import { getAgentAvailability } from '@/lib/agents';
@@ -87,6 +88,7 @@ function AgentsContent() {
   const [leaveAgent, setLeaveAgent] = useState<Agent | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
+  const [explicationAgent, setExplicationAgent] = useState<Agent | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'Disponible' | 'En mission' | 'En congé'>('all');
@@ -102,19 +104,21 @@ function AgentsContent() {
 
   const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
   const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
+  const demandesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'demandes') : null), [firestore]);
 
   const { data: agents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
   const { data: missions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
+  const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
 
   const agentsWithDetails: Agent[] = useMemo(() => {
     if (!agents || !missions) return [];
     const now = new Date();
     return agents.map(agent => ({
       ...agent,
-      availability: getAgentAvailability(agent, missions, now),
+      availability: getAgentAvailability(agent, missions, now, undefined, demandes || []),
       missionCount: missions.filter(m => m.assignedAgentIds.includes(agent.id)).length,
     }));
-  }, [agents, missions]);
+  }, [agents, missions, demandes]);
 
   const sortedAgents = useMemo(() => {
     if (!agentsWithDetails) return [];
@@ -155,6 +159,8 @@ function AgentsContent() {
         return 'default';
       case 'En congé':
         return 'destructive';
+      case 'En permission':
+        return 'secondary';
       default:
         return 'secondary';
     }
@@ -282,10 +288,10 @@ function AgentsContent() {
             head: [['Nom complet', 'Matricule', 'Grade', 'Section', 'Disponibilité', 'IDC']],
             body: filteredAgents.map(agent => [
                 agent.fullName,
-                agent.registrationNumber,
-                agent.rank,
-                agent.section === 'OFFICIER' ? 'N/A' : (agent.section || 'Non assigné').toUpperCase(),
-                agent.availability,
+                agent.registrationNumber || '',
+                agent.rank || '',
+                ((agent.section as string) === 'Officier' || (agent.section as string) === 'OFFICIER') ? 'N/A' : (agent.section || 'Non assigné').toUpperCase(),
+                agent.availability || '',
                 agent.id.substring(0, 6).toUpperCase(),
             ]),
             startY: currentY,
@@ -293,7 +299,7 @@ function AgentsContent() {
             headStyles: { fillColor: [39, 55, 70], textColor: 255, fontStyle: 'bold' },
             alternateRowStyles: { fillColor: [245, 245, 245] },
             didDrawPage: (data) => {
-                const pageCount = doc.internal.getNumberOfPages();
+                const pageCount = doc.getNumberOfPages();
                 doc.setFontSize(10);
                 doc.text(`Page ${data.pageNumber} sur ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
             }
@@ -416,15 +422,15 @@ function AgentsContent() {
               <TableHead>Missions</TableHead>
               <TableHead>Disponibilité</TableHead>
               <TableHead>IDC</TableHead>
-              <TableHead><span className="sr-only">Actions</span></TableHead>
+              {isAdmin && <TableHead className="text-center">Explication</TableHead>}
+              {isAdmin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {agentsLoading || missionsLoading ? (
-              <TableRow><TableCell colSpan={7} className="text-center">Chargement des agents...</TableCell></TableRow>
+            {agentsLoading || missionsLoading || demandesLoading ? (
+              <TableRow><TableCell colSpan={isAdmin ? 8 : 6} className="text-center">Chargement des agents...</TableCell></TableRow>
             ) : filteredAgents.length > 0 ? (
               filteredAgents.map((agent) => {
-                const isAgentOnMission = agent.availability === 'En mission';
                 return (
                   <TableRow key={agent.id} onClick={() => setSelectedAgent(agent)} className="cursor-pointer">
                     <TableCell>
@@ -453,41 +459,55 @@ function AgentsContent() {
                         {agent.id.substring(0, 6).toUpperCase()}
                       </code>
                     </TableCell>
-                    <TableCell>
-                      {!isObserver && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onSelect={() => setEditingAgent(agent)}>Modifier</DropdownMenuItem>
-                             <DropdownMenuItem 
-                              onSelect={() => setLeaveAgent(agent)}
-                              disabled={isAgentOnMission}
-                            >
-                              Gérer le congé
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onSelect={() => !isAgentOnMission && setAgentToDelete(agent)}
-                              disabled={isAgentOnMission}
-                              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                            >
-                              Supprimer
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
+                    {isAdmin && (
+                      <TableCell onClick={(e) => e.stopPropagation()} className="text-center">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1 border-orange-500/30 text-orange-600 hover:bg-orange-500/10 hover:text-orange-700 font-semibold"
+                          onClick={() => setExplicationAgent(agent)}
+                        >
+                          <HelpCircle className="h-4 w-4" />
+                          <span>Demander</span>
+                        </Button>
+                      </TableCell>
+                    )}
+                    {isAdmin && (
+                      <TableCell onClick={(e) => e.stopPropagation()} className="text-right whitespace-nowrap space-x-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-blue-500/30 text-blue-600 hover:bg-blue-500/10 hover:text-blue-700 font-semibold"
+                          onClick={() => setEditingAgent(agent)}
+                          title="Modifier l'agent"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-teal-500/30 text-teal-600 hover:bg-teal-500/10 hover:text-teal-700 font-semibold"
+                          onClick={() => setLeaveAgent(agent)}
+                          title="Gérer les congés/permissions"
+                        >
+                          <Calendar className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 font-semibold"
+                          onClick={() => setAgentToDelete(agent)}
+                          title="Supprimer l'agent"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })
             ) : (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Aucun agent trouvé.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isAdmin ? 8 : 6} className="text-center text-muted-foreground">Aucun agent trouvé.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -521,6 +541,18 @@ function AgentsContent() {
           isOpen={!!selectedAgent}
           onOpenChange={(open) => !open && setSelectedAgent(null)}
         />
+      )}
+
+      {explicationAgent && (
+        <Dialog open={!!explicationAgent} onOpenChange={(open) => !open && setExplicationAgent(null)}>
+          <DialogContent className="w-[95vw] sm:max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl p-6">
+            <DialogTitle className="sr-only">Demande d'explication</DialogTitle>
+            <AgentExplicationForm
+              agent={explicationAgent}
+              onClose={() => setExplicationAgent(null)}
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
       {agentToDelete && (

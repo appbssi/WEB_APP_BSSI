@@ -22,6 +22,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import {
   Popover,
   PopoverContent,
@@ -175,54 +176,76 @@ export function ManageLeaveDialog({ agent, isOpen, onOpenChange }: ManageLeaveDi
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
-            <FormField
-              control={form.control}
-              name="leaveDates"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel className="text-xs sm:text-sm">Période de congé</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          id="date"
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal text-xs sm:text-sm",
-                            !field.value?.from && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                          {field.value?.from ? (
-                            field.value.to ? (
-                              <span className="truncate">
-                                {format(field.value.from, "dd LLL y", { locale: fr })} -{" "}
-                                {format(field.value.to, "dd LLL y", { locale: fr })}
-                              </span>
-                            ) : (
-                              <span>{format(field.value.from, "dd LLL y", { locale: fr })}</span>
-                            )
-                          ) : (
-                            <span>Choisissez une période</span>
-                          )}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={field.value?.from}
-                        selected={{ from: field.value?.from!, to: field.value?.to }}
-                        onSelect={field.onChange}
-                        numberOfMonths={isMobile ? 1 : 2}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="leaveDates.from"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel className="text-xs sm:text-sm">Date de début</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        className="w-full"
+                        value={field.value ? (() => {
+                          const d = field.value instanceof Date ? field.value : new Date(field.value);
+                          if (isNaN(d.getTime())) return '';
+                          const year = d.getFullYear();
+                          const month = String(d.getMonth() + 1).padStart(2, '0');
+                          const day = String(d.getDate()).padStart(2, '0');
+                          return `${year}-${month}-${day}`;
+                        })() : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) {
+                            const [year, month, day] = val.split('-').map(Number);
+                            const d = new Date(year, month - 1, day);
+                            field.onChange(d);
+                          } else {
+                            field.onChange(undefined);
+                          }
+                        }}
                       />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage className="text-xs" />
-                </FormItem>
-              )}
-            />
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="leaveDates.to"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel className="text-xs sm:text-sm">Date de fin</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        className="w-full"
+                        value={field.value ? (() => {
+                          const d = field.value instanceof Date ? field.value : new Date(field.value);
+                          if (isNaN(d.getTime())) return '';
+                          const year = d.getFullYear();
+                          const month = String(d.getMonth() + 1).padStart(2, '0');
+                          const day = String(d.getDate()).padStart(2, '0');
+                          return `${year}-${month}-${day}`;
+                        })() : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) {
+                            const [year, month, day] = val.split('-').map(Number);
+                            const d = new Date(year, month - 1, day);
+                            field.onChange(d);
+                          } else {
+                            field.onChange(undefined);
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+            </div>
             <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0 !justify-between">
               <Button type="button" variant="ghost" onClick={handleClearLeave} className="text-destructive hover:text-destructive text-xs sm:text-sm w-full sm:w-auto justify-center">
                 <Trash2 className="mr-2 h-4 w-4" />

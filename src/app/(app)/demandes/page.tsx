@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send } from 'lucide-react';
-import type { Demande, Agent } from '@/lib/types';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle } from 'lucide-react';
+import type { Demande, Agent, Explication } from '@/lib/types';
 
 export default function DemandesPage() {
   return (
@@ -49,6 +49,10 @@ function DemandesContent() {
   
   // Alert for new updates
   const [unnotifiedDemandes, setUnnotifiedDemandes] = useState<Demande[]>([]);
+
+  // Explanation states
+  const [replies, setReplies] = useState<Record<string, string>>({});
+  const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
 
   // Get user IDC from localStorage
   useEffect(() => {
@@ -88,6 +92,95 @@ function DemandesContent() {
   }, [firestore, userIdc]);
 
   const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
+
+  // Fetch explanation requests for this agent
+  const explicationsQuery = useMemoFirebase(() => {
+    if (!firestore || !currentAgent) return null;
+    return query(
+      collection(firestore, 'explications'),
+      where('agentId', '==', currentAgent.id)
+    );
+  }, [firestore, currentAgent]);
+
+  const { data: explications } = useCollection<Explication>(explicationsQuery);
+
+  const pendingExplications = useMemo(() => {
+    if (!explications) return [];
+    return explications.filter(exp => exp.status === 'en_attente');
+  }, [explications]);
+
+  const unnotifiedSanctions = useMemo(() => {
+    if (!explications) return [];
+    return explications.filter(exp => exp.status === 'sanctionne' && exp.notifiedAgentSanction === false);
+  }, [explications]);
+
+  const handleAcknowledgeSanction = async (id: string) => {
+    if (!firestore) return;
+    try {
+      const docRef = doc(firestore, 'explications', id);
+      await setDoc(docRef, {
+        notifiedAgentSanction: true,
+      }, { merge: true });
+
+      toast({
+        title: 'Réception accusée',
+        description: 'Vous avez accusé réception de la sanction administrative.',
+      });
+    } catch (err) {
+      console.error('Error acknowledging sanction:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Impossible d’accuser réception.',
+      });
+    }
+  };
+
+  const handleReplyExplication = async (id: string) => {
+    const reply = replies[id]?.trim();
+    if (!reply || !firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Réponse vide',
+        description: 'Veuillez rédiger une réponse explicative.',
+      });
+      return;
+    }
+
+    setReplySubmitting(prev => ({ ...prev, [id]: true }));
+
+    try {
+      const expRef = doc(firestore, 'explications', id);
+      await setDoc(expRef, {
+        replyText: reply,
+        replyDate: Timestamp.now(),
+        status: 'repondu',
+        notifiedAdmin: false, // will notify admin
+        notifiedAgent: true,
+      }, { merge: true });
+
+      toast({
+        title: 'Réponse envoyée',
+        description: "Votre réponse à la demande d'explication a bien été transmise.",
+      });
+
+      // Clear reply state
+      setReplies(prev => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+    } catch (err) {
+      console.error('Error replying to explanation:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Impossible d’envoyer votre réponse. Veuillez réessayer.',
+      });
+    } finally {
+      setReplySubmitting(prev => ({ ...prev, [id]: false }));
+    }
+  };
 
   // Stagger/Capture unnotified requests on first load to display them in an alert banner
   useEffect(() => {
@@ -222,6 +315,111 @@ function DemandesContent() {
           Suivez l’état de vos permissions ou soumettez une nouvelle demande à la hiérarchie.
         </p>
       </div>
+
+      {/* Alert Banner for Pending Explanation Requests */}
+      {pendingExplications.length > 0 && (
+        <div className="space-y-4">
+          {pendingExplications.map((exp) => (
+            <Card key={exp.id} className="border-destructive/40 bg-destructive/5 rounded-2xl shadow-md overflow-hidden">
+              <CardHeader className="bg-destructive/10 pb-3 flex flex-row items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-destructive animate-pulse shrink-0" />
+                <div>
+                  <CardTitle className="text-base font-extrabold text-destructive">DEMANDE D'EXPLICATION REQUISE</CardTitle>
+                  <CardDescription className="text-xs text-destructive/80 font-medium">
+                    Une demande d'explication vous a été adressée par l'administration.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <div className="bg-background/80 p-3 rounded-xl border border-destructive/20 space-y-1">
+                  <div className="text-xs text-muted-foreground font-mono">
+                    Envoyée le {exp.requestDate?.toDate().toLocaleDateString('fr-FR')} à {exp.requestDate?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <p className="font-bold text-foreground text-sm leading-relaxed">
+                    « {exp.requestText} »
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`reply-${exp.id}`} className="text-xs font-bold text-foreground">Votre réponse explicative *</Label>
+                  <Textarea
+                    id={`reply-${exp.id}`}
+                    placeholder="Saisissez votre réponse ou justification de manière détaillée..."
+                    value={replies[exp.id] || ''}
+                    onChange={(e) => setReplies(prev => ({ ...prev, [exp.id]: e.target.value }))}
+                    rows={3}
+                    className="bg-background text-sm"
+                    required
+                  />
+                </div>
+
+                <Button
+                  onClick={() => handleReplyExplication(exp.id)}
+                  className="rounded-xl flex items-center justify-center gap-2 font-semibold text-white bg-destructive hover:bg-destructive/90"
+                  disabled={replySubmitting[exp.id] || !replies[exp.id]?.trim()}
+                >
+                  {replySubmitting[exp.id] ? (
+                    <span>Transmission...</span>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Envoyer ma réponse explicative
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Alert Banner for Applied Sanctions */}
+      {unnotifiedSanctions.length > 0 && (
+        <div className="space-y-4">
+          {unnotifiedSanctions.map((exp) => (
+            <Card key={exp.id} className="border-orange-500/40 bg-orange-500/5 rounded-2xl shadow-md overflow-hidden">
+              <CardHeader className="bg-orange-500/10 pb-3 flex flex-row items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-orange-600 animate-pulse shrink-0" />
+                <div>
+                  <CardTitle className="text-base font-extrabold text-orange-800 dark:text-orange-300">SANCTION ADMINISTRATIVE APPLIQUÉE</CardTitle>
+                  <CardDescription className="text-xs text-orange-700/80 dark:text-orange-400/80 font-medium">
+                    Une sanction a été décidée par l'administration suite à votre explication.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground font-semibold">Votre explication envoyée :</span>
+                  <p className="italic bg-background/50 p-2.5 rounded border border-border text-xs text-foreground">
+                    « {exp.replyText} »
+                  </p>
+                </div>
+                <div className="bg-orange-500/10 p-3.5 rounded-xl border border-orange-500/20 space-y-1">
+                  <div className="text-[10px] text-orange-700 dark:text-orange-400 font-bold uppercase tracking-wider">
+                    Sanction prononcée :
+                  </div>
+                  <p className="font-extrabold text-foreground text-sm leading-relaxed">
+                    « {exp.sanctionText} »
+                  </p>
+                  {exp.sanctionDate && (
+                    <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
+                      Notifié le {exp.sanctionDate.toDate().toLocaleDateString('fr-FR')} à {exp.sanctionDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => handleAcknowledgeSanction(exp.id)}
+                  className="rounded-xl flex items-center justify-center gap-1.5 font-bold text-white bg-orange-600 hover:bg-orange-500 text-xs py-1.5 px-3 h-8 shadow-sm"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Accuser réception de la sanction
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Alert Banner for Admin Decision Updates */}
       {unnotifiedDemandes.length > 0 && (
@@ -398,6 +596,98 @@ function DemandesContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Explanation Requests History Card */}
+      <Card className="rounded-2xl border border-border/80 shadow-md mt-6">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <HelpCircle className="h-5 w-5 text-orange-600" />
+            Historique de mes demandes d'explication
+          </CardTitle>
+          <CardDescription>
+            Retrouvez l'historique complet des demandes d'explications qui vous ont été adressées ainsi que vos réponses et les éventuelles sanctions administratives.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {explications && explications.length > 0 ? (
+            <div className="space-y-4">
+              {explications.map((exp) => (
+                <div key={exp.id} className="p-4 rounded-xl border bg-card text-xs space-y-3 shadow-sm hover:border-orange-500/20 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
+                    <span className="text-muted-foreground font-mono">
+                      Reçue le {exp.requestDate?.toDate().toLocaleDateString('fr-FR')} à {exp.requestDate?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {exp.status === 'en_attente' && (
+                        <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20">
+                          En attente de réponse
+                        </Badge>
+                      )}
+                      {exp.status === 'repondu' && (
+                        <Badge variant="secondary" className="text-blue-600 bg-blue-500/10 border-blue-500/20">
+                          Répondu - En attente d'arbitrage
+                        </Badge>
+                      )}
+                      {(exp.status === 'lu' || exp.status === 'archive' || exp.status === 'accepte') && (
+                        <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
+                          Pris acte (Sans sanction)
+                        </Badge>
+                      )}
+                      {exp.status === 'sanctionne' && (
+                        <Badge variant="destructive" className="text-red-600 bg-red-500/10 border-red-500/20 font-bold">
+                          Sanctionné
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div className="font-bold text-muted-foreground mb-1">Motif de l'administration :</div>
+                    <p className="font-semibold bg-muted/40 p-2.5 rounded border border-border mt-1">« {exp.requestText} »</p>
+                  </div>
+
+                  {exp.replyText ? (
+                    <div className="pt-2 border-t border-dashed">
+                      <div className="font-bold text-primary mb-1">Votre réponse explicative :</div>
+                      <p className="italic bg-primary/5 p-2.5 rounded border border-primary/10">« {exp.replyText} »</p>
+                      {exp.replyDate && (
+                        <div className="text-[10px] text-muted-foreground text-right font-mono mt-1">
+                          Envoyée le {exp.replyDate.toDate().toLocaleDateString('fr-FR')} à {exp.replyDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-orange-600/80 font-medium italic">Vous n'avez pas encore répondu à cette demande d'explication.</div>
+                  )}
+
+                  {exp.status === 'sanctionne' && exp.sanctionText && (
+                    <div className="bg-orange-500/10 p-3.5 rounded-xl border border-orange-500/20 space-y-1 mt-2">
+                      <div className="text-[10px] text-orange-700 font-bold uppercase tracking-wider flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Sanction prononcée par l'autorité :
+                      </div>
+                      <p className="font-extrabold text-foreground text-sm">
+                        « {exp.sanctionText} »
+                      </p>
+                      {exp.sanctionDate && (
+                        <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
+                          Prononcée le {exp.sanctionDate.toDate().toLocaleDateString('fr-FR')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 border border-dashed rounded-lg text-muted-foreground">
+              <HelpCircle className="h-10 w-10 mx-auto opacity-30 mb-2" />
+              <p className="font-semibold text-foreground text-sm">Aucun historique d'explications</p>
+              <p className="text-xs mt-1">Vous n'avez aucune demande d'explication enregistrée dans votre dossier.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

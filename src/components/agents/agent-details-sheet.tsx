@@ -1,20 +1,28 @@
 
 'use client';
 
+import { useState } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import type { Agent, Availability, Mission } from '@/lib/types';
+import type { Agent, Availability, Mission, Explication } from '@/lib/types';
 import { User, Shield, Phone, MapPin, Briefcase } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getDisplayStatus } from '@/lib/missions';
 import Image from 'next/image';
+import { useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, addDoc, Timestamp } from 'firebase/firestore';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { useRole } from '@/hooks/use-role';
+import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface AgentDetailsProps {
   agent: Agent & { availability: Availability };
@@ -24,6 +32,55 @@ interface AgentDetailsProps {
 }
 
 export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: AgentDetailsProps) {
+  const firestore = useFirestore();
+  const { isAdmin } = useRole();
+  const { toast } = useToast();
+  const [requestText, setRequestText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const explicationsQuery = useMemoFirebase(() => {
+    if (!firestore || !agent) return null;
+    return query(
+      collection(firestore, 'explications'),
+      where('agentId', '==', agent.id)
+    );
+  }, [firestore, agent]);
+
+  const { data: explications, isLoading: explicationsLoading } = useCollection<Explication>(explicationsQuery);
+
+  const handleSendRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestText.trim() || !firestore || !agent) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(firestore, 'explications'), {
+        agentId: agent.id,
+        agentName: agent.fullName,
+        requestText: requestText.trim(),
+        requestDate: Timestamp.now(),
+        replyText: '',
+        replyDate: null,
+        status: 'en_attente',
+        notifiedAgent: false,
+        notifiedAdmin: false,
+      });
+      setRequestText('');
+      toast({
+        title: "Demande envoyée",
+        description: `La demande d'explication a été envoyée à l'agent ${agent.fullName}.`,
+      });
+    } catch (error) {
+      console.error('Error sending explanation request:', error);
+      toast({
+        variant: 'destructive',
+        title: "Erreur",
+        description: "Impossible d'envoyer la demande d'explication.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getBadgeVariant = (availability: Availability) => {
     switch (availability) {
       case 'Disponible':
@@ -44,14 +101,14 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
   });
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-3xl sm:rounded-[2rem] w-[95vw] sm:w-full sm:max-w-2xl bg-background/95 backdrop-blur-md shadow-2xl border-primary/50 border-2 max-h-[92vh] sm:max-h-[95vh] p-0 overflow-hidden flex flex-col">
-        <DialogHeader className="p-4 sm:p-6 pb-2 border-b">
-          <DialogTitle className="text-lg sm:text-xl font-bold">Profil de l'Agent</DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-[95vw] sm:max-w-2xl bg-background/95 backdrop-blur-md shadow-2xl border-l p-0 overflow-hidden flex flex-col h-full">
+        <SheetHeader className="p-4 sm:p-6 pb-2 border-b">
+          <SheetTitle className="text-lg sm:text-xl font-bold">Profil de l'Agent</SheetTitle>
+          <SheetDescription className="text-xs sm:text-sm">
             Consultez les informations détaillées et le registre d'activité de l'élément.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         
         <div className="flex-1 relative overflow-hidden">
           <ScrollArea className="h-full">
@@ -171,8 +228,8 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
                                                     {mission.endDate.toDate().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                                                 </TableCell>
                                                 <TableCell className="py-4 text-right">
-                                                    <Badge className="text-[9px] font-bold h-5 px-2 tracking-tight" variant={getDisplayStatus(mission) === 'Terminée' ? 'outline' : getDisplayStatus(mission) === 'Annulée' ? 'destructive' : 'secondary'}>
-                                                        {getDisplayStatus(mission)?.toUpperCase()}
+                                                    <Badge className="text-[9px] font-bold h-5 px-2 tracking-tight" variant={getDisplayStatus(mission, new Date()) === 'Terminée' ? 'outline' : getDisplayStatus(mission, new Date()) === 'Annulée' ? 'destructive' : 'secondary'}>
+                                                        {getDisplayStatus(mission, new Date())?.toUpperCase()}
                                                     </Badge>
                                                 </TableCell>
                                             </TableRow>
@@ -192,10 +249,77 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
                          </div>
                     </div>
                 </div>
+
+                {/* Section Demandes d'Explication (Admin only) */}
+                {isAdmin && (
+                  <div className="space-y-4 pt-4 border-t border-border">
+                    <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] px-1">Demandes d'Explication</h3>
+                    
+                    {/* Form to send new request */}
+                    <form onSubmit={handleSendRequest} className="space-y-3 bg-muted/20 p-4 rounded-2xl border">
+                      <h4 className="text-sm font-bold">Nouvelle demande d'explication</h4>
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Saisissez le motif ou la question d'explication (ex: Justification de l'absence du 18 juillet)..."
+                          value={requestText}
+                          onChange={(e) => setRequestText(e.target.value)}
+                          rows={3}
+                          className="bg-background text-sm"
+                          required
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="w-full sm:w-auto font-semibold"
+                        disabled={isSubmitting || !requestText.trim()}
+                      >
+                        {isSubmitting ? "Envoi..." : "Envoyer la demande"}
+                      </Button>
+                    </form>
+
+                    {/* List of past requests */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold">Historique des demandes</h4>
+                      {explicationsLoading ? (
+                        <p className="text-xs text-muted-foreground italic">Chargement...</p>
+                      ) : explications && explications.length > 0 ? (
+                        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                          {explications.map((exp) => (
+                            <div key={exp.id} className="p-3 rounded-xl border bg-card text-xs space-y-2 shadow-sm">
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-muted-foreground font-mono">
+                                  Envoyée le {exp.requestDate?.toDate().toLocaleDateString('fr-FR')} à {exp.requestDate?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <Badge variant={exp.status === 'en_attente' ? 'outline' : 'secondary'} className={exp.status === 'en_attente' ? 'text-orange-600 bg-orange-500/10 border-orange-500/20' : 'text-emerald-600 bg-emerald-500/10 border-emerald-500/20'}>
+                                  {exp.status === 'en_attente' ? 'En attente' : 'Répondu'}
+                                </Badge>
+                              </div>
+                              <p className="font-semibold bg-muted/50 p-2 rounded text-foreground">« {exp.requestText} »</p>
+                              {exp.status === 'repondu' && exp.replyText && (
+                                <div className="space-y-1 pt-2 border-t border-border mt-2">
+                                  <div className="text-primary font-bold">Réponse de l'agent :</div>
+                                  <p className="italic bg-primary/5 p-2 rounded text-foreground">« {exp.replyText} »</p>
+                                  {exp.replyDate && (
+                                    <div className="text-[10px] text-muted-foreground text-right font-mono mt-1">
+                                      Le {exp.replyDate.toDate().toLocaleDateString('fr-FR')} à {exp.replyDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Aucune demande d'explication envoyée à cet agent.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
             </div>
           </ScrollArea>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

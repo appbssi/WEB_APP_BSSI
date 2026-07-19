@@ -400,9 +400,9 @@ function ArmurerieContent() {
                         <TableCell>{weaponsById[a.weaponId]?.model || '...'} ({weaponsById[a.weaponId]?.serialNumber})</TableCell>
                         <TableCell>
                           <div className="text-xs">
-                            {a.magazineCount > 0 && <span className="block">{a.magazineCount} chargeur(s)</span>}
-                            {a.ammunitionCount > 0 && <span className="block">{a.ammunitionCount} munition(s)</span>}
-                            {!(a.magazineCount > 0 || a.ammunitionCount > 0) && '-'}
+                            {(a.magazineCount || 0) > 0 && <span className="block">{a.magazineCount} chargeur(s)</span>}
+                            {(a.ammunitionCount || 0) > 0 && <span className="block">{a.ammunitionCount} munition(s)</span>}
+                            {!((a.magazineCount || 0) > 0 || (a.ammunitionCount || 0) > 0) && '-'}
                           </div>
                         </TableCell>
                         <TableCell>{a.assignedAt.toDate().toLocaleString('fr-FR')}</TableCell>
@@ -458,8 +458,8 @@ function ArmurerieContent() {
                         <TableCell>{weaponsById[a.weaponId]?.model || '...'}</TableCell>
                         <TableCell>
                           <div className="text-xs text-muted-foreground">
-                            {a.magazineCount > 0 && <span>{a.magazineCount} ch. </span>}
-                            {a.ammunitionCount > 0 && (
+                            {(a.magazineCount || 0) > 0 && <span>{a.magazineCount} ch. </span>}
+                            {(a.ammunitionCount || 0) > 0 && (
                               <span>
                                 {a.ammunitionCount} mun.
                                 {a.returnedAt && a.returnedAmmunitionCount !== undefined && (
@@ -502,7 +502,7 @@ function ArmurerieContent() {
               </div>
             </div>
 
-            {assignmentToReturn && assignmentToReturn.ammunitionCount > 0 && (
+            {assignmentToReturn && (assignmentToReturn.ammunitionCount || 0) > 0 && (
               <div className="space-y-3 bg-muted/50 p-4 rounded-lg">
                 <div className="flex justify-between items-center">
                   <Label>Munitions reçues</Label>

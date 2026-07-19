@@ -32,24 +32,36 @@ import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
 
+const parseLocalDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getMidnightTimestamp = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
 const missionSchema = z.object({
   name: z.string().min(3, 'Le nom de la mission est requis'),
   location: z.string().min(3, 'Le lieu est requis'),
-  startDate: z.date({
-    required_error: "La date de début est requise.",
-  }),
-  endDate: z.date({
-    required_error: "La date de fin est requise.",
-  }),
+  startDate: z.string().min(1, 'La date de début est requise.'),
+  endDate: z.string().min(1, 'La date de fin est requise.'),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   assignedAgentIds: z.array(z.string()).min(1, "Vous devez assigner au moins un agent."),
   vehicleId: z.string().optional(),
-}).refine(data => data.endDate >= data.startDate, {
+}).refine(data => {
+  const start = parseLocalDate(data.startDate);
+  const end = parseLocalDate(data.endDate);
+  return getMidnightTimestamp(end) >= getMidnightTimestamp(start);
+}, {
   message: "La date de fin ne peut pas être antérieure à la date de début.",
   path: ["endDate"],
 }).refine(data => {
-    if (data.startDate && data.endDate && isSameDay(data.startDate, data.endDate)) {
+    if (data.startDate && data.endDate && data.startDate === data.endDate) {
         return !!data.startTime && !!data.endTime;
     }
     return true;
@@ -83,6 +95,8 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
     defaultValues: {
       name: '',
       location: '',
+      startDate: '',
+      endDate: '',
       startTime: '08:00',
       endTime: '17:00',
       assignedAgentIds: [],
@@ -102,7 +116,7 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
 
   const startDate = form.watch('startDate');
   const endDate = form.watch('endDate');
-  const isSingleDayMission = startDate && endDate && isSameDay(startDate, endDate);
+  const isSingleDayMission = startDate && endDate && startDate === endDate;
 
   const operationalVehicles = useMemo(() => {
     if (!allVehicles) return [];
@@ -123,11 +137,11 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
     const missionsCollection = collection(firestore, 'missions');
     const newMissionRef = doc(missionsCollection);
     
-    const newMissionData: Omit<Mission, 'id' | 'status'> = {
+    const newMissionData: Omit<Mission, 'id'> = {
         name: data.name,
         location: data.location,
-        startDate: Timestamp.fromDate(data.startDate),
-        endDate: Timestamp.fromDate(data.endDate),
+        startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
+        endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         assignedAgentIds: data.assignedAgentIds,
         status: 'Planification',
         vehicleId: data.vehicleId === 'none' ? undefined : data.vehicleId,
@@ -208,15 +222,21 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
   const availableAgents = useMemo(() => {
     if (!startDate || !endDate || !allAgents || !allMissions) return [];
 
-    const selectedStart = new Date(startDate);
-    const selectedEnd = new Date(endDate);
+    const selectedStart = parseLocalDate(startDate);
+    const selectedEnd = parseLocalDate(endDate);
     
     return allAgents
       .filter(agent => {
         if (agent.leaveStartDate && agent.leaveEndDate) {
             const leaveStart = agent.leaveStartDate.toDate();
             const leaveEnd = agent.leaveEndDate.toDate();
-            if (selectedStart < leaveEnd && selectedEnd > leaveStart) {
+
+            const selectedStartMs = getMidnightTimestamp(selectedStart);
+            const selectedEndMs = getMidnightTimestamp(selectedEnd);
+            const leaveStartMs = getMidnightTimestamp(leaveStart);
+            const leaveEndMs = getMidnightTimestamp(leaveEnd);
+
+            if (selectedStartMs < leaveEndMs && selectedEndMs > leaveStartMs) {
               return false;
             }
         }
@@ -232,7 +252,12 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
             const missionStart = mission.startDate.toDate();
             const missionEnd = mission.endDate.toDate();
 
-            return selectedStart < missionEnd && selectedEnd > missionStart;
+            const selectedStartMs = getMidnightTimestamp(selectedStart);
+            const selectedEndMs = getMidnightTimestamp(selectedEnd);
+            const missionStartMs = getMidnightTimestamp(missionStart);
+            const missionEndMs = getMidnightTimestamp(missionEnd);
+
+            return selectedStartMs < missionEndMs && selectedEndMs > missionStartMs;
         });
 
         return !hasConflict;
@@ -297,43 +322,13 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                         render={({ field }) => (
                         <FormItem className="flex flex-col">
                             <FormLabel>Date de début</FormLabel>
-                            <Popover open={isStartOpen} onOpenChange={setStartOpen}>
-                            <PopoverTrigger asChild>
-                                <FormControl>
-                                <Button
-                                    type="button"
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-full pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                    )}
-                                >
-                                    {field.value ? (
-                                    format(field.value, "PPP", { locale: fr })
-                                    ) : (
-                                    <span>Choisissez une date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                                </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={(date) => {
-                                    field.onChange(date);
-                                    setStartOpen(false);
-                                }}
-                                disabled={(date) => {
-                                    const today = new Date();
-                                    today.setHours(0, 0, 0, 0);
-                                    return date < today;
-                                }}
-                                initialFocus
+                            <FormControl>
+                                <Input
+                                    type="date"
+                                    className="w-full"
+                                    {...field}
                                 />
-                            </PopoverContent>
-                            </Popover>
+                            </FormControl>
                             <FormMessage />
                         </FormItem>
                         )}
@@ -344,44 +339,13 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                         render={({ field }) => (
                         <FormItem className="flex flex-col">
                             <FormLabel>Date de fin</FormLabel>
-                            <Popover open={isEndOpen} onOpenChange={setEndOpen}>
-                            <PopoverTrigger asChild>
-                                <FormControl>
-                                <Button
-                                    type="button"
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-full pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                    )}
-                                >
-                                    {field.value ? (
-                                    format(field.value, "PPP", { locale: fr })
-                                    ) : (
-                                    <span>Choisissez une date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                                </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={(date) => {
-                                    field.onChange(date);
-                                    setEndOpen(false);
-                                }}
-                                disabled={(date) => {
-                                    const start = startDate || new Date();
-                                    const limit = new Date(start);
-                                    limit.setHours(0, 0, 0, 0);
-                                    return date < limit;
-                                }}
-                                initialFocus
+                            <FormControl>
+                                <Input
+                                    type="date"
+                                    className="w-full"
+                                    {...field}
                                 />
-                            </PopoverContent>
-                            </Popover>
+                            </FormControl>
                             <FormMessage />
                         </FormItem>
                         )}

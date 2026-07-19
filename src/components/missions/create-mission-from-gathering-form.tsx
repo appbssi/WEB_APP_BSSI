@@ -36,17 +36,29 @@ import { useMemo, useState } from 'react';
 import { getAgentAvailability } from '@/lib/agents';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
 
+const parseLocalDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getMidnightTimestamp = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
 const missionSchema = z.object({
   name: z.string().min(3, 'Le nom de la mission est requis'),
   location: z.string().min(3, 'Le lieu est requis'),
-  startDate: z.date({
-    required_error: "La date de début est requise.",
-  }),
-  endDate: z.date({
-    required_error: "La date de fin est requise.",
-  }),
+  startDate: z.string().min(1, 'La date de début est requise.'),
+  endDate: z.string().min(1, 'La date de fin est requise.'),
   additionalAgentIds: z.array(z.string()).optional(),
-}).refine(data => data.endDate >= data.startDate, {
+}).refine(data => {
+  const start = parseLocalDate(data.startDate);
+  const end = parseLocalDate(data.endDate);
+  return getMidnightTimestamp(end) >= getMidnightTimestamp(start);
+}, {
   message: "La date de fin ne peut pas être antérieure à la date de début.",
   path: ["endDate"],
 });
@@ -71,6 +83,8 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
     defaultValues: {
       name: '',
       location: '',
+      startDate: '',
+      endDate: '',
       additionalAgentIds: [],
     },
   });
@@ -93,11 +107,11 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
     const preselectedAgentIds = agents.map(agent => agent.id);
     const finalAgentIds = [...new Set([...preselectedAgentIds, ...(data.additionalAgentIds || [])])];
 
-    const newMissionData: Omit<Mission, 'id' | 'status'> = {
+    const newMissionData: Omit<Mission, 'id'> = {
         name: data.name,
         location: data.location,
-        startDate: Timestamp.fromDate(data.startDate),
-        endDate: Timestamp.fromDate(data.endDate),
+        startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
+        endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         status: 'Planification',
         assignedAgentIds: finalAgentIds,
     };
@@ -238,43 +252,13 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
                     <FormLabel>Date de début</FormLabel>
-                    <Popover open={isStartOpen} onOpenChange={setStartOpen}>
-                    <PopoverTrigger asChild>
-                        <FormControl>
-                        <Button
-                            type="button"
-                            variant={"outline"}
-                            className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                            )}
-                        >
-                            {field.value ? (
-                            format(field.value, "PPP", { locale: fr })
-                            ) : (
-                            <span>Choisissez une date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                        </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                            field.onChange(date);
-                            setStartOpen(false);
-                        }}
-                        disabled={(date) => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            return date < today;
-                        }}
-                        initialFocus
+                    <FormControl>
+                        <Input
+                            type="date"
+                            className="w-full"
+                            {...field}
                         />
-                    </PopoverContent>
-                    </Popover>
+                    </FormControl>
                     <FormMessage />
                 </FormItem>
                 )}
@@ -285,44 +269,13 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
                     <FormLabel>Date de fin</FormLabel>
-                    <Popover open={isEndOpen} onOpenChange={setEndOpen}>
-                    <PopoverTrigger asChild>
-                        <FormControl>
-                        <Button
-                            type="button"
-                            variant={"outline"}
-                            className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                            )}
-                        >
-                            {field.value ? (
-                            format(field.value, "PPP", { locale: fr })
-                            ) : (
-                            <span>Choisissez une date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                        </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                            field.onChange(date);
-                            setEndOpen(false);
-                        }}
-                        disabled={(date) => {
-                            const start = startDate || new Date();
-                            const limit = new Date(start);
-                            limit.setHours(0, 0, 0, 0);
-                            return date < limit;
-                        }}
-                        initialFocus
+                    <FormControl>
+                        <Input
+                            type="date"
+                            className="w-full"
+                            {...field}
                         />
-                    </PopoverContent>
-                    </Popover>
+                    </FormControl>
                     <FormMessage />
                 </FormItem>
                 )}

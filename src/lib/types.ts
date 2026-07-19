@@ -17,7 +17,7 @@ export type Agent = {
   onLeave?: boolean;
 };
 
-export type Availability = 'Disponible' | 'En mission' | 'En congé';
+export type Availability = 'Disponible' | 'En mission' | 'En congé' | 'En permission';
 
 export type MissionStatus = 'Planification' | 'En cours' | 'Terminée' | 'Annulée';
 
@@ -167,4 +167,20 @@ export type Demande = {
   createdAt: Timestamp;
   notified: boolean;
   vu_par_agent: boolean;
+};
+
+export type Explication = {
+  id: string;
+  agentId: string;
+  agentName: string;
+  requestText: string;
+  requestDate: Timestamp;
+  replyText?: string;
+  replyDate?: Timestamp | null;
+  status: 'en_attente' | 'repondu' | 'sanctionne';
+  sanctionText?: string;
+  sanctionDate?: Timestamp | null;
+  notifiedAgent: boolean;
+  notifiedAdmin: boolean;
+  notifiedAgentSanction?: boolean;
 };

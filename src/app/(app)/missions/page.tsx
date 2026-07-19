@@ -121,14 +121,14 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
                 head: [['Nom complet', 'Contact']],
                 body: filteredAgents.map(agent => [
                     agent.fullName,
-                    agent.contact,
+                    agent.contact || '',
                 ]),
                 startY: currentY,
                 theme: 'striped',
                 headStyles: { fillColor: [39, 55, 70], textColor: 255, fontStyle: 'bold' },
                 alternateRowStyles: { fillColor: [245, 245, 245] },
                 didDrawPage: (data) => {
-                    const pageCount = doc.internal.getNumberOfPages();
+                    const pageCount = doc.getNumberOfPages();
                     doc.setFontSize(10);
                     doc.text(`Page ${data.pageNumber} sur ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
                 }

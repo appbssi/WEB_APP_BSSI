@@ -40,24 +40,45 @@ import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
+const formatDateToInputString = (timestamp: any) => {
+  if (!timestamp) return '';
+  const d = timestamp.toDate();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseLocalDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getMidnightTimestamp = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
 const missionSchema = z.object({
   name: z.string().min(3, 'Le nom de la mission est requis'),
   location: z.string().min(3, 'Le lieu est requis'),
-  startDate: z.date({
-    required_error: "La date de début est requise.",
-  }),
-  endDate: z.date({
-    required_error: "La date de fin est requise.",
-  }),
+  startDate: z.string().min(1, 'La date de début est requise.'),
+  endDate: z.string().min(1, 'La date de fin est requise.'),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   assignedAgentIds: z.array(z.string()).min(1, "Vous devez assigner au moins un agent."),
   vehicleId: z.string().optional(),
-}).refine(data => data.endDate >= data.startDate, {
+}).refine(data => {
+  const start = parseLocalDate(data.startDate);
+  const end = parseLocalDate(data.endDate);
+  return getMidnightTimestamp(end) >= getMidnightTimestamp(start);
+}, {
   message: "La date de fin ne peut pas être antérieure à la date de début.",
   path: ["endDate"],
 }).refine(data => {
-    if (data.startDate && data.endDate && isSameDay(data.startDate, data.endDate)) {
+    if (data.startDate && data.endDate && data.startDate === data.endDate) {
         return !!data.startTime && !!data.endTime;
     }
     return true;
@@ -94,8 +115,8 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
     defaultValues: {
       name: mission.name,
       location: mission.location,
-      startDate: mission.startDate.toDate(),
-      endDate: mission.endDate.toDate(),
+      startDate: formatDateToInputString(mission.startDate),
+      endDate: formatDateToInputString(mission.endDate),
       startTime: mission.startTime || '08:00',
       endTime: mission.endTime || '17:00',
       assignedAgentIds: mission.assignedAgentIds || [],
@@ -115,7 +136,7 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
   
   const startDate = form.watch('startDate');
   const endDate = form.watch('endDate');
-  const isSingleDayMission = startDate && endDate && isSameDay(startDate, endDate);
+  const isSingleDayMission = startDate && endDate && startDate === endDate;
 
   const operationalVehicles = useMemo(() => {
     if (!allVehicles) return [];
@@ -132,8 +153,8 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
     form.reset({
       name: mission.name,
       location: mission.location,
-      startDate: mission.startDate.toDate(),
-      endDate: mission.endDate.toDate(),
+      startDate: formatDateToInputString(mission.startDate),
+      endDate: formatDateToInputString(mission.endDate),
       startTime: mission.startTime || '08:00',
       endTime: mission.endTime || '17:00',
       assignedAgentIds: mission.assignedAgentIds || [],
@@ -151,8 +172,8 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
     const missionUpdateData: any = {
         name: data.name,
         location: data.location,
-        startDate: Timestamp.fromDate(data.startDate),
-        endDate: Timestamp.fromDate(data.endDate),
+        startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
+        endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         assignedAgentIds: data.assignedAgentIds,
         vehicleId: data.vehicleId === 'none' ? null : data.vehicleId,
     };
@@ -187,15 +208,21 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
   const availableAgents = useMemo(() => {
     if (!startDate || !endDate || !allAgents || !allMissions) return [];
 
-    const selectedStart = new Date(startDate);
-    const selectedEnd = new Date(endDate);
+    const selectedStart = parseLocalDate(startDate);
+    const selectedEnd = parseLocalDate(endDate);
 
     return allAgents
       .filter(agent => {
         if (agent.leaveStartDate && agent.leaveEndDate) {
             const leaveStart = agent.leaveStartDate.toDate();
             const leaveEnd = agent.leaveEndDate.toDate();
-            if (selectedStart < leaveEnd && selectedEnd > leaveStart) {
+
+            const selectedStartMs = getMidnightTimestamp(selectedStart);
+            const selectedEndMs = getMidnightTimestamp(selectedEnd);
+            const leaveStartMs = getMidnightTimestamp(leaveStart);
+            const leaveEndMs = getMidnightTimestamp(leaveEnd);
+
+            if (selectedStartMs < leaveEndMs && selectedEndMs > leaveStartMs) {
               return false;
             }
         }
@@ -209,8 +236,13 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
             
             const missionStart = m.startDate.toDate();
             const missionEnd = m.endDate.toDate();
+
+            const selectedStartMs = getMidnightTimestamp(selectedStart);
+            const selectedEndMs = getMidnightTimestamp(selectedEnd);
+            const missionStartMs = getMidnightTimestamp(missionStart);
+            const missionEndMs = getMidnightTimestamp(missionEnd);
             
-            return selectedStart < missionEnd && selectedEnd > missionStart;
+            return selectedStartMs < missionEndMs && selectedEndMs > missionStartMs;
         });
 
         return isCurrentlyAssigned || !hasConflict;
@@ -271,38 +303,13 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Date de début</FormLabel>
-                    <Popover open={isStartOpen} onOpenChange={setStartOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            type="button"
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: fr })
-                            ) : (
-                              <span>Choisissez une date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={(date) => {
-                            field.onChange(date);
-                            setStartOpen(false);
-                          }}
-                          initialFocus
+                    <FormControl>
+                        <Input
+                            type="date"
+                            className="w-full"
+                            {...field}
                         />
-                      </PopoverContent>
-                    </Popover>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -313,44 +320,13 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Date de fin</FormLabel>
-                    <Popover open={isEndOpen} onOpenChange={setEndOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            type="button"
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: fr })
-                            ) : (
-                              <span>Choisissez une date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={(date) => {
-                            field.onChange(date);
-                            setEndOpen(false);
-                          }}
-                          disabled={(date) => {
-                            const start = startDate || new Date();
-                            const limit = new Date(start);
-                            limit.setHours(0, 0, 0, 0);
-                            return date < limit;
-                          }}
-                          initialFocus
+                    <FormControl>
+                        <Input
+                            type="date"
+                            className="w-full"
+                            {...field}
                         />
-                      </PopoverContent>
-                    </Popover>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -447,7 +423,7 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                                     const isChecked = field.value?.includes(agent.id);
                                     const isCurrentlyAssigned = (mission.assignedAgentIds || []).includes(agent.id);
                                     
-                                    const hasConflict = allMissions.some(m => {
+                                    const hasConflict = (allMissions || []).some(m => {
                                         if (m.id === mission.id) return false;
                                         if (m.status === 'Terminée' || m.status === 'Annulée') return false;
                                         if (!m.assignedAgentIds.includes(agent.id)) return false;

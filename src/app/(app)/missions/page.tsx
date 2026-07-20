@@ -44,6 +44,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Mission, MissionStatus } from '@/lib/types';
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { EditMissionDialog } from '@/components/missions/edit-mission-dialog';
+import { MissionDetailsDialog } from '@/components/missions/mission-details-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -241,6 +242,7 @@ function MissionsContent() {
   const [missionToComplete, setMissionToComplete] = useState<Mission | null>(null);
   const [missionToCancel, setMissionToCancel] = useState<Mission | null>(null);
   const [missionToDelete, setMissionToDelete] = useState<Mission | null>(null);
+  const [selectedMissionDetails, setSelectedMissionDetails] = useState<MissionWithDisplayStatus | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
   const [searchQuery, setSearchQuery] = useState('');
@@ -401,12 +403,11 @@ function MissionsContent() {
               <TableHead>Période</TableHead>
               <TableHead>Agents Assignés</TableHead>
               <TableHead>Statut</TableHead>
-              {!isObserver && <TableHead><span className="sr-only">Actions</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {missionsLoading || agentsLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center">Chargement des missions...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center">Chargement des missions...</TableCell></TableRow>
             ) : filteredMissions.length > 0 ? (
             filteredMissions.map((mission) => {
               const assignedAgents = (mission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);
@@ -416,7 +417,11 @@ function MissionsContent() {
               const duration = differenceInDays(missionEndDate, missionStartDate) + 1;
 
               return (
-              <TableRow key={mission.id}>
+              <TableRow
+                key={mission.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => setSelectedMissionDetails(mission)}
+              >
                 <TableCell className="font-medium">{mission.name}</TableCell>
                 <TableCell>{mission.location}</TableCell>
                 <TableCell>
@@ -432,7 +437,7 @@ function MissionsContent() {
                     {assignedAgents.length > 0 ? (
                         <Dialog>
                             <DialogTrigger asChild>
-                                <Button variant="ghost" className="flex items-center gap-2 px-2" onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" className="flex items-center gap-2 px-2" onClick={(e) => { e.stopPropagation(); }}>
                                     <Users className="h-4 w-4" />
                                     <span className="font-medium">{assignedAgents.length}</span>
                                 </Button>
@@ -445,40 +450,27 @@ function MissionsContent() {
                   </div>
                 </TableCell>
                 <TableCell><Badge variant={getBadgeVariant(mission.displayStatus)}>{mission.displayStatus}</Badge></TableCell>
-                {!isObserver && (
-                  <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                            <MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onSelect={() => setEditingMission(mission)}>Modifier/Prolonger</DropdownMenuItem>
-                          {mission.displayStatus !== 'Terminée' && mission.displayStatus !== 'Annulée' && (
-                            <DropdownMenuItem onSelect={() => setMissionToComplete(mission)}>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Terminer la mission
-                            </DropdownMenuItem>
-                          )}
-                          {mission.displayStatus !== 'Terminée' && mission.displayStatus !== 'Annulée' && (
-                            <DropdownMenuItem onSelect={() => setMissionToCancel(mission)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">Annuler la mission</DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onSelect={() => setMissionToDelete(mission)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">Supprimer</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                  </TableCell>
-                )}
               </TableRow>
             )})
             ) : (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Aucune mission trouvée.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Aucune mission trouvée.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+
+      {selectedMissionDetails && (
+        <MissionDetailsDialog
+          mission={selectedMissionDetails}
+          agents={(selectedMissionDetails.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean)}
+          isOpen={!!selectedMissionDetails}
+          onOpenChange={(open) => !open && setSelectedMissionDetails(null)}
+          onEdit={(m) => setEditingMission(m)}
+          onComplete={(m) => setMissionToComplete(m)}
+          onCancel={(m) => setMissionToCancel(m)}
+          onDelete={(m) => setMissionToDelete(m)}
+        />
+      )}
 
       {editingMission && (
         <EditMissionDialog

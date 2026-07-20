@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import type { Agent, Availability, Mission, Explication } from '@/lib/types';
-import { User, Shield, Phone, MapPin, Briefcase } from 'lucide-react';
+import { User, Shield, Phone, MapPin, Briefcase, Printer } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getDisplayStatus } from '@/lib/missions';
@@ -23,6 +23,7 @@ import { useRole } from '@/hooks/use-role';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { generateFicheAgentPDF } from '@/lib/pdf-generator';
 
 interface AgentDetailsProps {
   agent: Agent & { availability: Availability };
@@ -103,11 +104,23 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-[95vw] sm:max-w-2xl bg-background/95 backdrop-blur-md shadow-2xl border-l p-0 overflow-hidden flex flex-col h-full">
-        <SheetHeader className="p-4 sm:p-6 pb-2 border-b">
-          <SheetTitle className="text-lg sm:text-xl font-bold">Profil de l'Agent</SheetTitle>
-          <SheetDescription className="text-xs sm:text-sm">
-            Consultez les informations détaillées et le registre d'activité de l'élément.
-          </SheetDescription>
+        <SheetHeader className="p-4 sm:p-6 pb-2 border-b flex flex-row items-center justify-between gap-4">
+          <div className="flex-1">
+            <SheetTitle className="text-lg sm:text-xl font-bold">Profil de l'Agent</SheetTitle>
+            <SheetDescription className="text-xs sm:text-sm">
+              Consultez les informations détaillées et le registre d'activité de l'élément.
+            </SheetDescription>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 cursor-pointer border-primary/20 hover:bg-primary/5 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-sans text-xs h-9"
+            onClick={() => generateFicheAgentPDF(agent, missions, explications || [])}
+          >
+            <Printer className="h-4 w-4" />
+            <span className="hidden sm:inline">Imprimer Fiche Technique</span>
+            <span className="inline sm:hidden">Fiche Tech</span>
+          </Button>
         </SheetHeader>
         
         <div className="flex-1 relative overflow-hidden">
@@ -161,6 +174,22 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
                   <div className="bg-muted/50 p-2 sm:p-4 rounded-xl sm:rounded-2xl border flex flex-col items-center justify-center space-y-1 text-center min-w-0">
                     <span className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-bold tracking-widest truncate w-full">Grade</span>
                     <span className="font-bold text-[10px] sm:text-xs md:text-sm truncate w-full">{agent.rank}</span>
+                  </div>
+                </div>
+
+                {/* Dossier Disciplinaire & Explications */}
+                <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                  <div className="bg-orange-500/5 p-2 sm:p-4 rounded-xl sm:rounded-2xl border border-orange-500/10 flex flex-col items-center justify-center space-y-1 text-center min-w-0">
+                    <span className="text-[8px] sm:text-[10px] text-orange-600 dark:text-orange-400 uppercase font-bold tracking-widest truncate w-full">Demandes d'explication</span>
+                    <span className="font-black text-lg sm:text-2xl text-orange-600 dark:text-orange-400">
+                      {explications ? explications.length : 0}
+                    </span>
+                  </div>
+                  <div className="bg-red-500/5 p-2 sm:p-4 rounded-xl sm:rounded-2xl border border-red-500/10 flex flex-col items-center justify-center space-y-1 text-center min-w-0">
+                    <span className="text-[8px] sm:text-[10px] text-red-600 dark:text-red-400 uppercase font-bold tracking-widest truncate w-full">Sanctions reçues</span>
+                    <span className="font-black text-lg sm:text-2xl text-red-600 dark:text-red-400">
+                      {explications ? explications.filter(e => e.status === 'sanctionne').length : 0}
+                    </span>
                   </div>
                 </div>
 

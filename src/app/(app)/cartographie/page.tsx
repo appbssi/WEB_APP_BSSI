@@ -373,7 +373,7 @@ export default function CartographiePage() {
                     <div className="flex items-center justify-between gap-1 text-[10px] text-zinc-500 font-mono pt-1 border-t border-zinc-850/40 z-10">
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3 text-zinc-600" />
-                        {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}
+                        {device.latitude.toFixed(6)}, {device.longitude.toFixed(6)}
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-zinc-600" />

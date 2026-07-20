@@ -10,22 +10,39 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import type { Agent, Mission, MissionStatus, Vehicle } from '@/lib/types';
-import { Calendar, MapPin, Users, Info, Truck } from 'lucide-react';
+import { Calendar, MapPin, Users, Info, Truck, FileDown, CheckCircle2, XCircle, Pencil, Trash2 } from 'lucide-react';
 import { differenceInDays, isSameDay } from 'date-fns';
 import type { MissionWithDisplayStatus } from '@/lib/missions';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemo } from 'react';
+import { Button } from '@/components/ui/button';
+import { useRole } from '@/hooks/use-role';
+import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator';
 
 interface MissionDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   mission: MissionWithDisplayStatus;
   agents: Agent[];
+  onEdit?: (mission: Mission) => void;
+  onComplete?: (mission: Mission) => void;
+  onCancel?: (mission: Mission) => void;
+  onDelete?: (mission: Mission) => void;
 }
 
-export function MissionDetailsDialog({ isOpen, onOpenChange, mission, agents }: MissionDetailsDialogProps) {
+export function MissionDetailsDialog({
+  isOpen,
+  onOpenChange,
+  mission,
+  agents,
+  onEdit,
+  onComplete,
+  onCancel,
+  onDelete,
+}: MissionDetailsDialogProps) {
+  const { isObserver } = useRole();
   const firestore = useFirestore();
   const vehiclesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'vehicles') : null, [firestore]);
   const { data: vehicles } = useCollection<Vehicle>(vehiclesQuery);
@@ -121,6 +138,84 @@ export function MissionDetailsDialog({ isOpen, onOpenChange, mission, agents }: 
                     </div>
                 </div>
             </div>
+        </div>
+        <div className="border-t pt-4 mt-4 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-semibold mb-1">Document Officiel</h4>
+              <Button
+                size="sm"
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs h-9 cursor-pointer"
+                onClick={() => generateOrdreDeMissionPDF(
+                  mission,
+                  agents,
+                  assignedVehicle ? `${assignedVehicle.model} (${assignedVehicle.plateNumber})` : undefined
+                )}
+              >
+                <FileDown className="h-4 w-4" />
+                <span>Télécharger l'Ordre de Mission</span>
+              </Button>
+            </div>
+
+            {!isObserver && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs h-9 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium cursor-pointer"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onEdit?.(mission);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Modifier/Prolonger</span>
+                </Button>
+
+                {mission.displayStatus !== 'Terminée' && mission.displayStatus !== 'Annulée' && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs h-9 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium cursor-pointer"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onComplete?.(mission);
+                      }}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Terminer</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs h-9 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium cursor-pointer"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onCancel?.(mission);
+                      }}
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      <span>Annuler</span>
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs h-9 border-destructive/50 text-destructive hover:bg-destructive/10 font-medium cursor-pointer"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onDelete?.(mission);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Supprimer</span>
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

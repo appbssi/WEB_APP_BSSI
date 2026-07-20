@@ -31,6 +31,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
+import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator';
 
 const parseLocalDate = (dateStr: string) => {
   if (!dateStr) return new Date();
@@ -161,6 +162,26 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
         });
         logActivity(firestore, `La mission "${data.name}" a été créée.`, 'Mission', '/missions');
         
+        const assignedAgents = data.assignedAgentIds
+          .map(id => allAgents.find(a => a.id === id))
+          .filter((a): a is Agent => !!a);
+
+        const selectedVehicle = data.vehicleId && data.vehicleId !== 'none' ? allVehicles?.find(v => v.id === data.vehicleId) : null;
+        const vehiclePlate = selectedVehicle ? `${selectedVehicle.model} (${selectedVehicle.plateNumber})` : undefined;
+
+        generateOrdreDeMissionPDF(
+          {
+            name: data.name,
+            location: data.location,
+            startDate: newMissionData.startDate,
+            endDate: newMissionData.endDate,
+            startTime: newMissionData.startTime,
+            endTime: newMissionData.endTime,
+          },
+          assignedAgents,
+          vehiclePlate
+        );
+
         const agentNames = data.assignedAgentIds.map(id => allAgents.find(a => a.id === id)?.fullName || 'Inconnu');
 
         // Envoyer le webhook

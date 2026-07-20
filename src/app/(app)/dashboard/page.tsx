@@ -24,6 +24,9 @@ import {
   Clock,
   AlertTriangle,
   HelpCircle,
+  FileDown,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import {
   Table,
@@ -38,6 +41,7 @@ import { collection, query, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication } from '@/lib/types';
 import { useMemo, useState, useEffect } from 'react';
+import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
 import { getAgentAvailability } from '@/lib/agents';
 import { getDisplayStatus, MissionWithDisplayStatus } from '@/lib/missions';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -152,6 +156,29 @@ function DashboardContent() {
   };
 
   const [selectedMission, setSelectedMission] = useState<MissionWithDisplayStatus | null>(null);
+  const [explicationViewMode, setExplicationViewMode] = useState<'table' | 'cards'>('table');
+  const [explicationFilter, setExplicationFilter] = useState<string>('tous');
+
+  const filteredExplications = useMemo(() => {
+    if (!explications) return [];
+    let list = [...explications];
+    if (explicationFilter !== 'tous') {
+      if (explicationFilter === 'en_attente') {
+        list = list.filter(e => e.status === 'en_attente');
+      } else if (explicationFilter === 'repondu') {
+        list = list.filter(e => e.status === 'repondu');
+      } else if (explicationFilter === 'accepte') {
+        list = list.filter(e => e.status === 'lu' || e.status === 'archive' || e.status === 'accepte');
+      } else if (explicationFilter === 'sanctionne') {
+        list = list.filter(e => e.status === 'sanctionne');
+      }
+    }
+    return list.sort((a, b) => {
+      const timeA = a.requestDate ? (typeof a.requestDate.toMillis === 'function' ? a.requestDate.toMillis() : new Date(a.requestDate as any).getTime()) : 0;
+      const timeB = b.requestDate ? (typeof b.requestDate.toMillis === 'function' ? b.requestDate.toMillis() : new Date(b.requestDate as any).getTime()) : 0;
+      return timeB - timeA;
+    });
+  }, [explications, explicationFilter]);
 
   // Decision management for requests
   const [refusalTarget, setRefusalTarget] = useState<Demande | null>(null);
@@ -498,12 +525,15 @@ function DashboardContent() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="en_attente" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="en_attente" className="text-xs font-semibold">
                     En attente ({pendingDemandes.length})
                   </TabsTrigger>
                   <TabsTrigger value="historique" className="text-xs font-semibold">
                     Historique ({processedDemandes.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="autorisations" className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    Autorisations PDF ({processedDemandes.filter(d => d.status === 'acceptee').length})
                   </TabsTrigger>
                 </TabsList>
 
@@ -622,6 +652,19 @@ function DashboardContent() {
                                   <strong>Note :</strong> {dem.comment}
                                 </p>
                               )}
+                              {dem.status === 'acceptee' && (
+                                <div className="flex justify-end pt-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateAutorisationAbsencePDF(dem, agentsById[dem.agentId])}
+                                    className="text-[10px] h-7 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 font-semibold gap-1"
+                                  >
+                                    <FileDown className="h-3 w-3" />
+                                    Télécharger l'autorisation (PDF)
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -632,6 +675,45 @@ function DashboardContent() {
                       <Clock className="h-8 w-8 text-muted-foreground/60 mb-2" />
                       <p className="text-sm font-semibold text-foreground">Aucun historique</p>
                       <p className="text-xs mt-0.5">Aucune demande traitée pour le moment.</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="autorisations" className="mt-0">
+                  {demandesLoading ? (
+                    <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="text-sm">Chargement...</p>
+                    </div>
+                  ) : processedDemandes.filter(d => d.status === 'acceptee').length > 0 ? (
+                    <ScrollArea className="h-64">
+                      <div className="space-y-3 pr-2">
+                        {processedDemandes.filter(d => d.status === 'acceptee').map((dem) => (
+                          <div key={dem.id} className="p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/10 flex items-center justify-between gap-3 shadow-sm">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-sm text-foreground truncate">{dem.agentName}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                {dem.type} • {dem.startDate?.toDate().toLocaleDateString('fr-FR')} au {dem.endDate?.toDate().toLocaleDateString('fr-FR')}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => generateAutorisationAbsencePDF(dem, agentsById[dem.agentId])}
+                              className="text-[10px] h-8 shrink-0 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 font-semibold gap-1 cursor-pointer"
+                            >
+                              <FileDown className="h-3 w-3" />
+                              <span>Télécharger PDF</span>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-center">
+                      <Clock className="h-8 w-8 text-muted-foreground/60 mb-2" />
+                      <p className="text-sm font-semibold text-foreground">Aucun document signé</p>
+                      <p className="text-xs mt-0.5">Aucune autorisation d'absence acceptée n'est encore disponible.</p>
                     </div>
                   )}
                 </TabsContent>
@@ -665,35 +747,68 @@ function DashboardContent() {
       {/* Administrator - General History of Explanation Requests */}
       {role === 'admin' && (
         <Card className="rounded-2xl border border-border/80 shadow-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-orange-600" />
-              Registre Général des Demandes d'Explication
-            </CardTitle>
-            <CardDescription>
-              Consultez et suivez l'ensemble des demandes d'explications émises, les réponses des agents, et les décisions de sanctions administratives prises.
-            </CardDescription>
+          <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-orange-600" />
+                Registre Général des Demandes d'Explication
+              </CardTitle>
+              <CardDescription>
+                Consultez et suivez l'ensemble des demandes d'explications émises, les réponses des agents, et les décisions de sanctions administratives prises.
+              </CardDescription>
+            </div>
+            
+            {/* View Switching & Filtering Tools */}
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <select
+                value={explicationFilter}
+                onChange={(e) => setExplicationFilter(e.target.value)}
+                className="bg-background text-xs border rounded-lg px-2.5 py-1.5 font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="tous">Tous les statuts</option>
+                <option value="en_attente">En attente de réponse</option>
+                <option value="repondu">Répondus (En arbitrage)</option>
+                <option value="accepte">Classés (Pris acte)</option>
+                <option value="sanctionne">Sanctionnés</option>
+              </select>
+
+              <div className="flex items-center border rounded-lg overflow-hidden bg-muted/20">
+                <Button
+                  size="sm"
+                  variant={explicationViewMode === 'table' ? 'default' : 'ghost'}
+                  onClick={() => setExplicationViewMode('table')}
+                  className="h-8 px-2.5 rounded-none gap-1 text-[11px] font-semibold"
+                >
+                  <List className="h-3 w-3" />
+                  Tableau
+                </Button>
+                <Button
+                  size="sm"
+                  variant={explicationViewMode === 'cards' ? 'default' : 'ghost'}
+                  onClick={() => setExplicationViewMode('cards')}
+                  className="h-8 px-2.5 rounded-none gap-1 text-[11px] font-semibold"
+                >
+                  <LayoutGrid className="h-3 w-3" />
+                  Cartes
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {explications && explications.length > 0 ? (
-              <div className="border rounded-xl overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-muted/35">
-                    <TableRow>
-                      <TableHead>Agent</TableHead>
-                      <TableHead>Demande & Date</TableHead>
-                      <TableHead>Réponse de l'Agent</TableHead>
-                      <TableHead>Statut / Décision</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...explications]
-                      .sort((a, b) => {
-                        const timeA = a.requestDate ? (typeof a.requestDate.toMillis === 'function' ? a.requestDate.toMillis() : new Date(a.requestDate as any).getTime()) : 0;
-                        const timeB = b.requestDate ? (typeof b.requestDate.toMillis === 'function' ? b.requestDate.toMillis() : new Date(b.requestDate as any).getTime()) : 0;
-                        return timeB - timeA;
-                      })
-                      .map((exp) => {
+            {filteredExplications.length > 0 ? (
+              explicationViewMode === 'table' ? (
+                <div className="border rounded-xl overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-muted/35">
+                      <TableRow>
+                        <TableHead>Agent</TableHead>
+                        <TableHead>Demande & Date</TableHead>
+                        <TableHead>Réponse de l'Agent</TableHead>
+                        <TableHead>Statut / Décision</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredExplications.map((exp) => {
                         const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
                         const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
                         return (
@@ -767,14 +882,99 @@ function DashboardContent() {
                           </TableRow>
                         );
                       })}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredExplications.map((exp) => {
+                    const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
+                    const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
+                    return (
+                      <div key={exp.id} className="p-4 rounded-xl border bg-card/60 flex flex-col justify-between gap-3 shadow-sm hover:border-orange-500/20 transition-all">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-start gap-2 border-b pb-2">
+                            <div>
+                              <p className="font-bold text-sm text-foreground">{exp.agentName}</p>
+                              <p className="text-[9px] text-muted-foreground font-mono mt-0.5 uppercase">
+                                IDC: {exp.agentId.substring(0, 6).toUpperCase()}
+                              </p>
+                            </div>
+                            <div>
+                              {exp.status === 'en_attente' && (
+                                <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20 text-[9px] font-semibold whitespace-nowrap">
+                                  En attente
+                                </Badge>
+                              )}
+                              {exp.status === 'repondu' && (
+                                <Badge variant="secondary" className="text-blue-600 bg-blue-500/10 border-blue-500/20 text-[9px] font-semibold whitespace-nowrap">
+                                  Répondu
+                                </Badge>
+                              )}
+                              {(exp.status === 'lu' || exp.status === 'archive' || exp.status === 'accepte') && (
+                                <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 border-emerald-500/20 text-[9px] font-semibold whitespace-nowrap">
+                                  Pris acte
+                                </Badge>
+                              )}
+                              {exp.status === 'sanctionne' && (
+                                <Badge variant="destructive" className="text-red-600 bg-red-500/10 border-red-500/20 text-[9px] font-bold whitespace-nowrap">
+                                  Sanctionné
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2.5">
+                            <div>
+                              <span className="text-[10px] text-muted-foreground font-semibold block">Demande de l'administration :</span>
+                              <p className="text-xs font-semibold text-foreground/90 leading-relaxed bg-muted/40 p-2 rounded border border-border/60 mt-0.5">
+                                « {exp.requestText} »
+                              </p>
+                              {reqDate && (
+                                <span className="text-[9px] text-muted-foreground/80 font-mono mt-1 block text-right">
+                                  Émise le {reqDate.toLocaleDateString('fr-FR')}
+                                </span>
+                              )}
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-muted-foreground font-semibold block">Réponse de l'agent :</span>
+                              {exp.replyText ? (
+                                <div className="mt-0.5">
+                                  <p className="text-xs italic text-foreground/80 leading-relaxed bg-primary/5 p-2 rounded border border-primary/10">
+                                    « {exp.replyText} »
+                                  </p>
+                                  {repDate && (
+                                    <span className="text-[9px] text-muted-foreground/80 font-mono mt-1 block text-right">
+                                      Répondu le {repDate.toLocaleDateString('fr-FR')}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-orange-600/80 font-medium italic mt-0.5">
+                                  En attente de réponse...
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {exp.status === 'sanctionne' && exp.sanctionText && (
+                          <div className="text-[10px] bg-orange-500/5 border border-orange-500/15 p-2 rounded text-foreground space-y-1 mt-1">
+                            <span className="font-bold text-orange-600 uppercase text-[8px] tracking-wider block">Sanction appliquée :</span>
+                            <p className="text-xs font-medium leading-relaxed">« {exp.sanctionText} »</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             ) : (
               <div className="text-center py-12 border border-dashed rounded-lg text-muted-foreground">
                 <HelpCircle className="h-10 w-10 mx-auto opacity-30 mb-2" />
-                <p className="font-semibold text-foreground text-sm">Aucune demande enregistrée</p>
-                <p className="text-xs mt-1">L'historique des demandes d'explication s'affichera ici.</p>
+                <p className="font-semibold text-foreground text-sm">Aucune demande trouvée</p>
+                <p className="text-xs mt-1">Aucune demande d'explication ne correspond au filtre sélectionné.</p>
               </div>
             )}
           </CardContent>

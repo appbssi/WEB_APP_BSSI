@@ -39,14 +39,15 @@ interface MapViewProps {
 export default function MapView({ devices, selectedDeviceId, onSelectDevice }: MapViewProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const tileLayersRef = useRef<L.TileLayer[]>([]);
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   const circlesRef = useRef<{ [key: string]: L.Circle }>({});
   
   const [mapReady, setMapReady] = useState(false);
-  const [mapStyle, setMapStyle] = useState<'dark' | 'standard' | 'satellite'>('dark');
+  const [mapStyle, setMapStyle] = useState<'dark' | 'standard' | 'satellite' | 'hybrid'>('standard');
   const [showAccuracyCircles, setShowAccuracyCircles] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [hasFitBounds, setHasFitBounds] = useState(false);
 
   // Helper to format the role label
   const getRoleLabel = (role: string) => {
@@ -65,11 +66,11 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Default center at Paris/France
-    const defaultCenter: L.LatLngExpression = [46.2276, 2.2137];
-    const defaultZoom = 6;
+    // Default center at Abidjan, Côte d'Ivoire for high-precision regional operations
+    const defaultCenter: L.LatLngExpression = [5.3600, -4.0083];
+    const defaultZoom = 12;
 
-    // Create Map
+    // Create Map with high precision features
     const map = L.map(mapContainerRef.current, {
       center: defaultCenter,
       zoom: defaultZoom,
@@ -98,36 +99,59 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
     const map = mapInstanceRef.current;
     if (!map || !mapReady) return;
 
-    // Remove existing tile layer if any
-    if (tileLayerRef.current) {
-      tileLayerRef.current.remove();
+    // Remove existing tile layers if any
+    tileLayersRef.current.forEach((layer) => {
+      layer.remove();
+    });
+    tileLayersRef.current = [];
+
+    const newLayers: L.TileLayer[] = [];
+
+    if (mapStyle === 'hybrid') {
+      // 1. Satellite Base Layer
+      const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, GIS User Community',
+        maxZoom: 20,
+        detectRetina: true,
+      }).addTo(map);
+      newLayers.push(satLayer);
+
+      // 2. High Contrast Reference labels layer overlay
+      const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CARTO',
+        maxZoom: 20,
+        detectRetina: true,
+      }).addTo(map);
+      newLayers.push(labelsLayer);
+    } else {
+      let url = '';
+      let attribution = '';
+
+      switch (mapStyle) {
+        case 'dark':
+          url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+          attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
+          break;
+        case 'satellite':
+          url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+          attribution = 'Tiles &copy; Esri &mdash; Source: Esri, GIS User Community';
+          break;
+        case 'standard':
+        default:
+          url = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+          attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
+          break;
+      }
+
+      const layer = L.tileLayer(url, {
+        attribution,
+        maxZoom: 20,
+        detectRetina: true,
+      }).addTo(map);
+      newLayers.push(layer);
     }
 
-    let url = '';
-    let attribution = '';
-
-    switch (mapStyle) {
-      case 'dark':
-        url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
-        break;
-      case 'satellite':
-        url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-        attribution = 'Tiles &copy; Esri &mdash; Source: Esri, GIS User Community';
-        break;
-      case 'standard':
-      default:
-        url = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-        attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
-        break;
-    }
-
-    const newTileLayer = L.tileLayer(url, {
-      attribution,
-      maxZoom: 20,
-    }).addTo(map);
-
-    tileLayerRef.current = newTileLayer;
+    tileLayersRef.current = newLayers;
   }, [mapStyle, mapReady]);
 
   // 3. Render Markers & Accuracy Circles
@@ -250,22 +274,22 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
         : 'En cours...';
         
       return `
-        <div style="font-family: monospace; padding: 4px; min-width: 220px; color: #f4f4f5;">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; border-bottom: 1px solid #27272a; padding-bottom: 4px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 14px;">${device.deviceType === 'mobile' ? '📱' : '💻'}</span>
-              <strong style="color: #ffffff; font-size: 12px; max-width: 135px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${device.userEmail}</strong>
+        <div style="font-family: system-ui, -apple-system, sans-serif; padding: 6px; min-width: 240px; color: #f4f4f5;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid #27272a; padding-bottom: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">${device.deviceType === 'mobile' ? '📱' : '💻'}</span>
+              <strong style="color: #ffffff; font-size: 13px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${device.userEmail}</strong>
             </div>
-            <span style="font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 4px; background: ${online ? 'rgba(16, 185, 129, 0.15)' : 'rgba(113, 113, 122, 0.15)'}; color: ${online ? '#10b981' : '#a1a1aa'};">
+            <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: ${online ? 'rgba(16, 185, 129, 0.15)' : 'rgba(113, 113, 122, 0.15)'}; color: ${online ? '#34d399' : '#a1a1aa'}; border: 1px solid ${online ? 'rgba(16, 185, 129, 0.3)' : 'rgba(113, 113, 122, 0.3)'}; font-family: monospace;">
               ${online ? 'EN LIGNE' : 'INACTIF'}
             </span>
           </div>
-          <div style="font-size: 10px; color: #d4d4d8; line-height: 1.5;">
-            <strong>RÔLE:</strong> ${roleLabel.toUpperCase()}<br/>
-            <strong>PRÉCISION:</strong> ±${Math.round(device.accuracy)}m<br/>
-            <strong>GPS LAT:</strong> ${device.latitude.toFixed(6)}<br/>
-            <strong>GPS LNG:</strong> ${device.longitude.toFixed(6)}<br/>
-            <strong>ACTIVITÉ:</strong> ${dateStr}
+          <div style="font-size: 11px; color: #d4d4d8; line-height: 1.6; display: flex; flex-direction: column; gap: 4px;">
+            <div><strong style="color: #a1a1aa; font-family: monospace;">RÔLE :</strong> <span style="color: #ffffff; font-weight: 600;">${roleLabel.toUpperCase()}</span></div>
+            <div><strong style="color: #a1a1aa; font-family: monospace;">PRÉCISION GPS :</strong> <span style="color: #34d399; font-weight: 700;">±${Math.round(device.accuracy)}m</span></div>
+            <div><strong style="color: #a1a1aa; font-family: monospace;">LATITUDE :</strong> <span style="font-family: monospace; color: #ffffff;">${device.latitude.toFixed(6)}</span></div>
+            <div><strong style="color: #a1a1aa; font-family: monospace;">LONGITUDE :</strong> <span style="font-family: monospace; color: #ffffff;">${device.longitude.toFixed(6)}</span></div>
+            <div><strong style="color: #a1a1aa; font-family: monospace;">DERNIÈRE ACT :</strong> <span style="color: #e4e4e7;">${dateStr}</span></div>
           </div>
         </div>
       `;
@@ -293,17 +317,25 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
       const latLng: L.LatLngExpression = [device.latitude, device.longitude];
       const color = getRoleColor(device.role);
 
+      const labelText = device.userEmail.split('@')[0];
       // --- Handle Marker ---
       if (markersRef.current[device.id]) {
         const marker = markersRef.current[device.id];
         marker.setLatLng(latLng);
         marker.setIcon(customIcon);
         marker.getPopup()?.setContent(getPopupContent(device));
+        marker.setTooltipContent(labelText);
       } else {
         const marker = L.marker(latLng, { icon: customIcon }).addTo(map);
         marker.bindPopup(getPopupContent(device), {
           closeButton: false,
           offset: L.point(0, -6),
+        });
+        marker.bindTooltip(labelText, {
+          permanent: true,
+          direction: 'top',
+          className: 'custom-map-tooltip',
+          offset: L.point(0, -22)
         });
         marker.on('click', () => {
           onSelectDevice(device.id);
@@ -374,6 +406,15 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
     });
   };
 
+  // Auto-fit bounds on first load of devices to make positioning instantly precise
+  useEffect(() => {
+    if (mapReady && devices.length > 0 && !hasFitBounds) {
+      fitFleetBounds();
+      setHasFitBounds(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devices, mapReady, hasFitBounds]);
+
   // Helper to copy GPS coordinates to clipboard
   const copyCoordinates = (lat: number, lng: number) => {
     if (typeof window === 'undefined' || !navigator.clipboard) return;
@@ -384,7 +425,7 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
 
   return (
     <div className="relative w-full h-full rounded-2xl border border-zinc-800/80 overflow-hidden shadow-2xl bg-zinc-950 flex flex-col">
-      {/* Custom Styles for Pulse Effects & Leaflet dark popup */}
+      {/* Custom Styles for Pulse Effects, Leaflet dark popup & custom tooltips */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes custom-pulse-ring {
           0% { transform: scale(0.65); opacity: 0.95; }
@@ -399,15 +440,30 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
           pointer-events: none;
         }
         .leaflet-popup-content-wrapper {
-          background: #18181b !important;
-          color: #ffffff !important;
+          background: #09090b !important;
+          color: #f4f4f5 !important;
           border: 1px solid #27272a !important;
           border-radius: 12px !important;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.6) !important;
+          font-family: system-ui, -apple-system, sans-serif !important;
         }
         .leaflet-popup-tip {
-          background: #18181b !important;
+          background: #09090b !important;
           border: 1px solid #27272a !important;
+        }
+        .custom-map-tooltip {
+          background: #09090b !important;
+          color: #34d399 !important; /* light green for ultra high visibility */
+          border: 1px solid rgba(16, 185, 129, 0.45) !important;
+          border-radius: 6px !important;
+          font-family: monospace !important;
+          font-size: 10px !important;
+          font-weight: 700 !important;
+          padding: 2px 6px !important;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5) !important;
+        }
+        .leaflet-tooltip-top:before {
+          border-top-color: #09090b !important;
         }
       `}} />
 
@@ -441,14 +497,24 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
         {/* Right Side Style Layer Toggle */}
         <div className="flex gap-1 pointer-events-auto bg-zinc-950/85 backdrop-blur-md border border-zinc-800 p-1.5 rounded-xl shadow-lg">
           <button
-            onClick={() => setMapStyle('dark')}
+            onClick={() => setMapStyle('standard')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-              mapStyle === 'dark' 
+              mapStyle === 'standard' 
                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
                 : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
             }`}
           >
-            Tactique
+            Standard
+          </button>
+          <button
+            onClick={() => setMapStyle('hybrid')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+              mapStyle === 'hybrid' 
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+            }`}
+          >
+            Hybride
           </button>
           <button
             onClick={() => setMapStyle('satellite')}
@@ -461,14 +527,14 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
             Satellite
           </button>
           <button
-            onClick={() => setMapStyle('standard')}
+            onClick={() => setMapStyle('dark')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-              mapStyle === 'standard' 
+              mapStyle === 'dark' 
                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
                 : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
             }`}
           >
-            Standard
+            Tactique
           </button>
         </div>
       </div>

@@ -22,8 +22,9 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown } from 'lucide-react';
 import type { Demande, Agent, Explication } from '@/lib/types';
+import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
 
 export default function DemandesPage() {
   return (
@@ -53,6 +54,18 @@ function DemandesContent() {
   // Explanation states
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
+
+  // Countdown states for confirmation delay
+  const [countdown, setCountdown] = useState<Record<string, number>>({});
+  const [draftReplies, setDraftReplies] = useState<Record<string, string>>({});
+  const [timerIds, setTimerIds] = useState<Record<string, any>>({});
+
+  // Clean up any active timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(timerIds).forEach(id => clearInterval(id));
+    };
+  }, [timerIds]);
 
   // Get user IDC from localStorage
   useEffect(() => {
@@ -136,7 +149,7 @@ function DemandesContent() {
     }
   };
 
-  const handleReplyExplication = async (id: string) => {
+  const handleReplyExplication = (id: string) => {
     const reply = replies[id]?.trim();
     if (!reply || !firestore) {
       toast({
@@ -147,12 +160,38 @@ function DemandesContent() {
       return;
     }
 
-    setReplySubmitting(prev => ({ ...prev, [id]: true }));
+    // Capture the text into draft and start 10 seconds delay
+    setDraftReplies(prev => ({ ...prev, [id]: reply }));
+    setCountdown(prev => ({ ...prev, [id]: 10 }));
 
+    // Start interval
+    const intervalId = setInterval(() => {
+      setCountdown(prev => {
+        const currentVal = prev[id] || 0;
+        if (currentVal <= 1) {
+          // Time is up! Submit confirmed response
+          clearInterval(intervalId);
+          submitConfirmedReply(id, reply);
+          return { ...prev, [id]: 0 };
+        }
+        return { ...prev, [id]: currentVal - 1 };
+      });
+    }, 1000);
+
+    setTimerIds(prev => ({ ...prev, [id]: intervalId }));
+
+    toast({
+      title: "Délai de confirmation (10 secondes)",
+      description: "Votre réponse est mise en attente pour envoi. Vous pouvez l'annuler ou la modifier.",
+    });
+  };
+
+  const submitConfirmedReply = async (id: string, replyText: string) => {
+    setReplySubmitting(prev => ({ ...prev, [id]: true }));
     try {
-      const expRef = doc(firestore, 'explications', id);
+      const expRef = doc(firestore!, 'explications', id);
       await setDoc(expRef, {
-        replyText: reply,
+        replyText: replyText,
         replyDate: Timestamp.now(),
         status: 'repondu',
         notifiedAdmin: false, // will notify admin
@@ -161,11 +200,21 @@ function DemandesContent() {
 
       toast({
         title: 'Réponse envoyée',
-        description: "Votre réponse à la demande d'explication a bien été transmise.",
+        description: "Votre réponse à la demande d'explication a bien été transmise à l'administrateur.",
       });
 
-      // Clear reply state
+      // Clear all state for this explanation
       setReplies(prev => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setDraftReplies(prev => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setCountdown(prev => {
         const copy = { ...prev };
         delete copy[id];
         return copy;
@@ -180,6 +229,40 @@ function DemandesContent() {
     } finally {
       setReplySubmitting(prev => ({ ...prev, [id]: false }));
     }
+  };
+
+  const handleImmediateSend = (id: string) => {
+    if (timerIds[id]) {
+      clearInterval(timerIds[id]);
+    }
+    const reply = draftReplies[id] || replies[id];
+    submitConfirmedReply(id, reply);
+  };
+
+  const handleCancelSend = (id: string) => {
+    if (timerIds[id]) {
+      clearInterval(timerIds[id]);
+    }
+    setTimerIds(prev => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+    setCountdown(prev => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+    setDraftReplies(prev => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+
+    toast({
+      title: "Envoi annulé",
+      description: "Vous pouvez modifier votre réponse explicative avant de la renvoyer.",
+    });
   };
 
   // Stagger/Capture unnotified requests on first load to display them in an alert banner
@@ -350,23 +433,52 @@ function DemandesContent() {
                     rows={3}
                     className="bg-background text-sm"
                     required
+                    disabled={countdown[exp.id] > 0}
                   />
                 </div>
 
-                <Button
-                  onClick={() => handleReplyExplication(exp.id)}
-                  className="rounded-xl flex items-center justify-center gap-2 font-semibold text-white bg-destructive hover:bg-destructive/90"
-                  disabled={replySubmitting[exp.id] || !replies[exp.id]?.trim()}
-                >
-                  {replySubmitting[exp.id] ? (
-                    <span>Transmission...</span>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Envoyer ma réponse explicative
-                    </>
-                  )}
-                </Button>
+                {countdown[exp.id] > 0 ? (
+                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-orange-600 dark:text-orange-400 font-bold">
+                      <Clock className="h-4 w-4 animate-spin text-orange-600 dark:text-orange-400 shrink-0" />
+                      <span>Envoi de votre réponse explicative dans {countdown[exp.id]} secondes...</span>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCancelSend(exp.id)}
+                        className="rounded-lg text-xs font-semibold border-orange-500/30 text-orange-600 hover:bg-orange-500/10 cursor-pointer h-8"
+                      >
+                        Annuler et modifier la réponse
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleImmediateSend(exp.id)}
+                        className="rounded-lg text-xs font-semibold bg-orange-600 hover:bg-orange-700 text-white cursor-pointer h-8"
+                        disabled={replySubmitting[exp.id]}
+                      >
+                        Confirmer et envoyer maintenant
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => handleReplyExplication(exp.id)}
+                    className="rounded-xl flex items-center justify-center gap-2 font-semibold text-white bg-destructive hover:bg-destructive/90 cursor-pointer"
+                    disabled={replySubmitting[exp.id] || !replies[exp.id]?.trim()}
+                  >
+                    {replySubmitting[exp.id] ? (
+                      <span>Transmission...</span>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Envoyer ma réponse explicative
+                      </>
+                    )}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -558,6 +670,7 @@ function DemandesContent() {
                       <TableHead>Période</TableHead>
                       <TableHead>Motif</TableHead>
                       <TableHead>Statut</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -579,8 +692,29 @@ function DemandesContent() {
                               <strong>Refus :</strong> {dem.comment}
                             </div>
                           )}
+                          {dem.status === 'acceptee' && dem.comment && (
+                            <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 bg-emerald-500/10 p-1 rounded border border-emerald-500/20 font-sans">
+                              <strong>Note :</strong> {dem.comment}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>{getStatusBadge(dem.status)}</TableCell>
+                        <TableCell className="text-right">
+                          {dem.status === 'acceptee' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => generateAutorisationAbsencePDF(dem, currentAgent)}
+                              className="text-xs h-8 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 font-semibold gap-1"
+                              title="Télécharger l'autorisation (PDF)"
+                            >
+                              <FileDown className="h-3.5 w-3.5" />
+                              <span>PDF</span>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -690,6 +824,58 @@ function DemandesContent() {
               <HelpCircle className="h-10 w-10 mx-auto opacity-30 mb-2" />
               <p className="font-semibold text-foreground text-sm">Aucun historique d'explications</p>
               <p className="text-xs mt-1">Vous n'avez aucune demande d'explication enregistrée dans votre dossier.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Downloadable Absence Authorizations History Card */}
+      <Card className="rounded-2xl border border-border/80 shadow-md mt-6 bg-emerald-500/5 border-emerald-500/10">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-5 w-5" />
+            Historique de vos autorisations d'absence (Fichiers PDF)
+          </CardTitle>
+          <CardDescription>
+            Téléchargez à tout moment vos fiches d'autorisation d'absence signées et cachetées par la direction.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {sortedDemandes.filter(d => d.status === 'acceptee').length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {sortedDemandes.filter(d => d.status === 'acceptee').map((dem) => (
+                <div key={dem.id} className="p-4 rounded-xl border bg-card hover:bg-muted/10 transition-colors flex flex-col justify-between gap-3 shadow-sm">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                        {dem.type}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {dem.startDate.toDate().toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold mt-2 text-foreground truncate" title={dem.reason}>
+                      Motif : « {dem.reason || 'N/A'} »
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Du {dem.startDate.toDate().toLocaleDateString('fr-FR')} au {dem.endDate.toDate().toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => generateAutorisationAbsencePDF(dem, currentAgent)}
+                    className="w-full text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 cursor-pointer"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    Télécharger l'autorisation (PDF)
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Clock className="h-8 w-8 mx-auto opacity-30 mb-2" />
+              <p className="text-sm">Aucune autorisation d'absence signée disponible pour le moment.</p>
             </div>
           )}
         </CardContent>

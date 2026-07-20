@@ -54,10 +54,15 @@ export function getAgentAvailability(
     const hasActivePermission = demandes.some(d => {
       if (d.status !== 'acceptee') return false;
       
-      const isAgentMatch = 
-        d.agentId.trim().toLowerCase() === agent.id.trim().toLowerCase() || 
-        (agent.id.length >= 6 && d.agentId.trim().toLowerCase() === agent.id.trim().substring(0, 6).toLowerCase()) ||
-        (agent.registrationNumber && d.agentId.trim().toLowerCase() === agent.registrationNumber.trim().toLowerCase());
+      const isAgentMatch = (() => {
+        if (!agent || !agent.id || !d.agentId) return false;
+        const dId = String(d.agentId).trim().toLowerCase();
+        const aId = String(agent.id).trim().toLowerCase();
+        const aReg = agent.registrationNumber ? String(agent.registrationNumber).trim().toLowerCase() : '';
+        return dId === aId || 
+               (aId.length >= 6 && dId === aId.substring(0, 6)) ||
+               (aReg && dId === aReg);
+      })();
         
       if (!isAgentMatch) return false;
       

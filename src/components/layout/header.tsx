@@ -93,11 +93,14 @@ export function Header() {
   const currentAgent = useMemo(() => {
     if (!agents || !userIdc) return null;
     const cleanIdc = userIdc.trim().toUpperCase();
-    return agents.find(a => 
-      a.id.trim().toUpperCase() === cleanIdc || 
-      a.id.trim().toUpperCase().substring(0, 6) === cleanIdc ||
-      (a.registrationNumber && a.registrationNumber.trim().toUpperCase() === cleanIdc)
-    );
+    return agents.find(a => {
+      if (!a || !a.id) return false;
+      const aId = String(a.id).trim().toUpperCase();
+      const aReg = a.registrationNumber ? String(a.registrationNumber).trim().toUpperCase() : '';
+      return aId === cleanIdc || 
+             (aId.length >= 6 && aId.substring(0, 6) === cleanIdc) ||
+             (aReg && aReg === cleanIdc);
+    });
   }, [agents, userIdc]);
 
   const displayRole = useMemo(() => {

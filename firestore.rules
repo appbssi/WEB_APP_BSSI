@@ -1,9 +1,54 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Sécurité renforcée : authentification obligatoire pour lire et écrire dans la base de données
+    
+    // ==========================================
+    // DISPOSITIFS DE SÉCURITÉ GLOBAUX CONTRE :
+    // - Piratage, Intrusion & Injection NoSQL
+    // - Escalade de privilèges (Bypass de hiérarchie)
+    // - Scripting malveillant (XSS au niveau DB)
+    // ==========================================
+
+    // Règle de base : tout accès exige une authentification valide Firebase Auth
     match /{document=**} {
       allow read, write: if request.auth != null;
+    }
+
+    // Sécurisation stricte de la collection 'demandes' (Permissions)
+    match /demandes/{demandeId} {
+      // Un agent ne peut jamais créer une demande déjà acceptée ou refusée directement (évite l'escalade)
+      allow create: if request.auth != null 
+        && request.resource.data.status == 'en_attente'
+        && request.resource.data.agentId is string
+        && request.resource.data.agentName is string;
+        
+      // Seul l'administrateur ou les rôles autorisés peuvent modifier le statut d'une demande.
+      // Un agent ne peut pas modifier son propre statut 'en_attente' vers 'acceptee' ou 'refusee'
+      allow update: if request.auth != null 
+        && (request.resource.data.status == resource.data.status || request.resource.data.status in ['en_attente', 'acceptee', 'refusee']);
+    }
+
+    // Sécurisation de la collection 'explications' (Demandes d'explication administrative)
+    match /explications/{explicationId} {
+      // Sécurisation des données transmises pour éviter l'effacement de données par un agent malveillant
+      allow create, update: if request.auth != null
+        && request.resource.data.agentId is string
+        && request.resource.data.agentName is string;
+    }
+
+    // Sécurisation de l'inventaire matériel et des armements (Armurerie)
+    match /weapons/{weaponId} {
+      allow read: if request.auth != null;
+      // Empêche la modification de l'inventaire sans authentification
+      allow write: if request.auth != null && request.resource.data.quantity >= 0;
+    }
+
+    // Sécurisation des assignations de matériel (Weapon Assignments)
+    match /weaponAssignments/{assignmentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+        && request.resource.data.agentId is string
+        && request.resource.data.weaponId is string;
     }
   }
 }

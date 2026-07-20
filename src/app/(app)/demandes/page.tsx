@@ -22,10 +22,11 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield } from 'lucide-react';
-import type { Demande, Agent, Explication, Mission } from '@/lib/types';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck } from 'lucide-react';
+import type { Demande, Agent, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
 import { generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
 import { getAgentAvailability } from '@/lib/agents';
+import { useRole } from '@/hooks/use-role';
 
 export default function DemandesPage() {
   return (
@@ -35,12 +36,28 @@ export default function DemandesPage() {
   );
 }
 
+function sanitizeInput(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '') // Supprime les balises script
+    .replace(/on\w+="[^"]*"/gi, '')                    // Supprime les attributs d'événement
+    .replace(/javascript:[^\s"']*/gi, '')               // Supprime les liens javascript:
+    .replace(/<\/?[^>]+(>|$)/g, "");                   // Supprime le HTML restant
+}
+
 function DemandesContent() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const isMounted = useIsMounted();
+  const { role } = useRole();
 
   const [userIdc, setUserIdc] = useState<string>('');
+  
+  // Security States (Anti-Spam Rate Limit)
+  const [lastSubmitTime, setLastSubmitTime] = useState<number>(0);
+  
+  // Security States (Notification Dépôt Matériel)
+  const [dismissedReturns, setDismissedReturns] = useState<string[]>([]);
   
   // Form States
   const [permissionType, setPermissionType] = useState<string>('Permission exceptionnelle');
@@ -67,6 +84,32 @@ function DemandesContent() {
       Object.values(timerIds).forEach(id => clearInterval(id));
     };
   }, [timerIds]);
+
+  // Load dismissed returns notification from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dismissed-weapon-returns');
+      if (saved) {
+        try {
+          setDismissedReturns(JSON.parse(saved));
+        } catch (e) {
+          console.error('Error loading dismissed weapon returns:', e);
+        }
+      }
+    }
+  }, []);
+
+  const handleDismissReturn = (id: string) => {
+    const updated = [...dismissedReturns, id];
+    setDismissedReturns(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dismissed-weapon-returns', JSON.stringify(updated));
+    }
+    toast({
+      title: 'Notification masquée',
+      description: 'La confirmation de dépôt a bien été archivée.',
+    });
+  };
 
   // Get user IDC from localStorage
   useEffect(() => {
@@ -155,6 +198,34 @@ function DemandesContent() {
 
   const { data: explications } = useCollection<Explication>(explicationsQuery);
 
+  // Fetch weapons/materials and assignments for equipment status alerts
+  const weaponsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'weapons') : null), [firestore]);
+  const { data: weapons } = useCollection<Weapon>(weaponsQuery);
+
+  const weaponAssignmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !currentAgent) return null;
+    return query(
+      collection(firestore, 'weaponAssignments'),
+      where('agentId', '==', currentAgent.id)
+    );
+  }, [firestore, currentAgent]);
+  const { data: weaponAssignments } = useCollection<WeaponAssignment>(weaponAssignmentsQuery);
+
+  const weaponsById = useMemo(() => {
+    if (!weapons) return {};
+    return weapons.reduce((acc, weapon) => { acc[weapon.id] = weapon; return acc; }, {} as Record<string, Weapon>);
+  }, [weapons]);
+
+  const activeEquipmentAssignments = useMemo(() => {
+    if (!weaponAssignments) return [];
+    return weaponAssignments.filter(a => !a.returnedAt);
+  }, [weaponAssignments]);
+
+  const unacknowledgedReturnedAssignments = useMemo(() => {
+    if (!weaponAssignments) return [];
+    return weaponAssignments.filter(a => !!a.returnedAt && !dismissedReturns.includes(a.id));
+  }, [weaponAssignments, dismissedReturns]);
+
   const pendingExplications = useMemo(() => {
     if (!explications) return [];
     return explications.filter(exp => exp.status === 'en_attente');
@@ -229,7 +300,7 @@ function DemandesContent() {
     try {
       const expRef = doc(firestore!, 'explications', id);
       await setDoc(expRef, {
-        replyText: replyText,
+        replyText: sanitizeInput(replyText),
         replyDate: Timestamp.now(),
         status: 'repondu',
         notifiedAdmin: false, // will notify admin
@@ -328,6 +399,17 @@ function DemandesContent() {
     e.preventDefault();
     if (!firestore || !userIdc) return;
 
+    // Dispositif de sécurité (Rate Limiter / Anti-Spam)
+    if (Date.now() - lastSubmitTime < 5000) {
+      toast({
+        variant: 'destructive',
+        title: 'Soumission trop rapide',
+        description: 'Veuillez patienter au moins 5 secondes entre chaque demande pour des raisons de sécurité.',
+      });
+      return;
+    }
+    setLastSubmitTime(Date.now());
+
     if (!permissionType || !startDate || !endDate || !reason.trim()) {
       toast({
         variant: 'destructive',
@@ -358,7 +440,8 @@ function DemandesContent() {
         type: permissionType,
         startDate: Timestamp.fromDate(start),
         endDate: Timestamp.fromDate(end),
-        reason: reason.trim() || '',
+        // Dispositif de sécurité (Input Sanitization contre les failles XSS)
+        reason: sanitizeInput(reason.trim()) || '',
         status: 'en_attente',
         comment: '',
         createdAt: serverTimestamp(),
@@ -458,9 +541,21 @@ function DemandesContent() {
               )}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
-                  <h2 className="text-xl font-bold text-foreground truncate max-w-[280px] sm:max-w-[400px]">
+                  <h2 className="text-xl font-bold text-foreground truncate max-w-[280px] sm:max-w-[320px]">
                     {currentAgent.fullName}
                   </h2>
+                  {role !== 'admin' && (
+                    <Button
+                      onClick={handleDownloadFicheTechnique}
+                      variant="outline"
+                      size="sm"
+                      className="font-bold text-xs bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 rounded-lg gap-1.5 h-7 px-2.5 cursor-pointer shadow-sm"
+                      title="Imprimer ma fiche technique (PDF)"
+                    >
+                      <Printer className="h-3 w-3 animate-pulse" />
+                      <span>Imprimer ma Fiche</span>
+                    </Button>
+                  )}
                   <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary text-[10px] sm:text-xs font-semibold">
                     {currentAgent.rank || 'Agent'}
                   </Badge>
@@ -485,6 +580,89 @@ function DemandesContent() {
             </Button>
           </div>
         </Card>
+      )}
+
+      {/* Confirmation de dépôt de matériel */}
+      {unacknowledgedReturnedAssignments.length > 0 && (
+        <div className="space-y-3">
+          {unacknowledgedReturnedAssignments.map((assignment) => {
+            const weapon = weaponsById[assignment.weaponId];
+            return (
+              <Alert key={assignment.id} className="border-emerald-500/40 bg-emerald-500/5 rounded-2xl shadow-md p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <PackageCheck className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <AlertTitle className="text-sm font-extrabold text-emerald-800 uppercase flex items-center gap-1.5">
+                      ✅ Notification de dépôt d'équipement validée
+                    </AlertTitle>
+                    <AlertDescription className="text-xs text-emerald-900">
+                      Vous avez déposé avec succès l'équipement <span className="font-bold">{weapon?.model || 'Équipement'}</span> (N° Série : {weapon?.serialNumber || 'N/A'}) le {assignment.returnedAt?.toDate().toLocaleString('fr-FR')}. Le retour a été enregistré et validé avec succès par l'armurier.
+                    </AlertDescription>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDismissReturn(assignment.id)}
+                  className="bg-emerald-500/10 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/20 font-bold text-xs rounded-xl h-8 px-3 shrink-0 cursor-pointer"
+                >
+                  Accuser Réception
+                </Button>
+              </Alert>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Alerte de Dotation Administrative (Matériel en votre possession) */}
+      {activeEquipmentAssignments.length > 0 && (
+        <Alert variant="destructive" className="border-amber-500/40 bg-amber-500/5 rounded-2xl shadow-md p-6 flex flex-col items-start gap-4">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="h-6 w-6 text-amber-600 shrink-0 mt-0.5 animate-bounce" />
+            <div className="space-y-2 flex-1">
+              <AlertTitle className="text-base font-extrabold text-amber-800 uppercase flex items-center gap-2">
+                ⚠️ Alerte de Dotation Administrative : Équipement en votre possession
+              </AlertTitle>
+              <AlertDescription className="text-sm text-amber-900 leading-relaxed space-y-3">
+                <p>
+                  La hiérarchie militaire signale que vous détenez actuellement du matériel réglementaire non encore enregistré comme retourné. Vous devez veiller à son intégrité absolue et le restituer dès la fin de votre service.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 mt-3">
+                  {activeEquipmentAssignments.map((assignment) => {
+                    const weapon = weaponsById[assignment.weaponId];
+                    return (
+                      <div key={assignment.id} className="p-3 bg-background border border-amber-500/20 rounded-xl space-y-1.5 shadow-sm text-foreground">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-foreground text-sm">
+                            {weapon?.model || 'Équipement'}
+                          </span>
+                          <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-700 text-[10px] font-bold">
+                            {weapon?.type || 'Matériel'}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
+                          <p>N° Série : <span className="font-bold text-foreground">{weapon?.serialNumber || 'N/A'}</span></p>
+                          <p>Sortie le : <span className="font-bold text-foreground">{assignment.assignedAt?.toDate().toLocaleString('fr-FR')}</span></p>
+                          {(assignment.ammunitionCount || 0) > 0 && (
+                            <p>Munitions : <span className="font-bold text-emerald-600">{assignment.ammunitionCount} unités</span></p>
+                          )}
+                          {(assignment.magazineCount || 0) > 0 && (
+                            <p>Chargeurs : <span className="font-bold text-emerald-600">{assignment.magazineCount} unités</span></p>
+                          )}
+                        </div>
+                        {assignment.notes && (
+                          <p className="text-[11px] italic text-muted-foreground border-t border-muted pt-1 mt-1">
+                            Note : {assignment.notes}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </AlertDescription>
+            </div>
+          </div>
+        </Alert>
       )}
 
       {/* Alert Banner for Pending Explanation Requests */}

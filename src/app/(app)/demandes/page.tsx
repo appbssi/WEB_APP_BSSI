@@ -22,9 +22,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown } from 'lucide-react';
-import type { Demande, Agent, Explication } from '@/lib/types';
-import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield } from 'lucide-react';
+import type { Demande, Agent, Explication, Mission } from '@/lib/types';
+import { generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
+import { getAgentAvailability } from '@/lib/agents';
 
 export default function DemandesPage() {
   return (
@@ -94,6 +95,43 @@ function DemandesContent() {
     }
     return userIdc ? `Agent (${userIdc})` : 'Agent';
   }, [currentAgent, userIdc]);
+
+  // Fetch missions for agent technical sheet
+  const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
+  const { data: missions } = useCollection<Mission>(missionsQuery);
+
+  const currentAgentMissions = useMemo(() => {
+    if (!missions || !currentAgent) return [];
+    return missions.filter(m => m.assignedAgentIds && m.assignedAgentIds.includes(currentAgent.id));
+  }, [missions, currentAgent]);
+
+  const currentAgentAvailability = useMemo(() => {
+    if (!currentAgent || !missions) return 'Disponible';
+    const computed = getAgentAvailability(currentAgent, missions, new Date(), undefined, demandes || []);
+    return computed || currentAgent.availability || 'Disponible';
+  }, [currentAgent, missions, demandes]);
+
+  const handleDownloadFicheTechnique = () => {
+    if (!currentAgent) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Impossible de charger vos informations d’agent.',
+      });
+      return;
+    }
+    
+    const agentWithAvailability = {
+      ...currentAgent,
+      availability: currentAgentAvailability,
+    };
+    
+    generateFicheAgentPDF(agentWithAvailability, currentAgentMissions, explications || []);
+    toast({
+      title: 'Fiche technique générée',
+      description: 'Le téléchargement de votre fiche technique a commencé.',
+    });
+  };
 
   // Fetch requests for this agent
   const demandesQuery = useMemoFirebase(() => {
@@ -398,6 +436,56 @@ function DemandesContent() {
           Suivez l’état de vos permissions ou soumettez une nouvelle demande à la hiérarchie.
         </p>
       </div>
+
+      {/* Carte d'identité et fiche technique de l'agent */}
+      {currentAgent && (
+        <Card className="rounded-2xl border border-primary/20 bg-primary/5 shadow-md overflow-hidden">
+          <div className="p-6 flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
+            <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+              {currentAgent.photo ? (
+                <div className="relative w-20 h-24 rounded-lg overflow-hidden border-2 border-primary/20 bg-background shrink-0 shadow-sm">
+                  <img
+                    src={currentAgent.photo}
+                    alt={currentAgent.fullName}
+                    className="object-cover w-full h-full"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              ) : (
+                <div className="relative w-20 h-24 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-2xl font-bold shrink-0 shadow-sm">
+                  {currentAgent.fullName.substring(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
+                  <h2 className="text-xl font-bold text-foreground truncate max-w-[280px] sm:max-w-[400px]">
+                    {currentAgent.fullName}
+                  </h2>
+                  <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary text-[10px] sm:text-xs font-semibold">
+                    {currentAgent.rank || 'Agent'}
+                  </Badge>
+                  <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-[10px] sm:text-xs font-semibold">
+                    {currentAgentAvailability}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground font-mono">
+                  Matricule : {currentAgent.registrationNumber || 'N/A'} • Section : {(currentAgent.section || 'Non assigné').toUpperCase()}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Contact : {currentAgent.contact || 'N/A'} • Adresse : {currentAgent.address || 'N/A'}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleDownloadFicheTechnique}
+              className="font-bold text-white bg-primary hover:bg-primary/95 rounded-xl gap-2 shadow-lg shadow-primary/10 w-full md:w-auto mt-2 md:mt-0 cursor-pointer h-10 px-4"
+            >
+              <FileDown className="h-4 w-4" />
+              <span>Télécharger ma Fiche Technique (PDF)</span>
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Alert Banner for Pending Explanation Requests */}
       {pendingExplications.length > 0 && (

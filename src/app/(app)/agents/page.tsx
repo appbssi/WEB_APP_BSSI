@@ -542,7 +542,7 @@ function AgentsContent() {
 
       {selectedAgent && missions && (
         <AgentDetailsSheet
-          agent={{...selectedAgent, availability: getAgentAvailability(selectedAgent, missions, new Date())!, missionCount: missions.filter(m => m.assignedAgentIds.includes(selectedAgent.id)).length}}
+          agent={{...selectedAgent, availability: getAgentAvailability(selectedAgent, missions, new Date(), undefined, demandes || [])!, missionCount: missions.filter(m => m.assignedAgentIds.includes(selectedAgent.id)).length}}
           missions={missions.filter(m => m.assignedAgentIds.includes(selectedAgent.id))}
           isOpen={!!selectedAgent}
           onOpenChange={(open) => !open && setSelectedAgent(null)}

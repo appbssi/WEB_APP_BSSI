@@ -22,11 +22,12 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Demande, Agent, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
 import { generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
 import { getAgentAvailability, safeToDate } from '@/lib/agents';
 import { useRole } from '@/hooks/use-role';
+import { cn } from '@/lib/utils';
 
 export default function DemandesPage() {
   return (
@@ -64,6 +65,21 @@ function DemandesContent() {
     }
   };
 
+  const getAvailabilityBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'Disponible':
+        return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600';
+      case 'En mission':
+        return 'bg-blue-500/10 border-blue-500/30 text-blue-600';
+      case 'En congé':
+        return 'bg-red-500/10 border-red-500/30 text-red-600';
+      case 'En permission':
+        return 'bg-purple-500/10 border-purple-500/30 text-purple-600';
+      default:
+        return 'bg-muted border-muted-foreground/30 text-muted-foreground';
+    }
+  };
+
   const [userIdc, setUserIdc] = useState<string>('');
   
   // Security States (Anti-Spam Rate Limit)
@@ -71,6 +87,9 @@ function DemandesContent() {
   
   // Security States (Notification Dépôt Matériel)
   const [dismissedReturns, setDismissedReturns] = useState<string[]>([]);
+
+  // Collapsible state for Active Equipment alert
+  const [isEquipmentCollapsed, setIsEquipmentCollapsed] = useState<boolean>(true);
   
   // Form States
   const [permissionType, setPermissionType] = useState<string>('Permission exceptionnelle');
@@ -569,22 +588,10 @@ function DemandesContent() {
                   <h2 className="text-xl font-bold text-foreground truncate max-w-[280px] sm:max-w-[320px]">
                     {currentAgent.fullName}
                   </h2>
-                  {role !== 'admin' && (
-                    <Button
-                      onClick={handleDownloadFicheTechnique}
-                      variant="outline"
-                      size="sm"
-                      className="font-bold text-xs bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 rounded-lg gap-1.5 h-7 px-2.5 cursor-pointer shadow-sm"
-                      title="Imprimer ma fiche technique (PDF)"
-                    >
-                      <Printer className="h-3 w-3 animate-pulse" />
-                      <span>Imprimer ma Fiche</span>
-                    </Button>
-                  )}
                   <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary text-[10px] sm:text-xs font-semibold">
                     {currentAgent.rank || 'Agent'}
                   </Badge>
-                  <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-[10px] sm:text-xs font-semibold">
+                  <Badge variant="outline" className={cn("text-[10px] sm:text-xs font-semibold border", getAvailabilityBadgeStyle(currentAgentAvailability))}>
                     {currentAgentAvailability}
                   </Badge>
                 </div>
@@ -641,52 +648,72 @@ function DemandesContent() {
 
       {/* Alerte de Dotation Administrative (Matériel en votre possession) */}
       {activeEquipmentAssignments.length > 0 && (
-        <Alert variant="destructive" className="border-amber-500/40 bg-amber-500/5 rounded-2xl shadow-md p-6 flex flex-col items-start gap-4">
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="h-6 w-6 text-amber-600 shrink-0 mt-0.5 animate-bounce" />
-            <div className="space-y-2 flex-1">
-              <AlertTitle className="text-base font-extrabold text-amber-800 uppercase flex items-center gap-2">
-                ⚠️ Alerte de Dotation Administrative : Équipement en votre possession
-              </AlertTitle>
-              <AlertDescription className="text-sm text-amber-900 leading-relaxed space-y-3">
-                <p>
-                  La hiérarchie militaire signale que vous détenez actuellement du matériel réglementaire non encore enregistré comme retourné. Vous devez veiller à son intégrité absolue et le restituer dès la fin de votre service.
+        <Alert variant="destructive" className="border-amber-500/40 bg-amber-500/5 rounded-2xl shadow-md p-4 flex flex-col gap-3">
+          <div className="flex items-start justify-between w-full gap-3">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5 animate-bounce" />
+              <div className="space-y-1">
+                <AlertTitle className="text-sm font-extrabold text-amber-800 uppercase flex flex-wrap items-center gap-2">
+                  <span>⚠️ Alerte de Dotation : Équipement en votre possession</span>
+                  <Badge variant="outline" className="bg-amber-500/20 border-amber-500/40 text-amber-800 text-[10px] font-bold">
+                    {activeEquipmentAssignments.length}
+                  </Badge>
+                </AlertTitle>
+                <p className="text-xs text-amber-900/80 leading-relaxed">
+                  La hiérarchie militaire signale que vous détenez actuellement du matériel réglementaire non encore retourné.
                 </p>
-                <div className="grid gap-3 sm:grid-cols-2 mt-3">
-                  {activeEquipmentAssignments.map((assignment) => {
-                    const weapon = weaponsById[assignment.weaponId];
-                    return (
-                      <div key={assignment.id} className="p-3 bg-background border border-amber-500/20 rounded-xl space-y-1.5 shadow-sm text-foreground">
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-foreground text-sm">
-                            {weapon?.model || 'Équipement'}
-                          </span>
-                          <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-700 text-[10px] font-bold">
-                            {weapon?.type || 'Matériel'}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
-                          <p>N° Série : <span className="font-bold text-foreground">{weapon?.serialNumber || 'N/A'}</span></p>
-                          <p>Sortie le : <span className="font-bold text-foreground">{formatDate(assignment.assignedAt, 'datetime')}</span></p>
-                          {(assignment.ammunitionCount || 0) > 0 && (
-                            <p>Munitions : <span className="font-bold text-emerald-600">{assignment.ammunitionCount} unités</span></p>
-                          )}
-                          {(assignment.magazineCount || 0) > 0 && (
-                            <p>Chargeurs : <span className="font-bold text-emerald-600">{assignment.magazineCount} unités</span></p>
-                          )}
-                        </div>
-                        {assignment.notes && (
-                          <p className="text-[11px] italic text-muted-foreground border-t border-muted pt-1 mt-1">
-                            Note : {assignment.notes}
-                          </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setIsEquipmentCollapsed(!isEquipmentCollapsed)}
+              className="text-amber-800 hover:bg-amber-500/10 hover:text-amber-900 font-bold text-xs gap-1 cursor-pointer h-8 px-2.5 shrink-0"
+            >
+              <span>{isEquipmentCollapsed ? 'Voir' : 'Masquer'}</span>
+              {isEquipmentCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          {!isEquipmentCollapsed && (
+            <div className="border-t border-amber-500/15 pt-3 mt-1">
+              <p className="text-xs text-amber-900/90 leading-relaxed mb-3 italic">
+                Vous devez veiller à son intégrité absolue et le restituer dès la fin de votre service.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {activeEquipmentAssignments.map((assignment) => {
+                  const weapon = weaponsById[assignment.weaponId];
+                  return (
+                    <div key={assignment.id} className="p-3 bg-background border border-amber-500/20 rounded-xl space-y-1.5 shadow-sm text-foreground">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-foreground text-xs">
+                          {weapon?.model || 'Équipement'}
+                        </span>
+                        <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-700 text-[9px] font-bold">
+                          {weapon?.type || 'Matériel'}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground space-y-0.5 font-mono">
+                        <p>N° Série : <span className="font-bold text-foreground">{weapon?.serialNumber || 'N/A'}</span></p>
+                        <p>Sortie le : <span className="font-bold text-foreground">{formatDate(assignment.assignedAt, 'datetime')}</span></p>
+                        {(assignment.ammunitionCount || 0) > 0 && (
+                          <p>Munitions : <span className="font-bold text-emerald-600">{assignment.ammunitionCount} unités</span></p>
+                        )}
+                        {(assignment.magazineCount || 0) > 0 && (
+                          <p>Chargeurs : <span className="font-bold text-emerald-600">{assignment.magazineCount} unités</span></p>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              </AlertDescription>
+                      {assignment.notes && (
+                        <p className="text-[10px] italic text-muted-foreground border-t border-muted pt-1 mt-1">
+                          Note : {assignment.notes}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </Alert>
       )}
 

@@ -90,6 +90,8 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
         return 'default';
       case 'En congé':
         return 'destructive';
+      case 'En permission':
+        return 'secondary';
       default:
         return 'secondary';
     }

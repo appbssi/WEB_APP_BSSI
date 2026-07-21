@@ -142,9 +142,9 @@ function drawSignatureBlock(doc: jsPDF, title: string, startY: number, stampImag
 
   if (stampImage) {
     // Draw the actual image stamp, preserving the aspect ratio to avoid distortion
-    const imgWidth = 55;
-    const imgHeight = stampImage.naturalWidth ? (stampImage.naturalHeight / stampImage.naturalWidth) * imgWidth : 30;
-    doc.addImage(stampImage, 'JPEG', 130, sigY + 12, imgWidth, imgHeight);
+    const imgWidth = 60.5; // Increased by 10% (originally 55)
+    const imgHeight = stampImage.naturalWidth ? (stampImage.naturalHeight / stampImage.naturalWidth) * imgWidth : 33;
+    doc.addImage(stampImage, 'JPEG', 125, sigY + 12, imgWidth, imgHeight);
   } else {
     // Draw simulated stamp/seal (circle with text inside)
     const stampX = 155;

@@ -30,7 +30,7 @@ import Image from 'next/image';
 import { useRole } from '@/hooks/use-role';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useUser } from '@/firebase';
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -59,6 +59,13 @@ export function SidebarNav() {
   const { logo, isLogoLoading } = useLogo();
   const { role } = useRole();
   const isMounted = useIsMounted();
+  const [userIdc, setUserIdc] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setUserIdc((localStorage.getItem('app-user-idc') || '').toUpperCase().trim());
+    }
+  }, []);
   
   const userName = useMemo(() => {
     if (!role) return 'Utilisateur';
@@ -66,13 +73,22 @@ export function SidebarNav() {
   }, [role]);
 
 
-  const filteredNavItems = navItems.filter(item => {
-    if (role !== 'admin') {
-      return item.href === '/demandes';
+  const filteredNavItems = useMemo(() => {
+    const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH';
+    if (isSpecialIdc) {
+      return navItems.filter(item =>
+        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav'].includes(item.href)
+      );
     }
-    if (!item.roles) return true;
-    return role ? item.roles.includes(role) : false;
-  });
+
+    return navItems.filter(item => {
+      if (role !== 'admin') {
+        return item.href === '/demandes';
+      }
+      if (!item.roles) return true;
+      return role ? item.roles.includes(role) : false;
+    });
+  }, [role, userIdc]);
 
   if (!isMounted) {
     return null; 

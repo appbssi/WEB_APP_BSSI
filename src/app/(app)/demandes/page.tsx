@@ -36,6 +36,15 @@ export default function DemandesPage() {
   );
 }
 
+function sanitizeInput(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '') // Supprime les balises script
+    .replace(/on\w+="[^"]*"/gi, '')                    // Supprime les attributs d'événement
+    .replace(/javascript:[^\s"']*/gi, '')               // Supprime les liens javascript:
+    .replace(/<\/?[^>]+(>|$)/g, "");                   // Supprime le HTML restant
+}
+
 function DemandesContent() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -43,6 +52,9 @@ function DemandesContent() {
   const { role } = useRole();
 
   const [userIdc, setUserIdc] = useState<string>('');
+  
+  // Security States (Anti-Spam Rate Limit)
+  const [lastSubmitTime, setLastSubmitTime] = useState<number>(0);
   
   // Security States (Notification Dépôt Matériel)
   const [dismissedReturns, setDismissedReturns] = useState<string[]>([]);
@@ -291,7 +303,7 @@ function DemandesContent() {
     try {
       const expRef = doc(firestore!, 'explications', id);
       await setDoc(expRef, {
-        replyText: replyText,
+        replyText: sanitizeInput(replyText),
         replyDate: Timestamp.now(),
         status: 'repondu',
         notifiedAdmin: false, // will notify admin
@@ -390,6 +402,17 @@ function DemandesContent() {
     e.preventDefault();
     if (!firestore || !userIdc) return;
 
+    // Dispositif de sécurité (Rate Limiter / Anti-Spam)
+    if (Date.now() - lastSubmitTime < 5000) {
+      toast({
+        variant: 'destructive',
+        title: 'Soumission trop rapide',
+        description: 'Veuillez patienter au moins 5 secondes entre chaque demande pour des raisons de sécurité.',
+      });
+      return;
+    }
+    setLastSubmitTime(Date.now());
+
     if (!permissionType || !startDate || !endDate || !reason.trim()) {
       toast({
         variant: 'destructive',
@@ -420,7 +443,8 @@ function DemandesContent() {
         type: permissionType,
         startDate: Timestamp.fromDate(start),
         endDate: Timestamp.fromDate(end),
-        reason: reason.trim() || '',
+        // Dispositif de sécurité (Input Sanitization contre les failles XSS)
+        reason: sanitizeInput(reason.trim()) || '',
         status: 'en_attente',
         comment: '',
         createdAt: serverTimestamp(),

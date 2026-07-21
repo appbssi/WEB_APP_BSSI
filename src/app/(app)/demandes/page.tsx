@@ -258,6 +258,59 @@ function DemandesContent() {
     return weaponAssignments.filter(a => !a.returnedAt);
   }, [weaponAssignments]);
 
+  const expiringSoonDemandes = useMemo(() => {
+    if (!demandes) return [];
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    return demandes.filter(dem => {
+      if (dem.status !== 'acceptee') return false;
+      const end = safeToDate(dem.endDate);
+      if (!end) return false;
+      
+      const endDateNoTime = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      const diffTime = endDateNoTime.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Expiring in 3 days or less, and not already passed (diffDays >= 0)
+      return diffDays >= 0 && diffDays <= 3;
+    });
+  }, [demandes]);
+
+  const handleRequestExtension = (dem: Demande) => {
+    setPermissionType('Prolongation de permission');
+    
+    const currentEnd = safeToDate(dem.endDate);
+    if (currentEnd) {
+      const nextDay = new Date(currentEnd);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const formattedNextDay = nextDay.toISOString().split('T')[0];
+      setStartDate(formattedNextDay);
+      
+      const futureEnd = new Date(nextDay);
+      futureEnd.setDate(futureEnd.getDate() + 3);
+      setEndDate(futureEnd.toISOString().split('T')[0]);
+    }
+    
+    setReason(`Demande de prolongation de ma permission (${dem.type}) du ${formatDate(dem.startDate, 'date')} au ${formatDate(dem.endDate, 'date')}.\nMotif du prolongement : `);
+    
+    setTimeout(() => {
+      const element = document.getElementById('new-request-form');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+        const textarea = document.getElementById('reason') as HTMLTextAreaElement;
+        if (textarea) {
+          textarea.focus();
+        }
+      }
+    }, 150);
+
+    toast({
+      title: 'Prolongation initiée',
+      description: 'Le formulaire a été pré-rempli pour votre demande de prolongation.',
+    });
+  };
+
   const unacknowledgedReturnedAssignments = useMemo(() => {
     if (!weaponAssignments) return [];
     return weaponAssignments.filter(a => !!a.returnedAt && !dismissedReturns.includes(a.id));
@@ -882,9 +935,48 @@ function DemandesContent() {
         </div>
       )}
 
+      {/* Alert Banner for Leave Near Expiration */}
+      {expiringSoonDemandes.length > 0 && (
+        <div className="space-y-3">
+          {expiringSoonDemandes.map((dem) => {
+            const end = safeToDate(dem.endDate);
+            const now = new Date();
+            const diffTime = end ? end.getTime() - now.getTime() : 0;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            return (
+              <Alert key={dem.id} className="border-amber-500/40 bg-amber-500/5 rounded-2xl shadow-md p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="h-6 w-6 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                  <div className="space-y-1">
+                    <AlertTitle className="text-sm font-extrabold text-amber-800 uppercase flex items-center gap-1.5">
+                      ⚠️ Permission de type {dem.type} arrivant à échéance
+                    </AlertTitle>
+                    <AlertDescription className="text-xs text-amber-900 leading-relaxed">
+                      Votre permission se termine le <span className="font-bold">{formatDate(dem.endDate, 'date')}</span> ({diffDays === 0 ? "aujourd'hui" : diffDays === 1 ? "demain" : `dans ${diffDays} jours`}). Pensez à formuler une demande de prolongation si nécessaire. 
+                      <strong className="block mt-1 text-destructive font-bold">
+                        Passé ce délai, votre statut sera automatiquement mis à jour à « Disponible » pour vous affecter à de nouvelles missions.
+                      </strong>
+                    </AlertDescription>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleRequestExtension(dem)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl h-9 px-4 shrink-0 shadow-sm gap-1.5 cursor-pointer"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  Demander une prolongation
+                </Button>
+              </Alert>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid gap-8 md:grid-cols-3">
         {/* New Request Form Card */}
-        <Card className="md:col-span-1 rounded-2xl border border-border/80 shadow-md">
+        <Card id="new-request-form" className="md:col-span-1 rounded-2xl border border-border/80 shadow-md">
           <CardHeader>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Calendar className="h-5 w-5 text-primary" />
@@ -906,6 +998,7 @@ function DemandesContent() {
                   required
                 >
                   <option value="Permission exceptionnelle">Permission exceptionnelle</option>
+                  <option value="Prolongation de permission">Prolongation de permission</option>
                   <option value="Congé annuel">Congé annuel</option>
                   <option value="Congé maladie">Congé maladie</option>
                   <option value="Récupération">Récupération</option>

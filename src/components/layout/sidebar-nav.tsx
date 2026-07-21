@@ -132,7 +132,7 @@ export function SidebarNav() {
                 </div>
             </div>
           </SidebarHeader>
-          <SidebarContent className="px-3 py-4 overflow-y-auto">
+          <SidebarContent className="px-3 py-4 overflow-y-auto scrollbar-hover">
                 <SidebarMenu className="space-y-1.5">
                 {filteredNavItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);

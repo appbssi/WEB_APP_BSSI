@@ -4,12 +4,13 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useLogo } from '@/context/logo-context';
+import { useLogo, LogoProvider } from '@/context/logo-context';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useUser } from '@/firebase';
+import { useUser, FirebaseClientProvider } from '@/firebase';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
+import { AuthGuard } from '@/components/layout/auth-guard';
 
 const images = [
   'https://i.imgur.com/kPlJEwW.jpeg',
@@ -23,7 +24,13 @@ const images = [
 export default function LandingPage() {
   return (
     <ClientOnly>
-      <LandingContent />
+      <FirebaseClientProvider>
+        <LogoProvider>
+          <AuthGuard>
+            <LandingContent />
+          </AuthGuard>
+        </LogoProvider>
+      </FirebaseClientProvider>
     </ClientOnly>
   );
 }

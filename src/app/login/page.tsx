@@ -29,6 +29,7 @@ import { useIsMounted } from '@/hooks/use-is-mounted';
 import { setRole } from '@/hooks/use-role';
 import { FirebaseError } from 'firebase/app';
 import { ClientOnly } from '@/components/layout/client-only';
+import { AuthGuard } from '@/components/layout/auth-guard';
 
 
 const loginSchema = z.object({
@@ -50,7 +51,9 @@ const images = [
 export default function LoginPage() {
   return (
     <ClientOnly>
-      <LoginContent />
+      <AuthGuard>
+        <LoginContent />
+      </AuthGuard>
     </ClientOnly>
   );
 }

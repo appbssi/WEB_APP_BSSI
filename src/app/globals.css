@@ -369,3 +369,38 @@ body {
     color: hsl(var(--primary-foreground));
     border-color: hsl(var(--primary));
 }
+
+/* Elegant scrollbar visible only on hover */
+.scrollbar-hover {
+  scrollbar-width: none; /* Firefox by default */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.scrollbar-hover:hover {
+  scrollbar-width: thin; /* Firefox on hover */
+}
+
+/* Webkit (Chrome, Safari, newer Edge) */
+.scrollbar-hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background-color 0.3s ease;
+}
+
+.scrollbar-hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.25); /* Subtle thumb on hover */
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.45); /* Darker thumb when directly hovering scrollbar */
+}
+

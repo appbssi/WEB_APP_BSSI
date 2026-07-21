@@ -24,6 +24,7 @@ import { useUser } from '@/firebase';
 import { ChatMessage } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { safeToDate } from '@/lib/agents';
 
 interface MissionChecklistCardProps {
   msgId: string;
@@ -280,7 +281,10 @@ export function ChatSheet() {
                         firestore={firestore}
                       />
                       <span className="text-[10px] text-muted-foreground text-center block mt-1">
-                        {msg.timestamp?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        {(() => {
+                          const d = safeToDate(msg.timestamp);
+                          return d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                        })()}
                       </span>
                     </div>
                   );
@@ -298,7 +302,10 @@ export function ChatSheet() {
                       <p>{msg.text}</p>
                     </div>
                     <span className="text-[10px] text-muted-foreground mt-1 px-1">
-                      {msg.timestamp?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      {(() => {
+                        const d = safeToDate(msg.timestamp);
+                        return d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                      })()}
                     </span>
                   </div>
                 );

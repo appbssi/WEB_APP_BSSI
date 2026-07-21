@@ -25,7 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck } from 'lucide-react';
 import type { Demande, Agent, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
 import { generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
-import { getAgentAvailability } from '@/lib/agents';
+import { getAgentAvailability, safeToDate } from '@/lib/agents';
 import { useRole } from '@/hooks/use-role';
 
 export default function DemandesPage() {
@@ -50,6 +50,19 @@ function DemandesContent() {
   const { toast } = useToast();
   const isMounted = useIsMounted();
   const { role } = useRole();
+
+  // Helper to format Firestore/JS/ISO dates safely without crashing
+  const formatDate = (val: any, formatType: 'date' | 'time' | 'datetime' = 'date') => {
+    const d = safeToDate(val);
+    if (!d) return 'N/A';
+    if (formatType === 'date') {
+      return d.toLocaleDateString('fr-FR');
+    } else if (formatType === 'time') {
+      return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      return d.toLocaleString('fr-FR');
+    }
+  };
 
   const [userIdc, setUserIdc] = useState<string>('');
   
@@ -506,8 +519,15 @@ function DemandesContent() {
   const sortedDemandes = useMemo(() => {
     if (!demandes) return [];
     return [...demandes].sort((a, b) => {
-      const timeA = a.createdAt?.toMillis() || 0;
-      const timeB = b.createdAt?.toMillis() || 0;
+      const getMillis = (val: any) => {
+        if (!val) return 0;
+        if (typeof val.toMillis === 'function') return val.toMillis();
+        if (val.seconds !== undefined) return val.seconds * 1000;
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      };
+      const timeA = getMillis(a.createdAt);
+      const timeB = getMillis(b.createdAt);
       return timeB - timeA;
     });
   }, [demandes]);
@@ -599,7 +619,7 @@ function DemandesContent() {
                       ✅ Notification de dépôt d'équipement validée
                     </AlertTitle>
                     <AlertDescription className="text-xs text-emerald-900">
-                      Vous avez déposé avec succès l'équipement <span className="font-bold">{weapon?.model || 'Équipement'}</span> (N° Série : {weapon?.serialNumber || 'N/A'}) le {assignment.returnedAt?.toDate().toLocaleString('fr-FR')}. Le retour a été enregistré et validé avec succès par l'armurier.
+                      Vous avez déposé avec succès l'équipement <span className="font-bold">{weapon?.model || 'Équipement'}</span> (N° Série : {weapon?.serialNumber || 'N/A'}) le {formatDate(assignment.returnedAt, 'datetime')}. Le retour a été enregistré et validé avec succès par l'armurier.
                     </AlertDescription>
                   </div>
                 </div>
@@ -645,7 +665,7 @@ function DemandesContent() {
                         </div>
                         <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
                           <p>N° Série : <span className="font-bold text-foreground">{weapon?.serialNumber || 'N/A'}</span></p>
-                          <p>Sortie le : <span className="font-bold text-foreground">{assignment.assignedAt?.toDate().toLocaleString('fr-FR')}</span></p>
+                          <p>Sortie le : <span className="font-bold text-foreground">{formatDate(assignment.assignedAt, 'datetime')}</span></p>
                           {(assignment.ammunitionCount || 0) > 0 && (
                             <p>Munitions : <span className="font-bold text-emerald-600">{assignment.ammunitionCount} unités</span></p>
                           )}
@@ -685,7 +705,7 @@ function DemandesContent() {
               <CardContent className="pt-4 space-y-4">
                 <div className="bg-background/80 p-3 rounded-xl border border-destructive/20 space-y-1">
                   <div className="text-xs text-muted-foreground font-mono">
-                    Envoyée le {exp.requestDate?.toDate().toLocaleDateString('fr-FR')} à {exp.requestDate?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    Envoyée le {formatDate(exp.requestDate, 'date')} à {formatDate(exp.requestDate, 'time')}
                   </div>
                   <p className="font-bold text-foreground text-sm leading-relaxed">
                     « {exp.requestText} »
@@ -784,7 +804,7 @@ function DemandesContent() {
                   </p>
                   {exp.sanctionDate && (
                     <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
-                      Notifié le {exp.sanctionDate.toDate().toLocaleDateString('fr-FR')} à {exp.sanctionDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      Notifié le {formatDate(exp.sanctionDate, 'date')} à {formatDate(exp.sanctionDate, 'time')}
                     </div>
                   )}
                 </div>
@@ -813,8 +833,8 @@ function DemandesContent() {
               </AlertTitle>
               <AlertDescription className="mt-1 flex flex-col gap-1 text-sm">
                 <span>
-                  Votre demande pour la période du <strong>{dem.startDate.toDate().toLocaleDateString('fr-FR')}</strong> au{' '}
-                  <strong>{dem.endDate.toDate().toLocaleDateString('fr-FR')}</strong> a été{' '}
+                  Votre demande pour la période du <strong>{formatDate(dem.startDate, 'date')}</strong> au{' '}
+                  <strong>{formatDate(dem.endDate, 'date')}</strong> a été{' '}
                   <strong className={dem.status === 'acceptee' ? 'text-emerald-600' : 'text-destructive'}>
                     {dem.status === 'acceptee' ? 'ACCEPTÉE' : 'REFUSÉE'}
                   </strong>.
@@ -947,8 +967,8 @@ function DemandesContent() {
                       <TableRow key={dem.id} className="hover:bg-muted/30">
                         <TableCell className="font-medium">{dem.type}</TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {dem.startDate.toDate().toLocaleDateString('fr-FR')} au <br />
-                          {dem.endDate.toDate().toLocaleDateString('fr-FR')}
+                          {formatDate(dem.startDate, 'date')} au <br />
+                          {formatDate(dem.endDate, 'date')}
                         </TableCell>
                         <TableCell className="max-w-[180px] truncate text-sm" title={dem.reason}>
                           {dem.reason ? (
@@ -1015,9 +1035,9 @@ function DemandesContent() {
           {explications && explications.length > 0 ? (
             <div className="space-y-4">
               {explications.map((exp) => {
-                const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
-                const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
-                const sancDate = exp.sanctionDate ? (typeof exp.sanctionDate.toDate === 'function' ? exp.sanctionDate.toDate() : new Date(exp.sanctionDate as any)) : null;
+                const reqDate = safeToDate(exp.requestDate);
+                const repDate = safeToDate(exp.replyDate);
+                const sancDate = safeToDate(exp.sanctionDate);
 
                 return (
                   <div key={exp.id} className="p-4 rounded-xl border bg-card text-xs space-y-3 shadow-sm hover:border-orange-500/20 transition-colors">
@@ -1120,14 +1140,14 @@ function DemandesContent() {
                         {dem.type}
                       </span>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        {dem.startDate.toDate().toLocaleDateString('fr-FR')}
+                        {formatDate(dem.startDate, 'date')}
                       </span>
                     </div>
                     <p className="text-xs font-semibold mt-2 text-foreground truncate" title={dem.reason}>
                       Motif : « {dem.reason || 'N/A'} »
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Du {dem.startDate.toDate().toLocaleDateString('fr-FR')} au {dem.endDate.toDate().toLocaleDateString('fr-FR')}
+                      Du {formatDate(dem.startDate, 'date')} au {formatDate(dem.endDate, 'date')}
                     </p>
                   </div>
                   <Button

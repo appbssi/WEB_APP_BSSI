@@ -135,6 +135,22 @@ function DemandesContent() {
   // Fetch current agent details to get their full name
   const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
   const { data: agents } = useCollection<Agent>(agentsQuery);
+
+  // Fetch missions for agent technical sheet
+  const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
+  const { data: missions } = useCollection<Mission>(missionsQuery);
+
+  // Fetch requests for this agent
+  const demandesQuery = useMemoFirebase(() => {
+    if (!firestore || !userIdc) return null;
+    return query(
+      collection(firestore, 'demandes'),
+      where('agentId', '==', userIdc)
+    );
+  }, [firestore, userIdc]);
+
+  const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
+
   const currentAgent = useMemo(() => {
     if (!agents || !userIdc) return null;
     const cleanIdc = userIdc.trim().toUpperCase();
@@ -155,10 +171,31 @@ function DemandesContent() {
     return userIdc ? `Agent (${userIdc})` : 'Agent';
   }, [currentAgent, userIdc]);
 
-  // Fetch missions for agent technical sheet
-  const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
-  const { data: missions } = useCollection<Mission>(missionsQuery);
+  // Fetch explanation requests for this agent
+  const explicationsQuery = useMemoFirebase(() => {
+    if (!firestore || !currentAgent) return null;
+    return query(
+      collection(firestore, 'explications'),
+      where('agentId', '==', currentAgent.id)
+    );
+  }, [firestore, currentAgent]);
 
+  const { data: explications } = useCollection<Explication>(explicationsQuery);
+
+  // Fetch weapons/materials and assignments for equipment status alerts
+  const weaponsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'weapons') : null), [firestore]);
+  const { data: weapons } = useCollection<Weapon>(weaponsQuery);
+
+  const weaponAssignmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !currentAgent) return null;
+    return query(
+      collection(firestore, 'weaponAssignments'),
+      where('agentId', '==', currentAgent.id)
+    );
+  }, [firestore, currentAgent]);
+  const { data: weaponAssignments } = useCollection<WeaponAssignment>(weaponAssignmentsQuery);
+
+  // Derived state memos
   const currentAgentMissions = useMemo(() => {
     if (!missions || !currentAgent) return [];
     return missions.filter(m => m.assignedAgentIds && m.assignedAgentIds.includes(currentAgent.id));
@@ -191,41 +228,6 @@ function DemandesContent() {
       description: 'Le téléchargement de votre fiche technique a commencé.',
     });
   };
-
-  // Fetch requests for this agent
-  const demandesQuery = useMemoFirebase(() => {
-    if (!firestore || !userIdc) return null;
-    return query(
-      collection(firestore, 'demandes'),
-      where('agentId', '==', userIdc)
-    );
-  }, [firestore, userIdc]);
-
-  const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
-
-  // Fetch explanation requests for this agent
-  const explicationsQuery = useMemoFirebase(() => {
-    if (!firestore || !currentAgent) return null;
-    return query(
-      collection(firestore, 'explications'),
-      where('agentId', '==', currentAgent.id)
-    );
-  }, [firestore, currentAgent]);
-
-  const { data: explications } = useCollection<Explication>(explicationsQuery);
-
-  // Fetch weapons/materials and assignments for equipment status alerts
-  const weaponsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'weapons') : null), [firestore]);
-  const { data: weapons } = useCollection<Weapon>(weaponsQuery);
-
-  const weaponAssignmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !currentAgent) return null;
-    return query(
-      collection(firestore, 'weaponAssignments'),
-      where('agentId', '==', currentAgent.id)
-    );
-  }, [firestore, currentAgent]);
-  const { data: weaponAssignments } = useCollection<WeaponAssignment>(weaponAssignmentsQuery);
 
   const weaponsById = useMemo(() => {
     if (!weapons) return {};

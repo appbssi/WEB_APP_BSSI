@@ -4,10 +4,10 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useLogo, LogoProvider } from '@/context/logo-context';
+import { useLogo } from '@/context/logo-context';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useUser, FirebaseClientProvider } from '@/firebase';
+import { useUser } from '@/firebase';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
 import { AuthGuard } from '@/components/layout/auth-guard';
@@ -24,13 +24,9 @@ const images = [
 export default function LandingPage() {
   return (
     <ClientOnly>
-      <FirebaseClientProvider>
-        <LogoProvider>
-          <AuthGuard>
-            <LandingContent />
-          </AuthGuard>
-        </LogoProvider>
-      </FirebaseClientProvider>
+      <AuthGuard>
+        <LandingContent />
+      </AuthGuard>
     </ClientOnly>
   );
 }

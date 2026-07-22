@@ -6,34 +6,27 @@ import {
   SidebarInset,
   SidebarProvider,
 } from '@/components/ui/sidebar';
-import { FirebaseClientProvider } from '@/firebase';
 import { AuthGuard } from '@/components/layout/auth-guard';
-import { LogoProvider } from '@/context/logo-context';
 import { DeviceTracker } from '@/components/layout/device-tracker';
 import { NavigationWatcher } from '@/components/layout/navigation-watcher';
-import Loading from './loading';
 
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <FirebaseClientProvider>
-      <AuthGuard>
-        <LogoProvider>
-          <DeviceTracker />
-          <NavigationWatcher />
-          <SidebarProvider>
-            <Sidebar>
-              <SidebarNav />
-            </Sidebar>
-            <SidebarInset>
-              <Header />
-              <main className="p-4 sm:p-6 lg:p-8">
-                {children}
-              </main>
-            </SidebarInset>
-          </SidebarProvider>
-        </LogoProvider>
-      </AuthGuard>
-    </FirebaseClientProvider>
+    <AuthGuard>
+      <DeviceTracker />
+      <NavigationWatcher />
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarNav />
+        </Sidebar>
+        <SidebarInset>
+          <Header />
+          <main className="p-4 sm:p-6 lg:p-8">
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </AuthGuard>
   );
 }

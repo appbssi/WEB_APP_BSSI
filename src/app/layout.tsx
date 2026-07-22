@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/layout/theme-provider';
 import { FirebaseClientProvider } from '@/firebase';
 import { LogoProvider } from '@/context/logo-context';
 import { DetachementProvider } from '@/context/detachement-context';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export const metadata: Metadata = {
   title: 'sBSSI',
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning className="h-full">
       <body className="font-body antialiased h-full" suppressHydrationWarning>
         <ThemeProvider>
+          <FirebaseErrorListener />
           <FirebaseClientProvider>
             <LogoProvider>
               <DetachementProvider>

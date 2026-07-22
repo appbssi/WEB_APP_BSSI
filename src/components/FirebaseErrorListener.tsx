@@ -18,12 +18,13 @@ export function FirebaseErrorListener() {
 
     // Interception des erreurs globales (Firebase, ResizeObserver, etc.)
     const handleGlobalError = (event: ErrorEvent) => {
-      const msg = event.message?.toLowerCase() || '';
+      const msg = (event.message || event.error?.message || '').toLowerCase();
       const isFirebaseError = msg.includes('firebase') || msg.includes('firestore');
-      const isResizeObserverError = msg.includes('resizeobserver loop');
+      const isResizeObserverError = msg.includes('resizeobserver');
       
       if (isFirebaseError || isResizeObserverError) {
-        console.debug('Global Error Blocked:', event.message);
+        console.debug('Global Error Blocked:', event.message || msg);
+        event.stopImmediatePropagation();
         event.preventDefault();
         event.stopPropagation();
       }

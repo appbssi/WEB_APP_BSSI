@@ -43,6 +43,7 @@ import {
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, orderBy, doc, updateDoc, Timestamp, deleteDoc, increment, writeBatch } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useDetachement } from '@/context/detachement-context';
 import type { Weapon, WeaponAssignment, Agent, Mission } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { AddWeaponForm } from '@/components/armurerie/add-weapon-form';
@@ -90,10 +91,16 @@ function ArmurerieContent() {
     return agents.reduce((acc, agent) => { acc[agent.id] = agent; return acc; }, {} as Record<string, Agent>);
   }, [agents]);
 
-  const weaponsById = useMemo(() => {
-    if (!weapons) return {};
-    return weapons.reduce((acc, weapon) => { acc[weapon.id] = weapon; return acc; }, {} as Record<string, Weapon>);
-  }, [weapons]);
+  const { selectedDetachement } = useDetachement();
+
+  const filteredAssignments = useMemo(() => {
+    if (!assignments) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return assignments;
+    return assignments.filter(as => {
+      const agent = agentsById[as.agentId];
+      return agent ? agent.section === selectedDetachement : true;
+    });
+  }, [assignments, selectedDetachement, agentsById]);
 
   const filteredWeapons = useMemo(() => {
     if (!weapons) return [];
@@ -393,8 +400,8 @@ function ArmurerieContent() {
                 <TableBody>
                   {assignmentsLoading ? (
                     <TableRow><TableCell colSpan={5} className="text-center">Chargement...</TableCell></TableRow>
-                  ) : assignments?.filter(a => !a.returnedAt).length ? (
-                    assignments.filter(a => !a.returnedAt).map((a) => (
+                  ) : filteredAssignments.filter(a => !a.returnedAt).length ? (
+                    filteredAssignments.filter(a => !a.returnedAt).map((a) => (
                       <TableRow key={a.id}>
                         <TableCell className="font-medium">{agentsById[a.agentId]?.fullName || '...'}</TableCell>
                         <TableCell>{weaponsById[a.weaponId]?.model || '...'} ({weaponsById[a.weaponId]?.serialNumber})</TableCell>
@@ -447,8 +454,8 @@ function ArmurerieContent() {
                 <TableBody>
                   {assignmentsLoading ? (
                     <TableRow><TableCell colSpan={5} className="text-center">Chargement...</TableCell></TableRow>
-                  ) : assignments?.length ? (
-                    assignments.map((a) => (
+                  ) : filteredAssignments.length ? (
+                    filteredAssignments.map((a) => (
                       <TableRow key={a.id}>
                         <TableCell>{a.assignedAt.toDate().toLocaleString('fr-FR')}</TableCell>
                         <TableCell>

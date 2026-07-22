@@ -53,11 +53,11 @@ body {
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 222 47% 7%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 222 40% 11%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 40% 11%;
     --popover-foreground: 210 40% 98%;
     --primary: 24.6 95% 53.1%;
     --primary-foreground: 60 9.1% 97.8%;
@@ -73,14 +73,14 @@ body {
     --input: 217.2 32.6% 17.5%;
     --ring: 24.6 95% 53.1%;
     
-    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-background: 222 47% 9%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 24.6 95% 53.1%;
     --sidebar-primary-foreground: 60 9.1% 97.8%;
     --sidebar-accent: 217.2 32.6% 17.5%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 24.6-95-53.1;
+    --sidebar-ring: 24.6 95% 53.1%;
   }
 }
 

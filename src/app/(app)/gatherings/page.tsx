@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useRole } from '@/hooks/use-role';
+import { useDetachement } from '@/context/detachement-context';
 import { CreateGatheringForm } from '@/components/gatherings/create-gathering-sheet';
 import { ManageAttendanceDialog } from '@/components/gatherings/manage-attendance-dialog';
 import { ViewAttendanceDialog } from '@/components/gatherings/view-attendance-dialog';
@@ -84,10 +85,24 @@ function GatheringsContent() {
     }, {} as Record<string, Agent>);
   }, [agents]);
 
+  const { selectedDetachement } = useDetachement();
+
   const sortedGatherings = useMemo(() => {
     if (!gatherings) return [];
     return [...gatherings].sort((a, b) => b.dateTime.toMillis() - a.dateTime.toMillis());
   }, [gatherings]);
+
+  const filteredGatherings = useMemo(() => {
+    if (!sortedGatherings) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return sortedGatherings;
+    return sortedGatherings.filter(g => {
+      const assigned = (g.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);
+      if (assigned.length > 0) {
+        return assigned.some(a => a.section === selectedDetachement);
+      }
+      return true;
+    });
+  }, [sortedGatherings, selectedDetachement, agentsById]);
 
   const handleDeleteGathering = async () => {
     if (!firestore || !gatheringToDelete) return;
@@ -151,8 +166,8 @@ function GatheringsContent() {
               <TableRow>
                 <TableCell colSpan={6} className="text-center">Chargement des rassemblements...</TableCell>
               </TableRow>
-            ) : sortedGatherings.length > 0 ? (
-              sortedGatherings.map((gathering) => {
+            ) : filteredGatherings.length > 0 ? (
+              filteredGatherings.map((gathering) => {
                 const assignedCount = gathering.assignedAgentIds.length;
                 const absentCount = gathering.absentAgentIds.length;
                 const presentCount = assignedCount - absentCount;

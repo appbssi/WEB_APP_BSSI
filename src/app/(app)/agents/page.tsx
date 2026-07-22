@@ -51,6 +51,7 @@ import { AgentDetailsSheet } from '@/components/agents/agent-details-sheet';
 import { AgentExplicationForm } from '@/components/agents/agent-explication-form';
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
+import { useDetachement } from '@/context/detachement-context';
 import { getAgentAvailability } from '@/lib/agents';
 import {
   Dialog,
@@ -116,13 +117,15 @@ function AgentsContent() {
   const { data: missions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
   const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
 
+  const { selectedDetachement } = useDetachement();
+
   const agentsWithDetails: Agent[] = useMemo(() => {
     if (!agents || !missions) return [];
     const now = new Date();
     return agents.map(agent => ({
       ...agent,
       availability: getAgentAvailability(agent, missions, now, undefined, demandes || []),
-      missionCount: missions.filter(m => m.assignedAgentIds.includes(agent.id)).length,
+      missionCount: agent.missionCount !== undefined ? agent.missionCount : missions.filter(m => m.assignedAgentIds.includes(agent.id)).length,
     }));
   }, [agents, missions, demandes]);
 
@@ -152,10 +155,12 @@ function AgentsContent() {
       } else {
           matchesSection = (agent.section || '').toLowerCase() === sectionFilter.toLowerCase();
       }
+
+      const matchesDetachement = !selectedDetachement || selectedDetachement === 'ALL' || agent.section === selectedDetachement;
       
-      return matchesSearch && matchesAvailability && matchesSection;
+      return matchesSearch && matchesAvailability && matchesSection && matchesDetachement;
     });
-  }, [sortedAgents, searchQuery, availabilityFilter, sectionFilter]);
+  }, [sortedAgents, searchQuery, availabilityFilter, sectionFilter, selectedDetachement]);
 
   const getBadgeVariant = (availability?: Availability) => {
     switch (availability) {

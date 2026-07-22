@@ -27,7 +27,17 @@ import {
   FileDown,
   LayoutGrid,
   List,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useDetachement } from '@/context/detachement-context';
+import { resetAllAgentMissionCounts, clearAllHistories } from '@/lib/firestore-utils';
 import {
   Table,
   TableBody,
@@ -251,8 +261,97 @@ function DashboardContent() {
     }
   };
 
+  const { selectedDetachement } = useDetachement();
+  const [isResettingCounters, setIsResettingCounters] = useState(false);
+  const [isClearingHistories, setIsClearingHistories] = useState(false);
+
+  const handleResetCounters = async () => {
+    if (!firestore) return;
+    if (!window.confirm("Êtes-vous sûr de vouloir réinitialiser le compteur de missions de tous les agents à 0 ?")) return;
+    setIsResettingCounters(true);
+    try {
+      const count = await resetAllAgentMissionCounts(firestore);
+      toast({
+        title: "Compteurs réinitialisés",
+        description: `Le compteur de mission de ${count} agents a été remis à 0.`,
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de réinitialiser les compteurs.",
+      });
+    } finally {
+      setIsResettingCounters(false);
+    }
+  };
+
+  const handleClearHistories = async () => {
+    if (!firestore) return;
+    if (!window.confirm("ATTENTION : Cette action supprimera TOUTES les historiques (missions, activités, explications, demandes, etc.) et réinitialisera les compteurs. Continuer ?")) return;
+    setIsClearingHistories(true);
+    try {
+      await clearAllHistories(firestore);
+      toast({
+        title: "Historiques réinitialisées",
+        description: "Toutes les historiques et les compteurs de mission ont été réinitialisés avec succès.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de réinitialiser les historiques.",
+      });
+    } finally {
+      setIsClearingHistories(false);
+    }
+  };
+
+  const agentsById = useMemo(() => {
+    if (!agents) return {};
+    return agents.reduce((acc, agent) => {
+      acc[agent.id] = agent;
+      return acc;
+    }, {} as Record<string, Agent>);
+  }, [agents]);
+
+  const filteredAgents = useMemo(() => {
+    if (!agents) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return agents;
+    return agents.filter(a => a.section === selectedDetachement);
+  }, [agents, selectedDetachement]);
+
+  const filteredMissions = useMemo(() => {
+    if (!missions) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return missions;
+    return missions.filter(m => {
+      const assignedAgents = m.assignedAgentIds.map(id => agentsById[id]).filter(Boolean);
+      if (assignedAgents.length > 0) {
+        return assignedAgents.some(a => a.section === selectedDetachement);
+      }
+      return (m as any).section === selectedDetachement || m.location?.toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase());
+    });
+  }, [missions, selectedDetachement, agentsById]);
+
+  const filteredDetainees = useMemo(() => {
+    if (!detainees) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return detainees;
+    return detainees.filter(d => (d as any).section === selectedDetachement || d.arrestLocation?.toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase()));
+  }, [detainees, selectedDetachement]);
+
+  const filteredDemandes = useMemo(() => {
+    if (!demandes) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return demandes;
+    return demandes.filter(d => {
+      const agent = agentsById[d.agentId];
+      return agent ? agent.section === selectedDetachement : true;
+    });
+  }, [demandes, selectedDetachement, agentsById]);
+
   const stats = useMemo(() => {
-    if (!agents || !missions || !detainees) {
+    if (!filteredAgents || !filteredMissions || !filteredDetainees) {
       return { totalAgents: 0, onMission: 0, available: 0, completedMissions: 0, totalGAV: 0 };
     }
     const now = new Date();
@@ -260,8 +359,8 @@ function DashboardContent() {
     const onLeave = new Set<string>();
     const onPermission = new Set<string>();
 
-    for (const agent of agents) {
-      const availability = getAgentAvailability(agent, missions, now, undefined, demandes || []);
+    for (const agent of filteredAgents) {
+      const availability = getAgentAvailability(agent, filteredMissions, now, undefined, filteredDemandes || []);
       if (availability === 'En mission') {
         onMission.add(agent.id);
       } else if (availability === 'En congé') {
@@ -271,45 +370,85 @@ function DashboardContent() {
       }
     }
     
-    const available = agents.length - onMission.size - onLeave.size - onPermission.size;
+    const available = filteredAgents.length - onMission.size - onLeave.size - onPermission.size;
     
-    const completedMissions = missions.filter(m => getDisplayStatus(m, now) === 'Terminée').length;
+    const completedMissions = filteredMissions.filter(m => getDisplayStatus(m, now) === 'Terminée').length;
 
     return {
-      totalAgents: agents.length,
+      totalAgents: filteredAgents.length,
       onMission: onMission.size,
-      available: available,
+      available: Math.max(0, available),
       completedMissions: completedMissions,
-      totalGAV: detainees.length,
+      totalGAV: filteredDetainees.length,
     };
-  }, [agents, missions, detainees, demandes]);
+  }, [filteredAgents, filteredMissions, filteredDetainees, filteredDemandes]);
 
   const missionsWithStatus: MissionWithDisplayStatus[] = useMemo(() => {
-    if (!missions) return [];
+    if (!filteredMissions) return [];
     const now = new Date();
-    return missions.map(mission => ({
+    return filteredMissions.map(mission => ({
       ...mission,
       displayStatus: getDisplayStatus(mission, now)!,
     }));
-  }, [missions]);
+  }, [filteredMissions]);
 
   const ongoingMissions = useMemo(() => {
     return missionsWithStatus.filter(mission => mission.displayStatus === 'En cours');
   }, [missionsWithStatus]);
-  
-  const agentsById = useMemo(() => {
-    if (!agents) return {};
-    return agents.reduce((acc, agent) => {
-      acc[agent.id] = agent;
-      return acc;
-    }, {} as Record<string, Agent>);
-  }, [agents]);
 
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 font-medium">
+            <Shield className="h-4 w-4 text-primary shrink-0" />
+            Détachement actif : <span className="font-bold text-foreground">{selectedDetachement === 'ALL' ? 'Tous les détachements' : selectedDetachement}</span>
+          </p>
+        </div>
+
+        {role === 'admin' && (
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleResetCounters}
+                    disabled={isResettingCounters}
+                    className="h-8 w-8 text-amber-600 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-500/20 transition-all rounded-lg"
+                    aria-label="Reset Compteurs Missions"
+                  >
+                    <RotateCcw className={`h-4 w-4 ${isResettingCounters ? 'animate-spin' : ''}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs font-semibold">
+                  Reset Compteurs Missions
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleClearHistories}
+                    disabled={isClearingHistories}
+                    className="h-8 w-8 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive dark:text-red-400 dark:hover:bg-red-500/20 transition-all rounded-lg"
+                    aria-label="Réinitialiser les Historiques"
+                  >
+                    <Trash2 className={`h-4 w-4 ${isClearingHistories ? 'animate-spin' : ''}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs font-semibold">
+                  Réinitialiser les Historiques
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
       </div>
 
       {/* Notifications pour réponses aux demandes d'explication */}

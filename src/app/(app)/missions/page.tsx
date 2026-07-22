@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
+import { useDetachement } from '@/context/detachement-context';
 import { differenceInDays, isSameDay } from 'date-fns';
 import { logActivity } from '@/lib/activity-logger';
 import { getDisplayStatus, MissionWithDisplayStatus } from '@/lib/missions';
@@ -281,13 +282,26 @@ function MissionsContent() {
       .sort((a, b) => (statusOrder[a.displayStatus] || 5) - (statusOrder[b.displayStatus] || 5) || b.startDate.toMillis() - a.startDate.toMillis());
   }, [missions]);
 
+  const { selectedDetachement } = useDetachement();
+
   const filteredMissions = useMemo(() => {
     return sortedMissions.filter(mission => {
       const matchesSearch = mission.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter = statusFilter === 'all' || mission.displayStatus === statusFilter;
-      return matchesSearch && matchesFilter;
+
+      let matchesDetachement = true;
+      if (selectedDetachement && selectedDetachement !== 'ALL') {
+        const assignedAgents = mission.assignedAgentIds.map(id => agentsById[id]).filter(Boolean);
+        if (assignedAgents.length > 0) {
+          matchesDetachement = assignedAgents.some(a => a.section === selectedDetachement);
+        } else {
+          matchesDetachement = (mission as any).section === selectedDetachement || mission.location?.toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase());
+        }
+      }
+
+      return matchesSearch && matchesFilter && matchesDetachement;
     });
-  }, [sortedMissions, searchQuery, statusFilter]);
+  }, [sortedMissions, searchQuery, statusFilter, selectedDetachement, agentsById]);
 
   const getBadgeVariant = (status: MissionStatus) => {
     switch (status) {

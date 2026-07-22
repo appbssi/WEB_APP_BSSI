@@ -1115,7 +1115,10 @@ function DemandesContent() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => generateAutorisationAbsencePDF(dem, currentAgent)}
+                              onClick={() => {
+                                const targetAgent = agents?.find(a => a.id === dem.agentId || a.registrationNumber === dem.agentId) || currentAgent;
+                                generateAutorisationAbsencePDF(dem, targetAgent);
+                              }}
                               className="text-xs h-8 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 font-semibold gap-1"
                               title="Télécharger l'autorisation (PDF)"
                             >
@@ -1274,7 +1277,10 @@ function DemandesContent() {
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => generateAutorisationAbsencePDF(dem, currentAgent)}
+                    onClick={() => {
+                      const targetAgent = agents?.find(a => a.id === dem.agentId || a.registrationNumber === dem.agentId) || currentAgent;
+                      generateAutorisationAbsencePDF(dem, targetAgent);
+                    }}
                     className="w-full text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 cursor-pointer"
                   >
                     <FileDown className="h-4 w-4" />

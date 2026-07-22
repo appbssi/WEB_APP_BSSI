@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { FirebaseClientProvider } from '@/firebase';
 import { LogoProvider } from '@/context/logo-context';
+import { DetachementProvider } from '@/context/detachement-context';
 
 export const metadata: Metadata = {
   title: 'sBSSI',
@@ -21,7 +22,9 @@ export default function RootLayout({
         <ThemeProvider>
           <FirebaseClientProvider>
             <LogoProvider>
-              {children}
+              <DetachementProvider>
+                {children}
+              </DetachementProvider>
             </LogoProvider>
           </FirebaseClientProvider>
           <Toaster />

@@ -209,3 +209,76 @@ export async function prefixContactsWithZero(firestore: Firestore): Promise<numb
 
     return updatedCount;
 }
+
+/**
+ * Resets the mission counter (missionCount) for all agents to 0.
+ */
+export async function resetAllAgentMissionCounts(firestore: Firestore): Promise<number> {
+    if (!firestore) return 0;
+
+    const agentsRef = collection(firestore, 'agents');
+    const querySnapshot = await getDocs(agentsRef);
+
+    if (querySnapshot.empty) return 0;
+
+    const batch = writeBatch(firestore);
+    let count = 0;
+
+    querySnapshot.forEach((docSnap) => {
+        const agentRef = doc(firestore, 'agents', docSnap.id);
+        batch.update(agentRef, { missionCount: 0 });
+        count++;
+    });
+
+    if (count > 0) {
+        await batch.commit().catch(err => {
+            console.error('Error resetting agent mission counts:', err);
+        });
+        logActivity(firestore, `Les compteurs de mission de ${count} agents ont été réinitialisés à 0.`, 'Agent', '/agents');
+    }
+
+    return count;
+}
+
+/**
+ * Deletes all documents in history collections (activities, missions, explications, demandes, weaponAssignments, vehicleAnomalies, expenses, allocations, broadcasts, visitors, gatherings) and resets agent mission counts.
+ */
+export async function clearAllHistories(firestore: Firestore): Promise<void> {
+    if (!firestore) return;
+
+    const collectionsToClear = [
+        'activities',
+        'missions',
+        'explications',
+        'demandes',
+        'weaponAssignments',
+        'vehicleAnomalies',
+        'expenses',
+        'allocations',
+        'broadcasts',
+        'visitors',
+        'gatherings'
+    ];
+
+    for (const colName of collectionsToClear) {
+        try {
+            const colRef = collection(firestore, colName);
+            const snapshot = await getDocs(colRef);
+            if (!snapshot.empty) {
+                const batch = writeBatch(firestore);
+                snapshot.forEach((docSnap) => {
+                    batch.delete(doc(firestore, colName, docSnap.id));
+                });
+                await batch.commit();
+            }
+        } catch (err) {
+            console.error(`Error clearing collection ${colName}:`, err);
+        }
+    }
+
+    // Also reset agent mission counts
+    await resetAllAgentMissionCounts(firestore);
+
+    logActivity(firestore, "Toutes les historiques ont été réinitialisées avec succès.", 'Général', '/dashboard');
+}
+

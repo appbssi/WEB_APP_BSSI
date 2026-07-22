@@ -128,7 +128,7 @@ function drawSignatureBlock(doc: jsPDF, title: string, startY: number, stampImag
   doc.setFont('Helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Abidjan, le ${new Date().toLocaleDateString('fr-FR')}`, 135, sigY);
+  doc.text(`Tengréla le ${new Date().toLocaleDateString('fr-FR')}`, 135, sigY);
 
   doc.setFont('Helvetica', 'bold');
   doc.setFontSize(10);
@@ -430,7 +430,7 @@ export function generateFicheAgentPDF(agent: any, missions: any[], explications:
     format: 'a4',
   });
 
-  const generatePDF = (headerImg: HTMLImageElement | null, photoImg: HTMLImageElement | null) => {
+  const generatePDF = (headerImg: HTMLImageElement | null, photoImg: HTMLImageElement | null, stampImg: HTMLImageElement | null) => {
     // Header
     drawHeader(doc, headerImg);
 
@@ -575,20 +575,23 @@ export function generateFicheAgentPDF(agent: any, missions: any[], explications:
     }
 
     // Footer Administrative Note
-    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 15 : 180 + yShift;
+    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : 180 + yShift;
     doc.setFont('Helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(120, 120, 120);
     doc.text('Document officiel généré par le système d\'administration sBSSI.', 15, finalY);
 
+    // Signatures with Cachet and Stamp
+    drawSignatureBlock(doc, 'LE CHEF DE DETACHEMENT', finalY, stampImg || undefined);
+
     // Save PDF
-    doc.save(`Fiche_Technique_${agent.fullName.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Fiche_Technique_${agent.fullName ? agent.fullName.replace(/\s+/g, '_') : 'Agent'}.pdf`);
   };
 
   preloadImages(
-    ['https://i.ibb.co/FL7ZKgSp/ent-te.png', agent.photo || ''],
-    ([headerImg, photoImg]) => {
-      generatePDF(headerImg, photoImg);
+    ['https://i.ibb.co/FL7ZKgSp/ent-te.png', agent.photo || '', 'https://i.ibb.co/5X97N1HF/signature.jpg'],
+    ([headerImg, photoImg, stampImg]) => {
+      generatePDF(headerImg, photoImg, stampImg);
     }
   );
 }

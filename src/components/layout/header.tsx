@@ -4,6 +4,8 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UserNav } from './user-nav';
 import { RecentActivitiesDialog } from '../dashboard/recent-activities-dialog';
 import { ChatSheet } from '../chat/chat-sheet';
+import { DetachementSelector } from './detachement-selector';
+import { ThemeToggle } from './theme-toggle';
 import { Button } from '../ui/button';
 import { useRole } from '@/hooks/use-role';
 import { useMemo, useState, useEffect } from 'react';
@@ -127,13 +129,14 @@ export function Header() {
             {/* Espace réservé pour d'éventuels éléments futurs */}
         </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         {displayRole && (
-            <span className="text-sm font-semibold text-foreground">{displayRole}</span>
+            <span className="text-sm font-semibold text-foreground hidden sm:inline-block">{displayRole}</span>
         )}
-        <NotificationBell />
         <ChatSheet />
         <RecentActivitiesDialog />
+        <DetachementSelector />
+        <ThemeToggle />
         <UserNav />
       </div>
     </header>

@@ -7,9 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, CreditCard, TrendingUp, Users, Wallet, AlertCircle, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { PlusCircle, CreditCard, TrendingUp, Users, Wallet, AlertCircle, RefreshCw, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Expense, Allocation, Agent, Mission } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -103,6 +103,32 @@ function FinanceContent() {
       logActivity(firestore, `Dépense ${newStatus.toLowerCase()} : ${expense.description}`, 'Général', '/finance');
     } catch (error) {
       toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de mettre à jour le statut." });
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string, description: string) => {
+    if (!firestore) return;
+    if (!window.confirm(`Voulez-vous vraiment supprimer la dépense "${description}" ?`)) return;
+    try {
+      await deleteDoc(doc(firestore, 'expenses', expenseId));
+      toast({ title: 'Dépense supprimée', description: 'La dépense a été supprimée avec succès.' });
+      logActivity(firestore, `Dépense supprimée : ${description}`, 'Général', '/finance');
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de supprimer la dépense." });
+    }
+  };
+
+  const handleClearExpenses = async () => {
+    if (!firestore || !expenses || expenses.length === 0) return;
+    if (!window.confirm("Voulez-vous vraiment supprimer TOUTES les dépenses enregistrées ? Cette action est irréversible.")) return;
+    try {
+      for (const e of expenses) {
+        await deleteDoc(doc(firestore, 'expenses', e.id));
+      }
+      toast({ title: 'Historique des dépenses vidé' });
+      logActivity(firestore, 'Historique des dépenses vidé par l\'administrateur', 'Général', '/finance');
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible de vider l'historique des dépenses." });
     }
   };
 
@@ -269,8 +295,19 @@ function FinanceContent() {
         </TabsList>
         <TabsContent value="expenses" className="space-y-4">
           <Card className="rounded-2xl border-none shadow-md bg-white">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle>Historique des Dépenses</CardTitle>
+              {expenses && expenses.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 px-2.5 cursor-pointer rounded-lg"
+                  onClick={handleClearExpenses}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Vider tout</span>
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <Table>
@@ -308,26 +345,37 @@ function FinanceContent() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {e.status === 'En attente' && (
-                            <div className="flex justify-end gap-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="h-8 text-green-600 border-green-600 hover:bg-green-50"
-                                onClick={() => handleUpdateExpenseStatus(e, 'Validé')}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" /> Valider
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="h-8 text-destructive border-destructive hover:bg-destructive/10"
-                                onClick={() => handleUpdateExpenseStatus(e, 'Refusé')}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" /> Refuser
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex justify-end items-center gap-2">
+                            {e.status === 'En attente' && (
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-8 text-green-600 border-green-600 hover:bg-green-50"
+                                  onClick={() => handleUpdateExpenseStatus(e, 'Validé')}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" /> Valider
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-8 text-destructive border-destructive hover:bg-destructive/10"
+                                  onClick={() => handleUpdateExpenseStatus(e, 'Refusé')}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" /> Refuser
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 cursor-pointer rounded-lg"
+                              title="Supprimer la dépense"
+                              onClick={() => handleDeleteExpense(e.id, e.description)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

@@ -16,13 +16,14 @@ export function FirebaseErrorListener() {
       console.debug('Firebase Permission Handled (Silenced)');
     };
 
-    // Interception des erreurs globales du SDK Firebase (Assertion errors, etc.)
+    // Interception des erreurs globales (Firebase, ResizeObserver, etc.)
     const handleGlobalError = (event: ErrorEvent) => {
-      const isFirebaseError = event.message?.toLowerCase().includes('firebase') || 
-                             event.message?.toLowerCase().includes('firestore');
+      const msg = event.message?.toLowerCase() || '';
+      const isFirebaseError = msg.includes('firebase') || msg.includes('firestore');
+      const isResizeObserverError = msg.includes('resizeobserver loop');
       
-      if (isFirebaseError) {
-        console.debug('Firebase Internal Error Blocked:', event.message);
+      if (isFirebaseError || isResizeObserverError) {
+        console.debug('Global Error Blocked:', event.message);
         event.preventDefault();
         event.stopPropagation();
       }

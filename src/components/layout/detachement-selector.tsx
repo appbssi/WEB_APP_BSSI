@@ -18,9 +18,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { useRole } from '@/hooks/use-role';
+
 export function DetachementSelector() {
   const { selectedDetachement, setSelectedDetachement } = useDetachement();
   const firestore = useFirestore();
+  const { isAdmin } = useRole();
 
   const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
   const { data: agents } = useCollection<Agent>(agentsQuery);
@@ -49,11 +52,14 @@ export function DetachementSelector() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger asChild disabled={!isAdmin}>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 relative rounded-lg bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary transition-all cursor-pointer"
+                disabled={!isAdmin}
+                className={`h-8 w-8 relative rounded-lg bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary transition-all ${
+                  isAdmin ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'
+                }`}
                 aria-label="Sélectionner le détachement"
               >
                 <Shield className="h-4 w-4" />
@@ -68,6 +74,7 @@ export function DetachementSelector() {
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs font-semibold">
             Détachement : {selectedDetachement === 'ALL' ? 'Tous les détachements' : selectedDetachement}
+            {!isAdmin && " (Modification réservée aux administrateurs)"}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, where, addDoc, doc, setDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMounted } from '@/hooks/use-is-mounted';
@@ -22,9 +22,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import type { Demande, Agent, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
 import { generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
+import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
 import { getAgentAvailability, safeToDate } from '@/lib/agents';
 import { useRole } from '@/hooks/use-role';
 import { cn } from '@/lib/utils';
@@ -462,6 +463,55 @@ function DemandesContent() {
       title: "Envoi annulé",
       description: "Vous pouvez modifier votre réponse explicative avant de la renvoyer.",
     });
+  };
+
+  const handleDeleteExplication = async (id: string) => {
+    if (!firestore) return;
+    if (!window.confirm("Voulez-vous vraiment supprimer cette demande d'explication de votre historique ?")) return;
+    try {
+      await deleteDoc(doc(firestore, 'explications', id));
+      toast({ title: "Explication supprimée", description: "L'élément a été supprimé." });
+    } catch (err) {
+      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de supprimer l'explication." });
+    }
+  };
+
+  const handleClearAllExplications = async () => {
+    if (!firestore || !explications || explications.length === 0) return;
+    if (!window.confirm("Voulez-vous vraiment vider tout l'historique de vos demandes d'explication ?")) return;
+    try {
+      for (const exp of explications) {
+        await deleteDoc(doc(firestore, 'explications', exp.id));
+      }
+      toast({ title: "Historique d'explications vidé" });
+    } catch (err) {
+      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de vider l'historique." });
+    }
+  };
+
+  const handleDeleteDemande = async (id: string) => {
+    if (!firestore) return;
+    if (!window.confirm("Voulez-vous vraiment supprimer cette autorisation de votre historique ?")) return;
+    try {
+      await deleteDoc(doc(firestore, 'demandes', id));
+      toast({ title: "Autorisation supprimée" });
+    } catch (err) {
+      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de supprimer l'autorisation." });
+    }
+  };
+
+  const handleClearAllAcceptedDemandes = async () => {
+    const acceptedList = sortedDemandes.filter(d => d.status === 'acceptee');
+    if (!firestore || acceptedList.length === 0) return;
+    if (!window.confirm("Voulez-vous vraiment vider tout l'historique de vos autorisations d'absence ?")) return;
+    try {
+      for (const dem of acceptedList) {
+        await deleteDoc(doc(firestore, 'demandes', dem.id));
+      }
+      toast({ title: "Historique des autorisations d'absence vidé" });
+    } catch (err) {
+      toast({ variant: 'destructive', title: "Erreur", description: "Impossible de vider l'historique." });
+    }
   };
 
   // Stagger/Capture unnotified requests on first load to display them in an alert banner
@@ -1147,14 +1197,27 @@ function DemandesContent() {
 
       {/* Explanation Requests History Card */}
       <Card className="rounded-2xl border border-border/80 shadow-md mt-6">
-        <CardHeader>
-          <CardTitle className="text-lg font-bold flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-orange-600" />
-            Historique de mes demandes d'explication
-          </CardTitle>
-          <CardDescription>
-            Retrouvez l'historique complet des demandes d'explications qui vous ont été adressées ainsi que vos réponses et les éventuelles sanctions administratives.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-orange-600" />
+              Historique de mes demandes d'explication
+            </CardTitle>
+            <CardDescription>
+              Retrouvez l'historique complet des demandes d'explications qui vous ont été adressées ainsi que vos réponses et les éventuelles sanctions administratives.
+            </CardDescription>
+          </div>
+          {explications && explications.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 px-2.5 cursor-pointer rounded-lg"
+              onClick={handleClearAllExplications}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Vider tout</span>
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {explications && explications.length > 0 ? (
@@ -1191,6 +1254,15 @@ function DemandesContent() {
                             Sanctionné
                           </Badge>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10 cursor-pointer rounded-md ml-1"
+                          title="Supprimer"
+                          onClick={() => handleDeleteExplication(exp.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
                     
@@ -1245,28 +1317,52 @@ function DemandesContent() {
 
       {/* Downloadable Absence Authorizations History Card */}
       <Card className="rounded-2xl border border-border/80 shadow-md mt-6 bg-emerald-500/5 border-emerald-500/10">
-        <CardHeader>
-          <CardTitle className="text-lg font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="h-5 w-5" />
-            Historique de vos autorisations d'absence (Fichiers PDF)
-          </CardTitle>
-          <CardDescription>
-            Téléchargez à tout moment vos fiches d'autorisation d'absence signées et cachetées par la direction.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
+              Historique de vos autorisations d'absence (Fichiers PDF)
+            </CardTitle>
+            <CardDescription>
+              Téléchargez à tout moment vos fiches d'autorisation d'absence signées et cachetées par la direction.
+            </CardDescription>
+          </div>
+          {sortedDemandes.filter(d => d.status === 'acceptee').length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 px-2.5 cursor-pointer rounded-lg"
+              onClick={handleClearAllAcceptedDemandes}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Vider tout</span>
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {sortedDemandes.filter(d => d.status === 'acceptee').length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {sortedDemandes.filter(d => d.status === 'acceptee').map((dem) => (
-                <div key={dem.id} className="p-4 rounded-xl border bg-card hover:bg-muted/10 transition-colors flex flex-col justify-between gap-3 shadow-sm">
+                <div key={dem.id} className="p-4 rounded-xl border bg-card hover:bg-muted/10 transition-colors flex flex-col justify-between gap-3 shadow-sm relative group">
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
                         {dem.type}
                       </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {formatDate(dem.startDate, 'date')}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {formatDate(dem.startDate, 'date')}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10 cursor-pointer rounded-md"
+                          title="Supprimer cette autorisation"
+                          onClick={() => handleDeleteDemande(dem.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-xs font-semibold mt-2 text-foreground truncate" title={dem.reason}>
                       Motif : « {dem.reason || 'N/A'} »
@@ -1297,6 +1393,16 @@ function DemandesContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Agent Space PDF History */}
+      <div className="pt-4">
+        <PdfHistoryViewer
+          currentAgentId={currentAgent?.id}
+          currentAgentRegistrationNumber={currentAgent?.registrationNumber}
+          title="Mon Espace Documents PDF & Ordres de Mission"
+          description="Consultez et téléchargez la liste de tous vos ordres de mission et autorisations d'absence."
+        />
+      </div>
     </div>
   );
 }

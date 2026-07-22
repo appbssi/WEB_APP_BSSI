@@ -251,6 +251,7 @@ export async function clearAllHistories(firestore: Firestore): Promise<void> {
         'missions',
         'explications',
         'demandes',
+        'pdf_documents',
         'weaponAssignments',
         'vehicleAnomalies',
         'expenses',

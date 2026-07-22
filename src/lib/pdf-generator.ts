@@ -170,7 +170,7 @@ function drawSignatureBlock(doc: jsPDF, title: string, startY: number, stampImag
   }
 }
 
-export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePlate?: string) {
+export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePlate?: string, leaderId?: string) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -203,12 +203,16 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
     doc.setTextColor(80, 80, 80);
     doc.text(`Réf : OM-2026-${randomRef}`, 15, 63 + yShift);
 
+    const effectiveLeaderId = leaderId || mission.leaderId || mission.chefDeMissionId;
+    const leaderAgent = agents.find(a => a.id === effectiveLeaderId);
+    const boxHeight = leaderAgent ? 48 : 42;
+
     // Mission Information Box
     doc.setFillColor(250, 250, 250);
-    doc.rect(15, 66 + yShift, 180, 42, 'F');
+    doc.rect(15, 66 + yShift, 180, boxHeight, 'F');
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
-    doc.rect(15, 66 + yShift, 180, 42, 'D');
+    doc.rect(15, 66 + yShift, 180, boxHeight, 'D');
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(9.5);
@@ -220,6 +224,9 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
     doc.text('Date de début :', 18, 87 + yShift);
     doc.text('Date de fin :', 18, 94 + yShift);
     doc.text('Moyen de transport :', 18, 101 + yShift);
+    if (leaderAgent) {
+      doc.text('Chef de mission :', 18, 108 + yShift);
+    }
 
     // Values
     doc.setFont('Helvetica', 'normal');
@@ -236,24 +243,35 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
     doc.text(`${formattedStartDate}${startTimeStr}`, 58, 87 + yShift);
     doc.text(`${formattedEndDate}${endTimeStr}`, 58, 94 + yShift);
     doc.text(vehiclePlate ? `Véhicule de service (Immatriculation: ${vehiclePlate})` : 'Aucun véhicule officiel assigné', 58, 101 + yShift);
+    
+    if (leaderAgent) {
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(26, 43, 76);
+      doc.text(`${leaderAgent.fullName} (${leaderAgent.rank || 'Agent'})`, 58, 108 + yShift);
+    }
+
+    const tableStartY = 116 + (leaderAgent ? 6 : 0) + yShift;
 
     // Assigned Agents Section Header
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(26, 43, 76);
-    doc.text('LISTE DES AGENTS DÉSIGNÉS POUR LA MISSION', 15, 116 + yShift);
+    doc.text('LISTE DES AGENTS DÉSIGNÉS POUR LA MISSION', 15, tableStartY);
 
     // Assigned Agents Table
-    const tableBody = agents.map((agent, index) => [
-      (index + 1).toString(),
-      agent.registrationNumber || 'N/A',
-      agent.rank || 'Agent',
-      agent.fullName || 'N/A',
-      agent.contact || 'N/A'
-    ]);
+    const tableBody = agents.map((agent, index) => {
+      const isLeader = agent.id === effectiveLeaderId;
+      return [
+        (index + 1).toString(),
+        agent.registrationNumber || 'N/A',
+        agent.rank || 'Agent',
+        `${agent.fullName || 'N/A'}${isLeader ? ' (Chef de Mission)' : ''}`,
+        agent.contact || 'N/A'
+      ];
+    });
 
     (doc as any).autoTable({
-      startY: 120 + yShift,
+      startY: tableStartY + 4,
       head: [['N°', 'Matricule', 'Grade', 'Nom Complet', 'Contact']],
       body: tableBody,
       theme: 'grid',
@@ -282,7 +300,7 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(60, 60, 60);
-    const noticeText = "Il est enjoint aux agents désignés de se conformer strictement aux instructions de la présente feuille d'ordre et de veiller au bon déroulement des opérations dans le respect des consignes de sécurité. Les autorités de police et de gendarmerie sont priées de prêter assistance et faciliter leur déplacement si nécessaire.";
+    const noticeText = "Il est enjoint aux agents désignés de se conformer strictly aux instructions de la présente feuille d'ordre et de veiller au bon déroulement des opérations dans le respect des consignes de sécurité. Les autorités de police et de gendarmerie sont priées de prêter assistance et faciliter leur déplacement si nécessaire.";
     const lines = doc.splitTextToSize(noticeText, 180);
     doc.text(lines, 15, finalY);
 
@@ -342,65 +360,67 @@ export function generateAutorisationAbsencePDF(demande: any, agent: any) {
 
     // Agent Info Box
     doc.setFillColor(250, 250, 250);
-    doc.rect(15, 74 + yShift, 180, 32, 'F');
+    doc.rect(15, 74 + yShift, 180, 38, 'F');
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
-    doc.rect(15, 74 + yShift, 180, 32, 'D');
+    doc.rect(15, 74 + yShift, 180, 38, 'D');
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(9.5);
     doc.setTextColor(26, 43, 76);
     doc.text('Nom & Prénoms :', 18, 81 + yShift);
     doc.text('Matricule :', 18, 88 + yShift);
-    doc.text('Grade / Section :', 18, 95 + yShift);
-    doc.text('Contact :', 18, 102 + yShift);
+    doc.text('Grade :', 18, 95 + yShift);
+    doc.text('Section / Détachement :', 18, 102 + yShift);
+    doc.text('Contact :', 18, 109 + yShift);
 
     doc.setFont('Helvetica', 'normal');
     doc.setTextColor(40, 40, 40);
-    doc.text(agent?.fullName || demande.agentName || 'N/A', 52, 81 + yShift);
-    doc.text(agent?.registrationNumber || 'N/A', 52, 88 + yShift);
-    doc.text(`${agent?.rank || 'Agent'} / ${agent?.section || 'Non assigné'}`, 52, 95 + yShift);
-    doc.text(agent?.contact || 'N/A', 52, 102 + yShift);
+    doc.text(agent?.fullName || demande.agentName || 'N/A', 62, 81 + yShift);
+    doc.text(agent?.registrationNumber || 'N/A', 62, 88 + yShift);
+    doc.text(agent?.rank || 'Agent', 62, 95 + yShift);
+    doc.text(agent?.section || 'Non assigné', 62, 102 + yShift);
+    doc.text(agent?.contact || 'N/A', 62, 109 + yShift);
 
 
     // Absence Information Section Header
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(26, 43, 76);
-    doc.text('II. MODALITÉS DE L\'ABSENCE', 15, 114 + yShift);
+    doc.text('II. MODALITÉS DE L\'ABSENCE', 15, 120 + yShift);
 
     // Absence Info Box
     doc.setFillColor(250, 250, 250);
-    doc.rect(15, 117 + yShift, 180, 44, 'F');
-    doc.rect(15, 117 + yShift, 180, 44, 'D');
+    doc.rect(15, 123 + yShift, 180, 44, 'F');
+    doc.rect(15, 123 + yShift, 180, 44, 'D');
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(9.5);
     doc.setTextColor(26, 43, 76);
-    doc.text('Nature du congé :', 18, 124 + yShift);
-    doc.text('Date de début :', 18, 131 + yShift);
-    doc.text('Date de fin :', 18, 138 + yShift);
-    doc.text('Motif :', 18, 145 + yShift);
-    doc.text('Statut décisionnel :', 18, 152 + yShift);
+    doc.text('Nature du congé :', 18, 130 + yShift);
+    doc.text('Date de début :', 18, 137 + yShift);
+    doc.text('Date de fin :', 18, 144 + yShift);
+    doc.text('Motif :', 18, 151 + yShift);
+    doc.text('Statut décisionnel :', 18, 158 + yShift);
 
     doc.setFont('Helvetica', 'normal');
     doc.setTextColor(40, 40, 40);
-    doc.text(demande.type || 'Permission exceptionnelle', 52, 124 + yShift);
+    doc.text(demande.type || 'Permission exceptionnelle', 62, 130 + yShift);
 
     const formattedStartDate = demande.startDate?.toDate ? demande.startDate.toDate().toLocaleDateString('fr-FR') : new Date(demande.startDate).toLocaleDateString('fr-FR');
     const formattedEndDate = demande.endDate?.toDate ? demande.endDate.toDate().toLocaleDateString('fr-FR') : new Date(demande.endDate).toLocaleDateString('fr-FR');
 
-    doc.text(formattedStartDate, 52, 131 + yShift);
-    doc.text(formattedEndDate, 52, 138 + yShift);
-    doc.text(demande.reason || 'N/A', 52, 145 + yShift);
+    doc.text(formattedStartDate, 62, 137 + yShift);
+    doc.text(formattedEndDate, 62, 144 + yShift);
+    doc.text(demande.reason || 'N/A', 62, 151 + yShift);
 
     doc.setFont('Helvetica', 'bold');
     doc.setTextColor(0, 158, 96); // Green for Accepted
-    doc.text('AUTORISÉ', 52, 152 + yShift);
+    doc.text('AUTORISÉ', 62, 158 + yShift);
 
 
     // Administrative note
-    const finalY = 171 + yShift;
+    const finalY = 175 + yShift;
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(60, 60, 60);

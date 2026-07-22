@@ -47,11 +47,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, doc, setDoc, addDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication } from '@/lib/types';
 import { useMemo, useState, useEffect } from 'react';
 import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
+import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
 import { getAgentAvailability } from '@/lib/agents';
 import { getDisplayStatus, MissionWithDisplayStatus } from '@/lib/missions';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -165,6 +166,38 @@ function DashboardContent() {
     }
   };
 
+  const handleDeleteExplication = async (expId: string) => {
+    if (!firestore) return;
+    if (!window.confirm("Voulez-vous vraiment supprimer cette demande d'explication du registre ?")) return;
+    try {
+      await deleteDoc(doc(firestore, 'explications', expId));
+      toast({
+        title: "Demande d'explication supprimée",
+        description: "L'élément a été supprimé du registre.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de supprimer la demande.' });
+    }
+  };
+
+  const handleClearExplications = async () => {
+    if (!firestore || !explications || explications.length === 0) return;
+    if (!window.confirm("Voulez-vous vraiment vider l'ensemble du registre des demandes d'explication ? Cette action est irréversible.")) return;
+    try {
+      for (const exp of explications) {
+        await deleteDoc(doc(firestore, 'explications', exp.id));
+      }
+      toast({
+        title: "Registre des explications vidé",
+        description: "Toutes les demandes d'explication ont été supprimées.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de vider le registre.' });
+    }
+  };
+
   const [selectedMission, setSelectedMission] = useState<MissionWithDisplayStatus | null>(null);
   const [explicationViewMode, setExplicationViewMode] = useState<'table' | 'cards'>('table');
   const [explicationFilter, setExplicationFilter] = useState<string>('tous');
@@ -220,9 +253,20 @@ function DashboardContent() {
         vu_par_agent: false, // trigger cloche
       }, { merge: true });
 
+      const targetAgent = agents?.find(a => a.id === dem.agentId || a.registrationNumber === dem.agentId);
+      addDoc(collection(firestore, 'pdf_documents'), {
+        title: `Autorisation d'Absence - ${dem.agentName}`,
+        type: 'autorisation_absence',
+        createdAt: Timestamp.now(),
+        agentIds: [dem.agentId, targetAgent?.registrationNumber].filter(Boolean),
+        agentNames: [dem.agentName],
+        demandeData: dem,
+        agentData: targetAgent || { fullName: dem.agentName },
+      }).catch((err) => console.error("Erreur pdf_documents:", err));
+
       toast({
         title: 'Demande approuvée',
-        description: `La demande de ${dem.agentName} a été approuvée.`,
+        description: `La demande de ${dem.agentName} a été approuvée et l'autorisation PDF est disponible.`,
       });
     } catch (error) {
       console.error('Error accepting:', error);
@@ -931,6 +975,18 @@ function DashboardContent() {
                   Cartes
                 </Button>
               </div>
+
+              {explications && explications.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 px-2.5 cursor-pointer rounded-lg ml-1"
+                  onClick={handleClearExplications}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Vider tout</span>
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -944,6 +1000,7 @@ function DashboardContent() {
                         <TableHead>Demande & Date</TableHead>
                         <TableHead>Réponse de l'Agent</TableHead>
                         <TableHead>Statut / Décision</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1018,6 +1075,17 @@ function DashboardContent() {
                                 )}
                               </div>
                             </TableCell>
+                            <TableCell className="text-right py-4">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 cursor-pointer rounded-lg"
+                                title="Supprimer de l'historique"
+                                onClick={() => handleDeleteExplication(exp.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -1039,7 +1107,7 @@ function DashboardContent() {
                                 IDC: {exp.agentId.substring(0, 6).toUpperCase()}
                               </p>
                             </div>
-                            <div>
+                            <div className="flex items-center gap-1.5">
                               {exp.status === 'en_attente' && (
                                 <Badge variant="outline" className="text-orange-600 bg-orange-500/10 border-orange-500/20 text-[9px] font-semibold whitespace-nowrap">
                                   En attente
@@ -1060,6 +1128,15 @@ function DashboardContent() {
                                   Sanctionné
                                 </Badge>
                               )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10 cursor-pointer rounded-md"
+                                title="Supprimer de l'historique"
+                                onClick={() => handleDeleteExplication(exp.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </div>
 
@@ -1118,6 +1195,16 @@ function DashboardContent() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Admin PDF History & Deletion Management */}
+      {role === 'admin' && (
+        <div className="pt-2">
+          <PdfHistoryViewer
+            title="Historique Centralisé des Fichiers PDF & Suppressions"
+            description="Gestion globale des ordres de mission et autorisations d'absence. Toute suppression supprime le fichier également côté agent."
+          />
+        </div>
       )}
 
       {refusalTarget && (

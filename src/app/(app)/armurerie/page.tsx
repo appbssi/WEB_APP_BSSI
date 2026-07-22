@@ -91,6 +91,11 @@ function ArmurerieContent() {
     return agents.reduce((acc, agent) => { acc[agent.id] = agent; return acc; }, {} as Record<string, Agent>);
   }, [agents]);
 
+  const weaponsById = useMemo(() => {
+    if (!weapons) return {};
+    return weapons.reduce((acc, w) => { acc[w.id] = w; return acc; }, {} as Record<string, Weapon>);
+  }, [weapons]);
+
   const { selectedDetachement } = useDetachement();
 
   const filteredAssignments = useMemo(() => {

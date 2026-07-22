@@ -45,6 +45,8 @@ const getMidnightTimestamp = (date: Date) => {
   return d.getTime();
 };
 
+import { UserCheck } from 'lucide-react';
+
 const missionSchema = z.object({
   name: z.string().min(3, 'Le nom de la mission est requis'),
   location: z.string().min(3, 'Le lieu est requis'),
@@ -53,6 +55,7 @@ const missionSchema = z.object({
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   assignedAgentIds: z.array(z.string()).min(1, "Vous devez assigner au moins un agent."),
+  leaderId: z.string().optional(),
   vehicleId: z.string().optional(),
 }).refine(data => {
   const start = parseLocalDate(data.startDate);
@@ -138,12 +141,15 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
     const missionsCollection = collection(firestore, 'missions');
     const newMissionRef = doc(missionsCollection);
     
-    const newMissionData: Omit<Mission, 'id'> = {
+    const selectedLeaderId = data.leaderId || (data.assignedAgentIds.length > 0 ? data.assignedAgentIds[0] : undefined);
+    
+    const newMissionData: Omit<Mission, 'id'> & { leaderId?: string } = {
         name: data.name,
         location: data.location,
         startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
         endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         assignedAgentIds: data.assignedAgentIds,
+        leaderId: selectedLeaderId,
         status: 'Planification',
         vehicleId: data.vehicleId === 'none' ? undefined : data.vehicleId,
     };
@@ -166,6 +172,8 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
           .map(id => allAgents.find(a => a.id === id))
           .filter((a): a is Agent => !!a);
 
+        const leaderAgent = allAgents.find(a => a.id === selectedLeaderId);
+
         const selectedVehicle = data.vehicleId && data.vehicleId !== 'none' ? allVehicles?.find(v => v.id === data.vehicleId) : null;
         const vehiclePlate = selectedVehicle ? `${selectedVehicle.model} (${selectedVehicle.plateNumber})` : undefined;
 
@@ -177,10 +185,37 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
             endDate: newMissionData.endDate,
             startTime: newMissionData.startTime,
             endTime: newMissionData.endTime,
+            leaderId: selectedLeaderId,
           },
           assignedAgents,
-          vehiclePlate
+          vehiclePlate,
+          selectedLeaderId
         );
+
+        // Record PDF in Firestore pdf_documents collection for Agent Space & Admin PDF History
+        addDoc(collection(firestore, 'pdf_documents'), {
+          title: `Ordre de Mission - ${data.name}`,
+          type: 'ordre_de_mission',
+          createdAt: Timestamp.now(),
+          agentIds: data.assignedAgentIds,
+          agentNames: assignedAgents.map(a => a.fullName),
+          leaderId: selectedLeaderId || null,
+          leaderName: leaderAgent?.fullName || 'Non désigné',
+          missionData: {
+            id: newMissionRef.id,
+            name: data.name,
+            location: data.location,
+            startDate: newMissionData.startDate,
+            endDate: newMissionData.endDate,
+            startTime: newMissionData.startTime || null,
+            endTime: newMissionData.endTime || null,
+            leaderId: selectedLeaderId,
+            agents: assignedAgents,
+          },
+          vehiclePlate: vehiclePlate || null,
+        }).catch((err) => {
+          console.error("Erreur enregistrement PDF history:", err);
+        });
 
         const agentNames = data.assignedAgentIds.map(id => allAgents.find(a => a.id === id)?.fullName || 'Inconnu');
 
@@ -520,6 +555,41 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
                     </FormItem>
                     )}
                 />
+
+                {form.watch('assignedAgentIds')?.length > 0 && (
+                  <FormField
+                    control={form.control}
+                    name="leaderId"
+                    render={({ field }) => (
+                      <FormItem className="pt-2">
+                        <FormLabel className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                          <UserCheck className="h-4 w-4" /> Désigner le Chef de Mission
+                        </FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || form.watch('assignedAgentIds')[0]}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Sélectionner un chef de mission" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {form.watch('assignedAgentIds').map(id => {
+                              const agent = allAgents?.find(a => a.id === id);
+                              return (
+                                <SelectItem key={id} value={id}>
+                                  {agent ? `${agent.fullName} (${agent.rank || 'Agent'})` : id}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 
                 <div className="flex justify-between pt-4">
                   <button type="button" className="button-13" onClick={() => setCurrentStep(1)}>Précédent</button>

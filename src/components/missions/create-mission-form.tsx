@@ -26,7 +26,7 @@ import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useState, useMemo, useEffect } from 'react';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import type { Agent, Mission, Vehicle } from '@/lib/types';
+import type { Agent, Mission, MissionStatus, Vehicle } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
 import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -85,7 +85,13 @@ const missionSchema = z.object({
 
 type MissionFormValues = z.infer<typeof missionSchema>;
 
-export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () => void }) {
+export function CreateMissionForm({
+  onMissionCreated,
+  initialStatus = 'Planification',
+}: {
+  onMissionCreated?: () => void;
+  initialStatus?: MissionStatus;
+}) {
   const [currentStep, setCurrentStep] = useState(1);
   const [agentSearch, setAgentSearch] = useState('');
   const [sectionFilter, setSectionFilter] = useState('all');
@@ -150,7 +156,7 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
         endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         assignedAgentIds: data.assignedAgentIds,
         leaderId: selectedLeaderId,
-        status: 'Planification',
+        status: initialStatus,
         vehicleId: data.vehicleId === 'none' ? undefined : data.vehicleId,
     };
 
@@ -160,6 +166,17 @@ export function CreateMissionForm({ onMissionCreated }: { onMissionCreated?: () 
     }
 
     batch.set(newMissionRef, newMissionData);
+
+    if (initialStatus === 'Terminée') {
+      for (const agentId of data.assignedAgentIds) {
+        const agentObj = allAgents.find(a => a.id === agentId);
+        if (agentObj) {
+          const agentRef = doc(firestore, 'agents', agentId);
+          const currentCount = agentObj.missionCount || 0;
+          batch.update(agentRef, { missionCount: currentCount + 1 });
+        }
+      }
+    }
 
     batch.commit().then(() => {
         toast({

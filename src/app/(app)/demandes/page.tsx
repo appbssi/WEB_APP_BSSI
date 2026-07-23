@@ -675,10 +675,11 @@ function DemandesContent() {
             <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
               {currentAgent.photo ? (
                 <div className="relative w-20 h-24 rounded-lg overflow-hidden border-2 border-primary/20 bg-background shrink-0 shadow-sm">
-                  <img
+                  <Image
                     src={currentAgent.photo}
                     alt={currentAgent.fullName}
-                    className="object-cover w-full h-full"
+                    fill
+                    className="object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </div>

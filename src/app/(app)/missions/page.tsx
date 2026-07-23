@@ -37,6 +37,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { CreateMissionForm } from '@/components/missions/create-mission-form';
+import { AgentMissionCountersDialog } from '@/components/missions/agent-mission-counters-dialog';
+import { CheckCircle2 } from 'lucide-react';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, deleteDoc, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
@@ -239,6 +241,8 @@ function MissionsContent() {
   const { isObserver } = useRole();
   const searchParams = useSearchParams();
   const [isCreateMissionOpen, setCreateMissionOpen] = useState(false);
+  const [isRecordCompletedOpen, setRecordCompletedOpen] = useState(false);
+  const [isAgentStatsOpen, setAgentStatsOpen] = useState(false);
   const [editingMission, setEditingMission] = useState<Mission | null>(null);
   const [missionToComplete, setMissionToComplete] = useState<Mission | null>(null);
   const [missionToCancel, setMissionToCancel] = useState<Mission | null>(null);
@@ -318,13 +322,29 @@ function MissionsContent() {
     const missionRef = doc(firestore, 'missions', missionToComplete.id);
     const updateData = { status: 'Terminée' as const };
     
-    updateDoc(missionRef, updateData).then(() => {
-        toast({ title: 'Mission terminée', description: `La mission "${missionToComplete.name}" a été marquée comme terminée.` });
-        logActivity(firestore, `La mission "${missionToComplete.name}" a été terminée.`, 'Mission', '/missions');
-    }).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({ path: missionRef.path, operation: 'update', requestResourceData: updateData });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+    try {
+      const batch = writeBatch(firestore);
+      batch.update(missionRef, updateData);
+
+      for (const agentId of missionToComplete.assignedAgentIds || []) {
+        const agentRef = doc(firestore, 'agents', agentId);
+        const agentObj = agentsById[agentId];
+        const currentCount = agentObj?.missionCount || 0;
+        batch.update(agentRef, { missionCount: currentCount + 1 });
+      }
+
+      await batch.commit();
+
+      toast({
+        title: 'Mission terminée',
+        description: `La mission "${missionToComplete.name}" a été marquée comme terminée. Le nombre de missions effectuées des agents assignés a été mis à jour.`
+      });
+      logActivity(firestore, `La mission "${missionToComplete.name}" a été terminée.`, 'Mission', '/missions');
+    } catch (serverError) {
+      console.error("Erreur lors de la validation de la mission:", serverError);
+      const permissionError = new FirestorePermissionError({ path: missionRef.path, operation: 'update', requestResourceData: updateData });
+      errorEmitter.emit('permission-error', permissionError);
+    }
     setMissionToComplete(null);
   };
   
@@ -364,19 +384,50 @@ function MissionsContent() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Missions</h1>
         {!isObserver && (
-          <Dialog open={isCreateMissionOpen} onOpenChange={setCreateMissionOpen}>
-            <DialogTrigger asChild>
-               <button className="button-13 flex items-center justify-center !w-auto px-4">
-                <PlusCircle className="mr-2 h-4 w-4" /> Créer une mission
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                  <DialogTitle>Créer une nouvelle mission</DialogTitle>
-              </DialogHeader>
-              <CreateMissionForm onMissionCreated={() => setCreateMissionOpen(false)}/>
-            </DialogContent>
-          </Dialog>
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog open={isRecordCompletedOpen} onOpenChange={setRecordCompletedOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 shadow-sm font-medium">
+                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
+                  Enregistrer mission effectuée
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Enregistrer une mission effectuée / terminée
+                  </DialogTitle>
+                  <DialogDescription>
+                    Enregistrez une mission déjà réalisée par des agents. Le statut sera automatiquement défini à "Terminée" et le nombre de missions de chaque agent assigné sera incrémenté.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateMissionForm 
+                  initialStatus="Terminée" 
+                  onMissionCreated={() => setRecordCompletedOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <Button variant="outline" className="gap-2" onClick={() => setAgentStatsOpen(true)}>
+              <Users className="h-4 w-4" />
+              Compteurs d'agents
+            </Button>
+
+            <Dialog open={isCreateMissionOpen} onOpenChange={setCreateMissionOpen}>
+              <DialogTrigger asChild>
+                 <button className="button-13 flex items-center justify-center !w-auto px-4">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Créer une mission
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Créer une nouvelle mission</DialogTitle>
+                </DialogHeader>
+                <CreateMissionForm onMissionCreated={() => setCreateMissionOpen(false)}/>
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
       </div>
 
@@ -538,6 +589,13 @@ function MissionsContent() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      <AgentMissionCountersDialog
+        agents={agents || []}
+        missions={missions || []}
+        isOpen={isAgentStatsOpen}
+        onOpenChange={setAgentStatsOpen}
+      />
 
     </div>
   );

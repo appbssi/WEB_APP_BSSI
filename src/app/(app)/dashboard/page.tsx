@@ -36,6 +36,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDetachement } from '@/context/detachement-context';
 import { resetAllAgentMissionCounts, clearAllHistories } from '@/lib/firestore-utils';
 import {
@@ -308,11 +318,13 @@ function DashboardContent() {
   const { selectedDetachement } = useDetachement();
   const [isResettingCounters, setIsResettingCounters] = useState(false);
   const [isClearingHistories, setIsClearingHistories] = useState(false);
+  const [showResetCountersConfirm, setShowResetCountersConfirm] = useState(false);
+  const [showClearHistoriesConfirm, setShowClearHistoriesConfirm] = useState(false);
 
   const handleResetCounters = async () => {
     if (!firestore) return;
-    if (!window.confirm("Êtes-vous sûr de vouloir réinitialiser le compteur de missions de tous les agents à 0 ?")) return;
     setIsResettingCounters(true);
+    setShowResetCountersConfirm(false);
     try {
       const count = await resetAllAgentMissionCounts(firestore);
       toast({
@@ -333,8 +345,8 @@ function DashboardContent() {
 
   const handleClearHistories = async () => {
     if (!firestore) return;
-    if (!window.confirm("ATTENTION : Cette action supprimera TOUTES les historiques (missions, activités, explications, demandes, etc.) et réinitialisera les compteurs. Continuer ?")) return;
     setIsClearingHistories(true);
+    setShowClearHistoriesConfirm(false);
     try {
       await clearAllHistories(firestore);
       toast({
@@ -460,7 +472,7 @@ function DashboardContent() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={handleResetCounters}
+                    onClick={() => setShowResetCountersConfirm(true)}
                     disabled={isResettingCounters}
                     className="h-8 w-8 text-amber-600 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-500/20 transition-all rounded-lg"
                     aria-label="Reset Compteurs Missions"
@@ -478,7 +490,7 @@ function DashboardContent() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={handleClearHistories}
+                    onClick={() => setShowClearHistoriesConfirm(true)}
                     disabled={isClearingHistories}
                     className="h-8 w-8 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive dark:text-red-400 dark:hover:bg-red-500/20 transition-all rounded-lg"
                     aria-label="Réinitialiser les Historiques"
@@ -1252,6 +1264,46 @@ function DashboardContent() {
           agents={(selectedMission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean)}
         />
       )}
+
+      {/* Modal de confirmation pour Reset Compteurs Missions */}
+      <AlertDialog open={showResetCountersConfirm} onOpenChange={setShowResetCountersConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser les compteurs de missions ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir réinitialiser le compteur de missions de tous les agents à 0 ? Cette action mettra à zéro la statistique individuelle des agents.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetCounters} className="bg-amber-600 hover:bg-amber-700 text-white">
+              Réinitialiser les compteurs
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal de confirmation pour Réinitialiser les Historiques */}
+      <AlertDialog open={showClearHistoriesConfirm} onOpenChange={setShowClearHistoriesConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Réinitialiser TOUTES les historiques ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span>ATTENTION : Cette action supprimera définitivement toutes les historiques du système (missions, activités, demandes d'explication, autorisations, convocations, armurerie, etc.) et réinitialisera tous les compteurs d'agents.</span>
+              <span className="block font-semibold text-foreground">Cette action est irréversible. Voulez-vous vraiment continuer ?</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearHistories} className="bg-destructive hover:bg-destructive/90 text-white">
+              Confirmer la réinitialisation globale
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -5,40 +5,73 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
- * Ce composant intercepte et neutralise les erreurs de permission et les erreurs internes de Firebase.
- * Il empêche l'application de planter en cas de latence de mise à jour des règles de sécurité.
+ * Ce composant intercepte et neutralise les erreurs de permission et les erreurs internes de Firebase,
+ * ainsi que les avertissements bénins du navigateur comme ResizeObserver.
  */
 export function FirebaseErrorListener() {
   useEffect(() => {
     // Neutralisation des erreurs de permission
     const handlePermissionError = (error: FirestorePermissionError) => {
-      // On loggue uniquement en console pour le debug, sans interrompre l'utilisateur
-      console.debug('Firebase Permission Handled (Silenced)');
+      console.debug('Firebase Permission Handled (Silenced)', error);
+    };
+
+    const isResizeObserverMsg = (str: string) => {
+      const lower = (str || '').toLowerCase();
+      return (
+        lower.includes('resizeobserver') ||
+        lower.includes('resize observer') ||
+        lower.includes('undelivered notifications') ||
+        lower.includes('loop limit exceeded')
+      );
     };
 
     // Interception des erreurs globales (Firebase, ResizeObserver, etc.)
     const handleGlobalError = (event: ErrorEvent) => {
-      const msg = (event.message || event.error?.message || '').toLowerCase();
+      const msg = String(event.message || event.error?.message || event.error || '').toLowerCase();
       const isFirebaseError = msg.includes('firebase') || msg.includes('firestore');
-      const isResizeObserverError = msg.includes('resizeobserver');
-      
+      const isResizeObserverError = isResizeObserverMsg(msg);
+
       if (isFirebaseError || isResizeObserverError) {
         console.debug('Global Error Blocked:', event.message || msg);
-        event.stopImmediatePropagation();
-        event.preventDefault();
-        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+        if (typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+        if (typeof event.stopPropagation === 'function') {
+          event.stopPropagation();
+        }
       }
     };
 
     const handleRejection = (event: PromiseRejectionEvent) => {
-      const errorMessage = event.reason?.message?.toLowerCase() || '';
+      const errorMessage = String(event.reason?.message || event.reason || '').toLowerCase();
       const isFirebaseError = errorMessage.includes('firebase') || errorMessage.includes('firestore');
-      
-      if (isFirebaseError) {
-        console.debug('Firebase Promise Rejection Blocked:', errorMessage);
-        event.preventDefault();
-        event.stopPropagation();
+      const isResizeObserverError = isResizeObserverMsg(errorMessage);
+
+      if (isFirebaseError || isResizeObserverError) {
+        console.debug('Promise Rejection Blocked:', errorMessage);
+        if (typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+        if (typeof event.stopPropagation === 'function') {
+          event.stopPropagation();
+        }
       }
+    };
+
+    // Interception window.onerror
+    const origOnError = window.onerror;
+    window.onerror = function (message, source, lineno, colno, error) {
+      const msgStr = String(message || '').toLowerCase();
+      if (isResizeObserverMsg(msgStr)) {
+        return true; // supprime l'erreur
+      }
+      if (origOnError) {
+        return origOnError.apply(this, [message, source, lineno, colno, error]);
+      }
+      return false;
     };
 
     errorEmitter.on('permission-error', handlePermissionError);
@@ -46,9 +79,10 @@ export function FirebaseErrorListener() {
     window.addEventListener('unhandledrejection', handleRejection, true);
 
     return () => {
+      window.onerror = origOnError;
       errorEmitter.off('permission-error', handlePermissionError);
-      window.removeEventListener('error', handleGlobalError);
-      window.removeEventListener('unhandledrejection', handleRejection);
+      window.removeEventListener('error', handleGlobalError, true);
+      window.removeEventListener('unhandledrejection', handleRejection, true);
     };
   }, []);
 

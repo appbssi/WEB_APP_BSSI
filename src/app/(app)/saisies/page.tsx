@@ -218,30 +218,32 @@ export default function SaisiesPage() {
     docPdf.setTextColor(20, 83, 45); // Dark Green
     docPdf.text('REGISTRE OFFICIEL DES SAISIES ET SCELLÉS', 14, 15);
 
+    const totalQuantity = filteredSaisies.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+
     docPdf.setFontSize(9);
     docPdf.setTextColor(100);
-    docPdf.text(`Généré le : ${format(new Date(), 'dd/MM/yyyy à HH:mm', { locale: fr })} | Total d'enregistrements : ${filteredSaisies.length}`, 14, 21);
+    docPdf.text(
+      `Généré le : ${format(new Date(), 'dd/MM/yyyy à HH:mm', { locale: fr })} | Actes : ${filteredSaisies.length} | Quantité totale : ${totalQuantity}`,
+      14,
+      21
+    );
 
     const tableData = filteredSaisies.map((s) => [
       s.designation,
-      `${s.quantity} ${s.unit || ''}`,
+      `${s.quantity} ${s.unit || ''}`.trim(),
       s.category,
       s.dateSaisie && (s.dateSaisie as any).toDate
         ? format((s.dateSaisie as any).toDate(), 'dd/MM/yyyy', { locale: fr })
         : 'N/A',
-      s.location || '-',
-      s.agentName || '-',
-      s.pvNumber || '-',
-      s.status,
     ]);
 
     autoTable(docPdf, {
       startY: 25,
-      head: [['Désignation', 'Quantité', 'Catégorie', 'Date', 'Lieu', 'Agent', 'PV/Scellé', 'Statut']],
+      head: [['Désignation', 'Quantité', 'Catégorie', 'Date']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
+      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9 },
       alternateRowStyles: { fillColor: [245, 247, 246] },
     });
 

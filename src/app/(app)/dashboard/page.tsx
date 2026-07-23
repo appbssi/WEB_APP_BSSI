@@ -439,12 +439,17 @@ function DashboardContent() {
     
     const completedMissions = filteredMissions.filter(m => getDisplayStatus(m, now) === 'Terminée').length;
 
+    const totalSaisiesCount = filteredSaisies.length;
+    const totalSaisiesQuantity = filteredSaisies.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+
     return {
       totalAgents: filteredAgents.length,
       available: Math.max(0, available),
       completedMissions: completedMissions,
       totalGAV: filteredDetainees.length,
-      totalSaisies: filteredSaisies.length,
+      totalSaisies: totalSaisiesQuantity,
+      totalSaisiesCount: totalSaisiesCount,
+      totalSaisiesQuantity: totalSaisiesQuantity,
     };
   }, [filteredAgents, filteredMissions, filteredDetainees, filteredDemandes, filteredSaisies]);
 
@@ -651,7 +656,10 @@ function DashboardContent() {
                 <PackageCheck className="h-5 w-5 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalSaisies}</div>
+                <div className="text-2xl font-bold">{stats.totalSaisiesQuantity.toLocaleString('fr-FR')}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quantité totale ({stats.totalSaisiesCount} acte{stats.totalSaisiesCount > 1 ? 's' : ''})
+                </p>
               </CardContent>
             </Card>
           </Link>

@@ -1,15 +1,20 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore, useUser } from '@/firebase';
+import { useEffect, useRef, useMemo } from 'react';
+import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase/firestore/use-collection';
 import { useRole } from '@/hooks/use-role';
+import type { Agent } from '@/lib/types';
 
 export function DeviceTracker() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { role } = useRole();
   const lastWriteTimeRef = useRef<number>(0);
+
+  const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
+  const { data: agents } = useCollection<Agent>(agentsQuery);
 
   useEffect(() => {
     if (!firestore || typeof window === 'undefined') return;
@@ -21,12 +26,41 @@ export function DeviceTracker() {
       localStorage.setItem('app-device-id', deviceId);
     }
 
+    const userIdc = (localStorage.getItem('app-user-idc') || '').toUpperCase().trim();
+
+    // Trouver l'agent correspondant à l'IDC ou Matricule connecté
+    const matchedAgent = agents?.find(a => {
+      if (!a || !userIdc) return false;
+      const aId = String(a.id || '').toUpperCase().trim();
+      const aReg = String(a.registrationNumber || '').toUpperCase().trim();
+      return aId === userIdc || aReg === userIdc;
+    });
+
+    let displayName = '';
+    if (matchedAgent) {
+      displayName = matchedAgent.fullName;
+    } else if (userIdc) {
+      if (['0CWKIX', 'CQZSBH', 'VUCE1Z', 'QXTSLG'].includes(userIdc) || role === 'admin') {
+        displayName = `Commandement (${userIdc})`;
+      } else if (role === 'secretariat') {
+        displayName = `Secrétariat (${userIdc})`;
+      } else {
+        displayName = `Agent (${userIdc})`;
+      }
+    } else if (role === 'admin') {
+      displayName = 'Commandement Général';
+    } else if (role === 'secretariat') {
+      displayName = 'Poste Secrétariat';
+    } else {
+      displayName = `Terminal Agent (${deviceId.substring(0, 6)})`;
+    }
+
     let watchId: number | null = null;
 
     const updateLocation = async (position: GeolocationPosition) => {
       const now = Date.now();
-      // Throttle writes to once every 30 seconds
-      if (now - lastWriteTimeRef.current < 30000) {
+      // Throttle writes to once every 15 seconds for increased real-time precision
+      if (now - lastWriteTimeRef.current < 15000) {
         return;
       }
       lastWriteTimeRef.current = now;
@@ -43,8 +77,11 @@ export function DeviceTracker() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-          userEmail: user?.email || 'Visiteur Anonyme',
-          role: role || 'visiteur',
+          userEmail: displayName,
+          agentName: displayName,
+          userIdc: userIdc || null,
+          agentId: matchedAgent?.id || null,
+          role: role || 'observer',
           userAgent: userAgent,
           deviceType: isMobile ? 'mobile' : 'desktop',
           lastActive: serverTimestamp(),
@@ -59,14 +96,14 @@ export function DeviceTracker() {
     };
 
     if ('geolocation' in navigator) {
-      // Démarrer la surveillance de la position en temps réel
+      // Démarrer la surveillance de la position en temps réel avec haute précision
       watchId = navigator.geolocation.watchPosition(
         updateLocation,
         handleGeoError,
         {
           enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 30000,
+          timeout: 10000,
+          maximumAge: 15000,
         }
       );
     } else {
@@ -78,7 +115,8 @@ export function DeviceTracker() {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [firestore, user, role]);
+  }, [firestore, user, role, agents]);
 
   return null; // Composant de service en arrière-plan
 }
+

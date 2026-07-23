@@ -23,8 +23,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH';
-  const allowedPathsForSpecial = ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav'];
+  const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH' || userIdc === 'QXTSLG';
+  const allowedPathsForSpecial = ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'];
   const isAllowedSpecial = isSpecialIdc && allowedPathsForSpecial.some(p => pathname.startsWith(p));
 
   useEffect(() => {

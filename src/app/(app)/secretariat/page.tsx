@@ -416,30 +416,32 @@ function SecretariatContent() {
                           )}
                         </TableCell>
                         {!isObserver && (
-                            <TableCell>
+                          <TableCell>
                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                              <DropdownMenuTrigger asChild>
                                 <Button aria-haspopup="true" size="icon" variant="ghost" className="h-8 w-8 hover:bg-muted rounded-full">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Toggle menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Actions</span>
                                 </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onSelect={() => handleRecordExit(visitor)} disabled={!!visitor.exitTime} className="cursor-pointer">
-                                    <LogOut className="mr-2 h-4 w-4" />
-                                    Enregistrer la sortie
+                                  <LogOut className="mr-2 h-4 w-4" />
+                                  Enregistrer la sortie
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => setEditingVisitor(visitor)} className="cursor-pointer">
-                                    Modifier la fiche
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Modifier la fiche
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onSelect={() => setVisitorToDelete(visitor)} className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer">
-                                    Supprimer du registre
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Supprimer du registre
                                 </DropdownMenuItem>
-                                </DropdownMenuContent>
+                              </DropdownMenuContent>
                             </DropdownMenu>
-                            </TableCell>
+                          </TableCell>
                         )}
                       </TableRow>
                     ))
@@ -551,28 +553,28 @@ function SecretariatContent() {
                         <TableCell className="text-sm font-mono text-muted-foreground">{contact.email || '—'}</TableCell>
                         <TableCell className="text-sm font-mono text-muted-foreground">{contact.phone || '—'}</TableCell>
                         {!isObserver && (
-                            <TableCell>
+                          <TableCell>
                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                              <DropdownMenuTrigger asChild>
                                 <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-muted rounded-full">
-                                    <MoreHorizontal className="h-4 w-4" />
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onSelect={() => {
                                   setContactToEdit(contact);
                                   setContactOpen(true);
                                 }} className="cursor-pointer">
-                                    <Edit className="mr-2 h-4 w-4" /> Modifier la fiche
+                                  <Edit className="mr-2 h-4 w-4" /> Modifier la fiche
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onSelect={() => setContactToDelete(contact)} className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer">
-                                    <Trash2 className="mr-2 h-4 w-4" /> Supprimer de l'annuaire
+                                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer de l'annuaire
                                 </DropdownMenuItem>
-                                </DropdownMenuContent>
+                              </DropdownMenuContent>
                             </DropdownMenu>
-                            </TableCell>
+                          </TableCell>
                         )}
                       </TableRow>
                     ))

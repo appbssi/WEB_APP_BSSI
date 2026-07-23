@@ -53,9 +53,9 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'admin': return 'Administrateur';
-      case 'secretariat': return 'Secrétaire';
-      case 'observer': return 'Observateur';
-      default: return 'Visiteur';
+      case 'secretariat': return 'Secrétariat';
+      case 'observer': return 'Agent / Ops';
+      default: return 'Agent Connecté';
     }
   };
 
@@ -179,13 +179,13 @@ export default function MapView({ devices, selectedDeviceId, onSelectDevice }: M
 
     // Helper to compute initials
     const getInitials = (email: string) => {
-      if (!email || email === 'Visiteur Anonyme') return 'VI';
-      const part = email.split('@')[0];
-      const parts = part.split(/[\._-]/);
+      if (!email || email === 'Visiteur Anonyme') return 'AG';
+      const clean = email.replace(/^(Commandement|Secrétariat|Agent|Terminal)\s*/i, '').trim();
+      const parts = clean.split(/[\s\._-]/).filter(Boolean);
       if (parts.length >= 2) {
         return (parts[0][0] + parts[1][0]).toUpperCase();
       }
-      return part.substring(0, 2).toUpperCase();
+      return clean.substring(0, 2).toUpperCase() || 'AG';
     };
 
     // Helper to create custom divIcon

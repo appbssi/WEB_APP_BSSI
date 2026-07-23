@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase/firestore/use-collection';
 import { useRole } from '@/hooks/use-role';
+import type { Agent } from '@/lib/types';
 import dynamic from 'next/dynamic';
 import { 
   Map, 
@@ -43,19 +45,53 @@ interface Device {
   lastActive: any; // Firestore Timestamp
 }
 
-type FilterRole = 'all' | 'admin' | 'secretariat' | 'observer' | 'visiteur' | 'online';
+type FilterRole = 'all' | 'admin' | 'secretariat' | 'observer' | 'online';
 
 export default function CartographiePage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { role } = useRole();
   
+  const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
+  const { data: agents } = useCollection<Agent>(agentsQuery);
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterRole>('all');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Map devices with agent real names
+  const processedDevices = useMemo(() => {
+    return devices.map((d) => {
+      let displayName = d.userEmail;
+
+      if (!displayName || displayName === 'Visiteur Anonyme' || displayName.includes('Anonyme')) {
+        const agentId = (d as any).agentId;
+        const userIdc = (d as any).userIdc;
+        const matched = agents?.find(a => 
+          (agentId && a.id === agentId) || 
+          (userIdc && (a.id === userIdc || a.registrationNumber === userIdc))
+        );
+
+        if (matched) {
+          displayName = matched.fullName;
+        } else if (d.role === 'admin') {
+          displayName = 'Commandement / Admin';
+        } else if (d.role === 'secretariat') {
+          displayName = 'Poste Secrétariat';
+        } else {
+          displayName = `Agent (${d.id.substring(0, 6)})`;
+        }
+      }
+
+      return {
+        ...d,
+        userEmail: displayName,
+      };
+    });
+  }, [devices, agents]);
 
   // 1. Subscribe to Real-time Device Locations
   useEffect(() => {
@@ -111,21 +147,21 @@ export default function CartographiePage() {
 
   // 4. Statistics computations
   const stats = useMemo(() => {
-    const total = devices.length;
-    const onlineCount = devices.filter(isOnline).length;
-    const mobileCount = devices.filter(d => d.deviceType === 'mobile').length;
-    const desktopCount = devices.filter(d => d.deviceType === 'desktop').length;
+    const total = processedDevices.length;
+    const onlineCount = processedDevices.filter(isOnline).length;
+    const mobileCount = processedDevices.filter(d => d.deviceType === 'mobile').length;
+    const desktopCount = processedDevices.filter(d => d.deviceType === 'desktop').length;
     
     let sumAccuracy = 0;
-    devices.forEach(d => sumAccuracy += d.accuracy || 0);
+    processedDevices.forEach(d => sumAccuracy += d.accuracy || 0);
     const avgAccuracy = total > 0 ? Math.round(sumAccuracy / total) : 0;
 
     return { total, onlineCount, mobileCount, desktopCount, avgAccuracy };
-  }, [devices]);
+  }, [processedDevices]);
 
   // 5. Filter & Search Devices
   const filteredDevices = useMemo(() => {
-    return devices.filter((device) => {
+    return processedDevices.filter((device) => {
       // Search matching
       const matchesSearch = 
         device.userEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -138,15 +174,15 @@ export default function CartographiePage() {
       if (activeFilter === 'online') return isOnline(device);
       return device.role === activeFilter;
     });
-  }, [devices, searchQuery, activeFilter]);
+  }, [processedDevices, searchQuery, activeFilter]);
 
   // Helper to get role translation
   const formatRole = (roleName: string) => {
     switch (roleName) {
       case 'admin': return 'Administrateur';
       case 'secretariat': return 'Secrétariat';
-      case 'observer': return 'Observateur';
-      default: return 'Visiteur';
+      case 'observer': return 'Agent / Ops';
+      default: return 'Agent Connecté';
     }
   };
 
@@ -278,7 +314,7 @@ export default function CartographiePage() {
 
             {/* Filter Tabs */}
             <div className="flex flex-wrap gap-1.5 pb-2 border-b border-zinc-800/50">
-              {(['all', 'online', 'admin', 'secretariat', 'visiteur'] as FilterRole[]).map((filter) => (
+              {(['all', 'online', 'admin', 'secretariat', 'observer'] as FilterRole[]).map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setActiveFilter(filter)}

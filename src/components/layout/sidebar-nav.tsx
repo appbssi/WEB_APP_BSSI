@@ -14,6 +14,7 @@ import {
   Sword,
   Truck,
   Map,
+  PackageCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -51,6 +52,7 @@ const navItems: NavItem[] = [
   { href: '/armurerie', label: 'Armurerie', icon: Sword, roles: ['admin'] },
   { href: '/logistique', label: 'Logistique', icon: Truck, roles: ['admin'] },
   { href: '/gav', label: 'GAV', icon: Lock, roles: ['admin', 'secretariat'] },
+  { href: '/saisies', label: 'Saisies', icon: PackageCheck, roles: ['admin', 'observer', 'secretariat'] },
   { href: '/finance', label: 'Finances', icon: Banknote, roles: ['admin'] },
   { href: '/secretariat', label: 'Secrétariat', icon: BookUser, roles: ['admin', 'secretariat'] },
 ];
@@ -76,10 +78,10 @@ export function SidebarNav() {
 
 
   const filteredNavItems = useMemo(() => {
-    const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH';
+    const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH' || userIdc === 'QXTSLG';
     if (isSpecialIdc) {
       return navItems.filter(item =>
-        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav'].includes(item.href)
+        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'].includes(item.href)
       );
     }
 

@@ -116,6 +116,26 @@ export type Detainee = {
   arrestReason: string;
 }
 
+export type SaisieStatus = 'En Dépôt / Scellé' | 'Transféré au Parquet' | 'Restitué' | 'Détruit' | 'En Dépôt Coffre-Fort';
+
+export type Saisie = {
+  id: string;
+  designation: string;
+  quantity: number;
+  unit?: string;
+  category: string;
+  dateSaisie: Timestamp;
+  location?: string;
+  missionId?: string;
+  agentId?: string;
+  agentName?: string;
+  detaineeName?: string;
+  pvNumber?: string;
+  status: SaisieStatus;
+  notes?: string;
+  createdAt?: Timestamp;
+};
+
 export type ActivityLog = {
     id: string;
     description: string;

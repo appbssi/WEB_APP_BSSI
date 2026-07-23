@@ -88,7 +88,7 @@ function LoginContent() {
       const login = rawLogin.trim().toUpperCase();
       let userRole: 'admin' | 'observer' | 'secretariat' | null = null;
 
-      if (login === '0CWKIX' || login === 'VUCE1Z' || login === 'CQZSBH') {
+      if (login === '0CWKIX' || login === 'VUCE1Z' || login === 'CQZSBH' || login === 'QXTSLG') {
         userRole = 'admin';
       } else if (rawLogin.toLowerCase() === ADMIN_LOGIN) {
         userRole = 'admin';

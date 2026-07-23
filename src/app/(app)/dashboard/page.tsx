@@ -29,6 +29,7 @@ import {
   List,
   RotateCcw,
   Trash2,
+  PackageCheck,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -59,7 +60,7 @@ import {
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, doc, setDoc, addDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication } from '@/lib/types';
+import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication, Saisie } from '@/lib/types';
 import { useMemo, useState, useEffect } from 'react';
 import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
 import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
@@ -99,11 +100,13 @@ function DashboardContent() {
   const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
   const detaineesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'detainees') : null), [firestore]);
   const demandesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'demandes') : null), [firestore]);
+  const saisiesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'saisies') : null), [firestore]);
 
   const { data: agents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
   const { data: missions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
   const { data: detainees, isLoading: detaineesLoading } = useCollection<Detainee>(detaineesQuery);
   const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
+  const { data: saisies, isLoading: saisiesLoading } = useCollection<Saisie>(saisiesQuery);
   
   // Explanation requests for administration
   const explicationsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'explications') : null), [firestore]);
@@ -406,9 +409,15 @@ function DashboardContent() {
     });
   }, [demandes, selectedDetachement, agentsById]);
 
+  const filteredSaisies = useMemo(() => {
+    if (!saisies) return [];
+    if (!selectedDetachement || selectedDetachement === 'ALL') return saisies;
+    return saisies.filter(s => (s as any).section === selectedDetachement || s.location?.toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase()));
+  }, [saisies, selectedDetachement]);
+
   const stats = useMemo(() => {
-    if (!filteredAgents || !filteredMissions || !filteredDetainees) {
-      return { totalAgents: 0, onMission: 0, available: 0, completedMissions: 0, totalGAV: 0 };
+    if (!filteredAgents || !filteredMissions || !filteredDetainees || !filteredSaisies) {
+      return { totalAgents: 0, available: 0, completedMissions: 0, totalGAV: 0, totalSaisies: 0 };
     }
     const now = new Date();
     const onMission = new Set<string>();
@@ -432,12 +441,12 @@ function DashboardContent() {
 
     return {
       totalAgents: filteredAgents.length,
-      onMission: onMission.size,
       available: Math.max(0, available),
       completedMissions: completedMissions,
       totalGAV: filteredDetainees.length,
+      totalSaisies: filteredSaisies.length,
     };
-  }, [filteredAgents, filteredMissions, filteredDetainees, filteredDemandes]);
+  }, [filteredAgents, filteredMissions, filteredDetainees, filteredDemandes, filteredSaisies]);
 
   const missionsWithStatus: MissionWithDisplayStatus[] = useMemo(() => {
     if (!filteredMissions) return [];
@@ -597,7 +606,7 @@ function DashboardContent() {
         </div>
       )}
 
-      {(agentsLoading || missionsLoading || detaineesLoading) ? (
+      {(agentsLoading || missionsLoading || detaineesLoading || saisiesLoading) ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {[...Array(5)].map((_, i) => (
              <Card key={i} className="flex flex-col justify-between p-6 rounded-2xl">
@@ -635,14 +644,14 @@ function DashboardContent() {
               </CardContent>
             </Card>
           </Link>
-          <Link href="/agents?availability=En%20mission">
+          <Link href="/saisies">
             <Card className="rounded-2xl transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl border-2 border-transparent hover:border-primary cursor-pointer h-full">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Agents en Mission</CardTitle>
-                <Shield className="h-5 w-5 text-primary" />
+                <CardTitle className="text-sm font-medium">Saisies Effectuées</CardTitle>
+                <PackageCheck className="h-5 w-5 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.onMission}</div>
+                <div className="text-2xl font-bold">{stats.totalSaisies}</div>
               </CardContent>
             </Card>
           </Link>

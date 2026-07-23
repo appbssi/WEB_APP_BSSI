@@ -622,8 +622,8 @@ function DashboardContent() {
       )}
 
       {(agentsLoading || missionsLoading || detaineesLoading || saisiesLoading) ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          {[...Array(5)].map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
              <Card key={i} className="flex flex-col justify-between p-6 rounded-2xl">
                 <div className="flex justify-between items-start">
                     <div className="space-y-2">
@@ -636,7 +636,7 @@ function DashboardContent() {
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Link href="/agents">
             <Card className="rounded-2xl transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl border-2 border-transparent hover:border-primary cursor-pointer h-full">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -656,20 +656,6 @@ function DashboardContent() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.available}</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/saisies">
-            <Card className="rounded-2xl transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl border-2 border-transparent hover:border-primary cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Saisies Effectuées</CardTitle>
-                <PackageCheck className="h-5 w-5 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalSaisiesQuantity.toLocaleString('fr-FR')}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Quantité totale ({stats.totalSaisiesCount} acte{stats.totalSaisiesCount > 1 ? 's' : ''})
-                </p>
               </CardContent>
             </Card>
           </Link>

@@ -63,7 +63,7 @@ const saisieSchema = z.object({
   designation: z.string().min(2, 'La désignation est obligatoire (min 2 caractères)'),
   quantity: z.coerce.number().min(1, 'La quantité doit être supérieure à 0'),
   unit: z.string().default('Unité(s)'),
-  category: z.string().min(1, 'Veuillez sélectionner une catégorie'),
+  category: z.string().default('Autre'),
   dateSaisie: z.string().min(1, 'La date de saisie est obligatoire'),
   timeSaisie: z.string().default('12:00'),
   location: z.string().optional(),
@@ -251,47 +251,24 @@ export function CreateSaisieDialog({
             </div>
           </div>
 
-          {/* Catégorie & Statut */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">
-                Catégorie <span className="text-rose-400">*</span>
-              </Label>
-              <Select
-                value={form.watch('category')}
-                onValueChange={(val) => form.setValue('category', val)}
-              >
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white">
-                  <SelectValue placeholder="Sélectionner la catégorie" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">Statut du Scellé</Label>
-              <Select
-                value={form.watch('status')}
-                onValueChange={(val) => form.setValue('status', val)}
-              >
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white">
-                  <SelectValue placeholder="Statut actuel" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                  {STATUSES.map((st) => (
-                    <SelectItem key={st} value={st}>
-                      {st}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Statut du Scellé */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-zinc-300">Statut du Scellé</Label>
+            <Select
+              value={form.watch('status')}
+              onValueChange={(val) => form.setValue('status', val)}
+            >
+              <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white">
+                <SelectValue placeholder="Statut actuel" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                {STATUSES.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {st}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Date & Heure */}

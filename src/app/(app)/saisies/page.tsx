@@ -232,8 +232,7 @@ export default function SaisiesPage() {
 
     const tableData = filteredSaisies.map((s) => [
       s.designation,
-      `${s.quantity} ${s.unit || ''}`.trim(),
-      s.category,
+      `${s.quantity}`,
       s.dateSaisie && (s.dateSaisie as any).toDate
         ? format((s.dateSaisie as any).toDate(), 'dd/MM/yyyy', { locale: fr })
         : 'N/A',
@@ -241,7 +240,7 @@ export default function SaisiesPage() {
 
     autoTable(docPdf, {
       startY: 25,
-      head: [['Désignation', 'Quantité', 'Catégorie', 'Date']],
+      head: [['Désignation', 'Quantité', 'Date']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },

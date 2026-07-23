@@ -127,12 +127,14 @@ export function CreateSaisieDialog({
       const [hours, minutes] = (values.timeSaisie || '12:00').split(':').map(Number);
       const saisieDate = new Date(year, month - 1, day, hours || 0, minutes || 0);
 
-      // Resolve agent name
+      // Resolve agent name and section
       let agentName = currentAgentName;
+      let agentSection = null;
       if (values.agentId && values.agentId !== 'none') {
         const found = agentList.find((a) => a.id === values.agentId);
         if (found) {
           agentName = `${found.rank ? found.rank + ' ' : ''}${found.fullName}`;
+          agentSection = found.section || null;
         }
       }
 
@@ -145,6 +147,7 @@ export function CreateSaisieDialog({
         location: values.location?.trim() || 'Non spécifié',
         agentId: values.agentId === 'none' ? null : values.agentId,
         agentName: agentName || 'Agent Non Spécifié',
+        section: agentSection,
         detaineeName: values.detaineeName?.trim() || null,
         pvNumber: values.pvNumber?.trim() || null,
         status: values.status as SaisieStatus,

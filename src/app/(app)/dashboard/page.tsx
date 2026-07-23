@@ -412,12 +412,18 @@ function DashboardContent() {
   const filteredSaisies = useMemo(() => {
     if (!saisies) return [];
     if (!selectedDetachement || selectedDetachement === 'ALL') return saisies;
-    return saisies.filter(s => (s as any).section === selectedDetachement || s.location?.toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase()));
-  }, [saisies, selectedDetachement]);
+    const detClean = selectedDetachement.replace('DETACHEMENT ', '').toUpperCase();
+    return saisies.filter(s => {
+      if ((s as any).section === selectedDetachement) return true;
+      if (s.agentId && agentsById[s.agentId]?.section === selectedDetachement) return true;
+      if (s.location && s.location.toUpperCase().includes(detClean)) return true;
+      return false;
+    });
+  }, [saisies, selectedDetachement, agentsById]);
 
   const stats = useMemo(() => {
     if (!filteredAgents || !filteredMissions || !filteredDetainees || !filteredSaisies) {
-      return { totalAgents: 0, available: 0, completedMissions: 0, totalGAV: 0, totalSaisies: 0 };
+      return { totalAgents: 0, available: 0, completedMissions: 0, totalGAV: 0, totalSaisies: 0, totalSaisiesCount: 0, totalSaisiesQuantity: 0 };
     }
     const now = new Date();
     const onMission = new Set<string>();
@@ -440,7 +446,11 @@ function DashboardContent() {
     const completedMissions = filteredMissions.filter(m => getDisplayStatus(m, now) === 'Terminée').length;
 
     const totalSaisiesCount = filteredSaisies.length;
-    const totalSaisiesQuantity = filteredSaisies.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+    const totalSaisiesQuantity = filteredSaisies.reduce((acc, s) => {
+      const raw = s.quantity ?? (s as any).quantite ?? (s as any).nombre ?? (s as any).qty;
+      const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw || '1').replace(',', '.'));
+      return acc + (isNaN(parsed) ? 1 : parsed);
+    }, 0);
 
     return {
       totalAgents: filteredAgents.length,

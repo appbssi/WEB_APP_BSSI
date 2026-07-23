@@ -142,10 +142,14 @@ export function EditSaisieDialog({
       const saisieDate = new Date(year, month - 1, day, 12, 0);
 
       let agentName = saisie.agentName || '';
+      let agentSection = (saisie as any).section || null;
       if (values.agentId && values.agentId !== 'none') {
         const found = agentList.find((a) => a.id === values.agentId);
         if (found) {
           agentName = `${found.rank ? found.rank + ' ' : ''}${found.fullName}`;
+          if (found.section) {
+            agentSection = found.section;
+          }
         }
       }
 
@@ -159,6 +163,7 @@ export function EditSaisieDialog({
         location: values.location?.trim() || 'Non spécifié',
         agentId: values.agentId === 'none' ? null : values.agentId,
         agentName: agentName,
+        section: agentSection,
         detaineeName: values.detaineeName?.trim() || null,
         pvNumber: values.pvNumber?.trim() || null,
         status: values.status as SaisieStatus,

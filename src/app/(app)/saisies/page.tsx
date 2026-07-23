@@ -108,7 +108,9 @@ export default function SaisiesPage() {
     let parquetCount = 0;
 
     saisies.forEach((s) => {
-      totalItems += Number(s.quantity || 0);
+      const raw = s.quantity ?? (s as any).quantite ?? (s as any).nombre ?? (s as any).qty;
+      const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw || '1').replace(',', '.'));
+      totalItems += isNaN(parsed) ? 1 : parsed;
       if (s.status === 'En Dépôt / Scellé' || s.status === 'En Dépôt Coffre-Fort') {
         scelleCount++;
       }

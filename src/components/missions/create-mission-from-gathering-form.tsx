@@ -35,6 +35,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { useMemo, useState } from 'react';
 import { getAgentAvailability } from '@/lib/agents';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
+import { checkAgentMissionConflict } from '@/lib/missions';
 
 const parseLocalDate = (dateStr: string) => {
   if (!dateStr) return new Date();
@@ -98,26 +99,47 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
   const { data: allMissions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
 
   const onSubmit = async (data: MissionFormValues) => {
-    if (!firestore || !allAgents) return;
+    if (!firestore) return;
+
+    const safeAllAgents = allAgents || [];
+    const preselectedAgentIds = agents.map(agent => agent.id);
+    const finalAgentIds = [...new Set([...preselectedAgentIds, ...(data.additionalAgentIds || [])])];
+
+    // Vérifier les conflits pour TOUS les agents assignés (présélectionnés + supplémentaires)
+    for (const agentId of finalAgentIds) {
+      const agentObj = agents.find(a => a.id === agentId) || safeAllAgents.find(a => a.id === agentId);
+      if (agentObj) {
+        const conflict = checkAgentMissionConflict(
+          agentObj,
+          allMissions || [],
+          data.startDate,
+          data.endDate
+        );
+        if (conflict.hasConflict) {
+          toast({
+            title: "Conflit de planning",
+            description: `L'agent ${agentObj.fullName} ne peut pas être affecté : ${conflict.reason}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
     
     const batch = writeBatch(firestore);
     const missionsCollection = collection(firestore, 'missions');
     const newMissionRef = doc(missionsCollection);
-    
-    const preselectedAgentIds = agents.map(agent => agent.id);
-    const finalAgentIds = [...new Set([...preselectedAgentIds, ...(data.additionalAgentIds || [])])];
 
-    const newMissionData: Omit<Mission, 'id'> = {
+    const newMissionData: any = {
         name: data.name,
         location: data.location,
         startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
         endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         status: 'Planification',
         assignedAgentIds: finalAgentIds,
+        createdAt: Timestamp.now(),
     };
     batch.set(newMissionRef, newMissionData);
-
-    // No need to manually update agent availability
 
     batch.commit().then(() => {
         toast({
@@ -126,17 +148,18 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
         });
 
         const agentNames = finalAgentIds.map(id => {
-            const agent = agents.find(a => a.id === id) || allAgents.find(a => a.id === id);
+            const agent = agents.find(a => a.id === id) || safeAllAgents.find(a => a.id === id);
             return agent?.fullName || 'Inconnu';
         });
 
         // Envoyer le webhook
         sendMissionCreationWebhook({
-            ...newMissionData,
+            name: data.name,
+            location: data.location,
             startDate: newMissionData.startDate.toDate().toISOString(),
             endDate: newMissionData.endDate.toDate().toISOString(),
             agents: agentNames,
-        });
+        }).catch(console.error);
 
         // Publier un message système de création de mission dans le chat
         const missionMessageText = JSON.stringify({
@@ -187,23 +210,18 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
 
     return allAgents
         .filter(agent => {
-            if (preselectedAgentIds.has(agent.id) || agent.onLeave) {
+            if (preselectedAgentIds.has(agent.id)) {
                 return false;
             }
 
-            const agentMissions = allMissions.filter(m => 
-                m.assignedAgentIds.includes(agent.id) && 
-                m.status !== 'Annulée' && 
-                m.status !== 'Terminée'
+            const conflict = checkAgentMissionConflict(
+                agent,
+                allMissions,
+                startDate,
+                endDate
             );
 
-            const isOverlapping = agentMissions.some(mission => {
-                const missionStart = mission.startDate.toDate();
-                const missionEnd = mission.endDate.toDate();
-                return startDate < missionEnd && endDate > missionStart;
-            });
-
-            return !isOverlapping;
+            return !conflict.hasConflict;
         })
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [allAgents, allMissions, startDate, endDate, agents]);

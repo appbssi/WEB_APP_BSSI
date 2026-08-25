@@ -1,13 +1,33 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 
-// Helper to preload multiple images safely
+// Direct link for the PDF header banner image (can be changed to any direct image URL)
+export const PDF_HEADER_IMAGE_URL = 'https://i.ibb.co/FL7ZKgSp/ent-te.png';
+
+// Direct link for the signature stamp image
+export const PDF_STAMP_IMAGE_URL = 'https://i.ibb.co/5X97N1HF/signature.jpg';
+
+// Helper to preload multiple images safely with timeout fallback
 function preloadImages(urls: string[], callback: (images: (HTMLImageElement | null)[]) => void) {
   let loadedCount = 0;
+  let isDone = false;
   const results: (HTMLImageElement | null)[] = new Array(urls.length).fill(null);
   
+  const finish = () => {
+    if (!isDone) {
+      isDone = true;
+      callback(results);
+    }
+  };
+
+  // Safety fallback timeout after 3 seconds in case network stalls
+  const timeoutId = setTimeout(() => {
+    finish();
+  }, 3000);
+
   if (urls.length === 0) {
-    callback([]);
+    clearTimeout(timeoutId);
+    finish();
     return;
   }
   
@@ -15,7 +35,8 @@ function preloadImages(urls: string[], callback: (images: (HTMLImageElement | nu
     if (!url) {
       loadedCount++;
       if (loadedCount === urls.length) {
-        callback(results);
+        clearTimeout(timeoutId);
+        finish();
       }
       return;
     }
@@ -25,14 +46,16 @@ function preloadImages(urls: string[], callback: (images: (HTMLImageElement | nu
       results[index] = img;
       loadedCount++;
       if (loadedCount === urls.length) {
-        callback(results);
+        clearTimeout(timeoutId);
+        finish();
       }
     };
     img.onerror = () => {
-      console.error(`Error loading image: ${url}`);
+      console.warn(`Could not load PDF asset: ${url}`);
       loadedCount++;
       if (loadedCount === urls.length) {
-        callback(results);
+        clearTimeout(timeoutId);
+        finish();
       }
     };
     img.src = url;
@@ -312,7 +335,7 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
   };
 
   preloadImages(
-    ['https://i.ibb.co/FL7ZKgSp/ent-te.png', 'https://i.ibb.co/5X97N1HF/signature.jpg'],
+    [PDF_HEADER_IMAGE_URL, PDF_STAMP_IMAGE_URL],
     ([headerImg, stampImg]) => {
       generatePDF(headerImg, stampImg);
     }
@@ -436,7 +459,7 @@ export function generateAutorisationAbsencePDF(demande: any, agent: any) {
   };
 
   preloadImages(
-    ['https://i.ibb.co/FL7ZKgSp/ent-te.png', 'https://i.ibb.co/5X97N1HF/signature.jpg'],
+    [PDF_HEADER_IMAGE_URL, PDF_STAMP_IMAGE_URL],
     ([headerImg, stampImg]) => {
       generatePDF(headerImg, stampImg);
     }
@@ -609,7 +632,7 @@ export function generateFicheAgentPDF(agent: any, missions: any[], explications:
   };
 
   preloadImages(
-    ['https://i.ibb.co/FL7ZKgSp/ent-te.png', agent.photo || '', 'https://i.ibb.co/5X97N1HF/signature.jpg'],
+    [PDF_HEADER_IMAGE_URL, agent.photo || '', PDF_STAMP_IMAGE_URL],
     ([headerImg, photoImg, stampImg]) => {
       generatePDF(headerImg, photoImg, stampImg);
     }

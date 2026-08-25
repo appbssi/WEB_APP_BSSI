@@ -3,11 +3,13 @@
 
 import type { Agent, Mission } from './types';
 
-type MissionWebhookData = Omit<Mission, 'id' | 'status' | 'startDate' | 'endDate'> & {
-    startDate: string;
-    endDate: string;
-    agents: string[]; // Noms des agents
-};
+export interface MissionWebhookData {
+  name: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  agents: string[]; // Noms des agents
+}
 
 /**
  * Envoie une notification webhook lors de la création d'une mission.

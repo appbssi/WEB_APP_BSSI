@@ -274,6 +274,20 @@ function MissionsContent() {
     }, {} as Record<string, Agent>);
   }, [agents]);
 
+  const toSafeDate = (d: any): Date => {
+    if (!d) return new Date();
+    if (typeof d.toDate === 'function') return d.toDate();
+    if (d instanceof Date) return d;
+    if (typeof d === 'string' || typeof d === 'number') {
+      const parsed = new Date(d);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+    if (typeof d === 'object' && d.seconds !== undefined) {
+      return new Date(d.seconds * 1000);
+    }
+    return new Date();
+  };
+
   const sortedMissions: MissionWithDisplayStatus[] = useMemo(() => {
     if (!missions) return [];
     
@@ -282,24 +296,36 @@ function MissionsContent() {
     };
     const now = new Date();
     return [...missions]
-      .map(m => ({...m, displayStatus: getDisplayStatus(m, now)!}))
-      .sort((a, b) => (statusOrder[a.displayStatus] || 5) - (statusOrder[b.displayStatus] || 5) || b.startDate.toMillis() - a.startDate.toMillis());
+      .map(m => ({...m, displayStatus: getDisplayStatus(m, now) || m.status || 'Planification'}))
+      .sort((a, b) => {
+        const orderA = statusOrder[a.displayStatus] || 5;
+        const orderB = statusOrder[b.displayStatus] || 5;
+        if (orderA !== orderB) return orderA - orderB;
+        
+        const dateA = toSafeDate(a.startDate).getTime();
+        const dateB = toSafeDate(b.startDate).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+
+        const createdA = toSafeDate((a as any).createdAt).getTime();
+        const createdB = toSafeDate((b as any).createdAt).getTime();
+        return createdB - createdA;
+      });
   }, [missions]);
 
   const { selectedDetachement } = useDetachement();
 
   const filteredMissions = useMemo(() => {
     return sortedMissions.filter(mission => {
-      const matchesSearch = mission.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = !searchQuery || (mission.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (mission.location || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter = statusFilter === 'all' || mission.displayStatus === statusFilter;
 
       let matchesDetachement = true;
       if (selectedDetachement && selectedDetachement !== 'ALL') {
-        const assignedAgents = mission.assignedAgentIds.map(id => agentsById[id]).filter(Boolean);
+        const assignedAgents = (mission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);
         if (assignedAgents.length > 0) {
-          matchesDetachement = assignedAgents.some(a => a.section === selectedDetachement);
+          matchesDetachement = assignedAgents.some(a => a.section === selectedDetachement || a.detachement === selectedDetachement);
         } else {
-          matchesDetachement = (mission as any).section === selectedDetachement || mission.location?.toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase());
+          matchesDetachement = (mission as any).section === selectedDetachement || (mission.location || '').toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase());
         }
       }
 
@@ -404,7 +430,11 @@ function MissionsContent() {
                 </DialogHeader>
                 <CreateMissionForm 
                   initialStatus="Terminée" 
-                  onMissionCreated={() => setRecordCompletedOpen(false)}
+                  onMissionCreated={() => {
+                    setRecordCompletedOpen(false);
+                    setStatusFilter('all');
+                    setSearchQuery('');
+                  }}
                 />
               </DialogContent>
             </Dialog>
@@ -424,7 +454,11 @@ function MissionsContent() {
                 <DialogHeader>
                     <DialogTitle>Créer une nouvelle mission</DialogTitle>
                 </DialogHeader>
-                <CreateMissionForm onMissionCreated={() => setCreateMissionOpen(false)}/>
+                <CreateMissionForm onMissionCreated={() => {
+                  setCreateMissionOpen(false);
+                  setStatusFilter('all');
+                  setSearchQuery('');
+                }}/>
               </DialogContent>
             </Dialog>
           </div>
@@ -476,8 +510,8 @@ function MissionsContent() {
             ) : filteredMissions.length > 0 ? (
             filteredMissions.map((mission) => {
               const assignedAgents = (mission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);
-              const missionStartDate = mission.startDate.toDate();
-              const missionEndDate = mission.endDate.toDate();
+              const missionStartDate = toSafeDate(mission.startDate);
+              const missionEndDate = toSafeDate(mission.endDate);
               const isSingleDay = isSameDay(missionStartDate, missionEndDate);
               const duration = differenceInDays(missionEndDate, missionStartDate) + 1;
 

@@ -32,6 +32,7 @@ import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
 import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator';
+import { checkAgentMissionConflict } from '@/lib/missions';
 
 const parseLocalDate = (dateStr: string) => {
   if (!dateStr) return new Date();
@@ -126,6 +127,8 @@ export function CreateMissionForm({
 
   const startDate = form.watch('startDate');
   const endDate = form.watch('endDate');
+  const startTime = form.watch('startTime');
+  const endTime = form.watch('endTime');
   const isSingleDayMission = startDate && endDate && startDate === endDate;
 
   const operationalVehicles = useMemo(() => {
@@ -140,36 +143,65 @@ export function CreateMissionForm({
   }, [isSingleDayMission, form]);
 
   const onSubmit = async (data: MissionFormValues) => {
-    if (!firestore || !allAgents) return;
+    if (!firestore) return;
+
+    const safeAgents = allAgents || [];
+
+    // Vérification de sécurité stricte : aucun agent ne peut être sur 2 missions sur la même période
+    for (const agentId of data.assignedAgentIds) {
+      const agentObj = safeAgents.find(a => a.id === agentId);
+      if (agentObj) {
+        const conflict = checkAgentMissionConflict(
+          agentObj,
+          allMissions || [],
+          data.startDate,
+          data.endDate,
+          data.startTime,
+          data.endTime
+        );
+        if (conflict.hasConflict) {
+          toast({
+            title: "Conflit de planning détecté",
+            description: `L'agent ${agentObj.fullName} ne peut pas être affecté : ${conflict.reason}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
     
     const batch = writeBatch(firestore);
 
     const missionsCollection = collection(firestore, 'missions');
     const newMissionRef = doc(missionsCollection);
     
-    const selectedLeaderId = data.leaderId || (data.assignedAgentIds.length > 0 ? data.assignedAgentIds[0] : undefined);
+    const selectedLeaderId = data.leaderId || (data.assignedAgentIds && data.assignedAgentIds.length > 0 ? data.assignedAgentIds[0] : null);
     
-    const newMissionData: Omit<Mission, 'id'> & { leaderId?: string } = {
+    const newMissionData: any = {
         name: data.name,
         location: data.location,
         startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
         endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
-        assignedAgentIds: data.assignedAgentIds,
-        leaderId: selectedLeaderId,
+        assignedAgentIds: data.assignedAgentIds || [],
+        leaderId: selectedLeaderId || null,
         status: initialStatus,
-        vehicleId: data.vehicleId === 'none' ? undefined : data.vehicleId,
+        vehicleId: data.vehicleId && data.vehicleId !== 'none' ? data.vehicleId : null,
+        createdAt: Timestamp.now(),
     };
 
     if (isSingleDayMission) {
-        newMissionData.startTime = data.startTime;
-        newMissionData.endTime = data.endTime;
+        newMissionData.startTime = data.startTime || null;
+        newMissionData.endTime = data.endTime || null;
+    } else {
+        newMissionData.startTime = null;
+        newMissionData.endTime = null;
     }
 
     batch.set(newMissionRef, newMissionData);
 
     if (initialStatus === 'Terminée') {
       for (const agentId of data.assignedAgentIds) {
-        const agentObj = allAgents.find(a => a.id === agentId);
+        const agentObj = safeAgents.find(a => a.id === agentId);
         if (agentObj) {
           const agentRef = doc(firestore, 'agents', agentId);
           const currentCount = agentObj.missionCount || 0;
@@ -178,19 +210,22 @@ export function CreateMissionForm({
       }
     }
 
-    batch.commit().then(() => {
-        toast({
-            title: "Mission créée !",
-            description: `La mission "${data.name}" a été créée avec succès.`,
-        });
-        logActivity(firestore, `La mission "${data.name}" a été créée.`, 'Mission', '/missions');
-        
+    try {
+      await batch.commit();
+
+      toast({
+        title: "Mission créée !",
+        description: `La mission "${data.name}" a été créée avec succès.`,
+      });
+      logActivity(firestore, `La mission "${data.name}" a été créée.`, 'Mission', '/missions');
+
+      // Traitements secondaires en arrière-plan non bloquants
+      try {
         const assignedAgents = data.assignedAgentIds
-          .map(id => allAgents.find(a => a.id === id))
+          .map(id => safeAgents.find(a => a.id === id))
           .filter((a): a is Agent => !!a);
 
-        const leaderAgent = allAgents.find(a => a.id === selectedLeaderId);
-
+        const leaderAgent = safeAgents.find(a => a.id === selectedLeaderId);
         const selectedVehicle = data.vehicleId && data.vehicleId !== 'none' ? allVehicles?.find(v => v.id === data.vehicleId) : null;
         const vehiclePlate = selectedVehicle ? `${selectedVehicle.model} (${selectedVehicle.plateNumber})` : undefined;
 
@@ -209,7 +244,7 @@ export function CreateMissionForm({
           selectedLeaderId
         );
 
-        // Record PDF in Firestore pdf_documents collection for Agent Space & Admin PDF History
+        // Record PDF in Firestore pdf_documents collection
         addDoc(collection(firestore, 'pdf_documents'), {
           title: `Ordre de Mission - ${data.name}`,
           type: 'ordre_de_mission',
@@ -226,23 +261,22 @@ export function CreateMissionForm({
             endDate: newMissionData.endDate,
             startTime: newMissionData.startTime || null,
             endTime: newMissionData.endTime || null,
-            leaderId: selectedLeaderId,
+            leaderId: selectedLeaderId || null,
             agents: assignedAgents,
           },
           vehiclePlate: vehiclePlate || null,
-        }).catch((err) => {
-          console.error("Erreur enregistrement PDF history:", err);
-        });
+        }).catch(console.error);
 
-        const agentNames = data.assignedAgentIds.map(id => allAgents.find(a => a.id === id)?.fullName || 'Inconnu');
+        const agentNames = data.assignedAgentIds.map(id => safeAgents.find(a => a.id === id)?.fullName || 'Inconnu');
 
         // Envoyer le webhook
         sendMissionCreationWebhook({
-            ...newMissionData,
-            startDate: newMissionData.startDate.toDate().toISOString(),
-            endDate: newMissionData.endDate.toDate().toISOString(),
-            agents: agentNames,
-        });
+          name: data.name,
+          location: data.location,
+          startDate: newMissionData.startDate.toDate().toISOString(),
+          endDate: newMissionData.endDate.toDate().toISOString(),
+          agents: agentNames,
+        }).catch(console.error);
 
         // Publier un message système de création de mission dans le chat
         const missionMessageText = JSON.stringify({
@@ -267,22 +301,29 @@ export function CreateMissionForm({
           senderName: 'Système',
           text: missionMessageText,
           timestamp: Timestamp.now(),
-        }).catch((err) => {
-          console.error("Erreur lors de la création du message de mission:", err);
-        });
+        }).catch(console.error);
+      } catch (postErr) {
+        console.warn("Erreur non-bloquante post-création:", postErr);
+      }
 
-        form.reset();
-        if (onMissionCreated) {
-          onMissionCreated();
-        }
-    }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: newMissionRef.path,
-            operation: 'create',
-            requestResourceData: newMissionData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+      form.reset();
+      if (onMissionCreated) {
+        onMissionCreated();
+      }
+    } catch (serverError: any) {
+      console.error("Erreur création mission:", serverError);
+      toast({
+        title: "Erreur lors de la création",
+        description: serverError?.message || "Impossible d'enregistrer la mission.",
+        variant: "destructive",
+      });
+      const permissionError = new FirestorePermissionError({
+        path: newMissionRef.path,
+        operation: 'create',
+        requestResourceData: newMissionData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }
   };
 
   const handleNextStep = async () => {
@@ -295,48 +336,37 @@ export function CreateMissionForm({
   const availableAgents = useMemo(() => {
     if (!startDate || !endDate || !allAgents || !allMissions) return [];
 
-    const selectedStart = parseLocalDate(startDate);
-    const selectedEnd = parseLocalDate(endDate);
-    
     return allAgents
       .filter(agent => {
-        if (agent.leaveStartDate && agent.leaveEndDate) {
-            const leaveStart = agent.leaveStartDate.toDate();
-            const leaveEnd = agent.leaveEndDate.toDate();
-
-            const selectedStartMs = getMidnightTimestamp(selectedStart);
-            const selectedEndMs = getMidnightTimestamp(selectedEnd);
-            const leaveStartMs = getMidnightTimestamp(leaveStart);
-            const leaveEndMs = getMidnightTimestamp(leaveEnd);
-
-            if (selectedStartMs < leaveEndMs && selectedEndMs > leaveStartMs) {
-              return false;
-            }
-        }
-
-        const hasConflict = allMissions.some(mission => {
-            if (mission.status === 'Terminée' || mission.status === 'Annulée') {
-                return false;
-            }
-            if (!mission.assignedAgentIds.includes(agent.id)) {
-                return false;
-            }
-            
-            const missionStart = mission.startDate.toDate();
-            const missionEnd = mission.endDate.toDate();
-
-            const selectedStartMs = getMidnightTimestamp(selectedStart);
-            const selectedEndMs = getMidnightTimestamp(selectedEnd);
-            const missionStartMs = getMidnightTimestamp(missionStart);
-            const missionEndMs = getMidnightTimestamp(missionEnd);
-
-            return selectedStartMs < missionEndMs && selectedEndMs > missionStartMs;
-        });
-
-        return !hasConflict;
+        const conflict = checkAgentMissionConflict(
+          agent,
+          allMissions,
+          startDate,
+          endDate,
+          startTime,
+          endTime
+        );
+        return !conflict.hasConflict;
       })
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [allAgents, allMissions, startDate, endDate]);
+  }, [allAgents, allMissions, startDate, endDate, startTime, endTime]);
+
+  // Si les dates changent, retirer automatiquement les agents qui ne sont plus disponibles
+  useEffect(() => {
+    if (startDate && endDate && allAgents && allMissions) {
+      const currentAssigned = form.getValues('assignedAgentIds') || [];
+      if (currentAssigned.length > 0) {
+        const validAssigned = currentAssigned.filter(id => {
+          const agent = allAgents.find(a => a.id === id);
+          if (!agent) return false;
+          return !checkAgentMissionConflict(agent, allMissions, startDate, endDate, startTime, endTime).hasConflict;
+        });
+        if (validAssigned.length !== currentAssigned.length) {
+          form.setValue('assignedAgentIds', validAssigned);
+        }
+      }
+    }
+  }, [startDate, endDate, startTime, endTime, allAgents, allMissions, form]);
 
   const filteredAgents = useMemo(() => {
     return availableAgents.filter(agent => {

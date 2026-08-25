@@ -38,6 +38,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { checkAgentMissionConflict } from '@/lib/missions';
 
 
 const formatDateToInputString = (timestamp: any) => {
@@ -164,7 +165,33 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
 
 
   const onSubmit = async (data: MissionFormValues) => {
-    if (!firestore || !allAgents) return;
+    if (!firestore) return;
+
+    const safeAgents = allAgents || [];
+
+    // Vérifier les conflits de planning pour les agents assignés
+    for (const agentId of data.assignedAgentIds) {
+      const agentObj = safeAgents.find(a => a.id === agentId);
+      if (agentObj) {
+        const conflict = checkAgentMissionConflict(
+          agentObj,
+          allMissions || [],
+          data.startDate,
+          data.endDate,
+          data.startTime,
+          data.endTime,
+          mission.id
+        );
+        if (conflict.hasConflict) {
+          toast({
+            title: "Conflit de planning",
+            description: `L'agent ${agentObj.fullName} ne peut pas être affecté : ${conflict.reason}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
 
     const batch = writeBatch(firestore);
 
@@ -179,8 +206,8 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
     };
 
     if (isSingleDayMission) {
-        missionUpdateData.startTime = data.startTime;
-        missionUpdateData.endTime = data.endTime;
+        missionUpdateData.startTime = data.startTime || null;
+        missionUpdateData.endTime = data.endTime || null;
     } else {
         missionUpdateData.startTime = null;
         missionUpdateData.endTime = null;
@@ -205,56 +232,14 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
     });
   };
   
-  const availableAgents = useMemo(() => {
-    if (!startDate || !endDate || !allAgents || !allMissions) return [];
-
-    const selectedStart = parseLocalDate(startDate);
-    const selectedEnd = parseLocalDate(endDate);
-
-    return allAgents
-      .filter(agent => {
-        if (agent.leaveStartDate && agent.leaveEndDate) {
-            const leaveStart = agent.leaveStartDate.toDate();
-            const leaveEnd = agent.leaveEndDate.toDate();
-
-            const selectedStartMs = getMidnightTimestamp(selectedStart);
-            const selectedEndMs = getMidnightTimestamp(selectedEnd);
-            const leaveStartMs = getMidnightTimestamp(leaveStart);
-            const leaveEndMs = getMidnightTimestamp(leaveEnd);
-
-            if (selectedStartMs < leaveEndMs && selectedEndMs > leaveStartMs) {
-              return false;
-            }
-        }
-        
-        const isCurrentlyAssigned = (mission.assignedAgentIds || []).includes(agent.id);
-
-        const hasConflict = allMissions.some(m => {
-            if (m.id === mission.id) return false;
-            if (m.status === 'Terminée' || m.status === 'Annulée') return false;
-            if (!m.assignedAgentIds.includes(agent.id)) return false;
-            
-            const missionStart = m.startDate.toDate();
-            const missionEnd = m.endDate.toDate();
-
-            const selectedStartMs = getMidnightTimestamp(selectedStart);
-            const selectedEndMs = getMidnightTimestamp(selectedEnd);
-            const missionStartMs = getMidnightTimestamp(missionStart);
-            const missionEndMs = getMidnightTimestamp(missionEnd);
-            
-            return selectedStartMs < missionEndMs && selectedEndMs > missionStartMs;
-        });
-
-        return isCurrentlyAssigned || !hasConflict;
-      })
-      .sort((a,b) => a.fullName.localeCompare(b.fullName));
-  }, [startDate, endDate, allAgents, allMissions, mission]);
-
   const filteredAgents = useMemo(() => {
-    return availableAgents.filter(agent => 
-      `${agent.fullName} ${agent.registrationNumber}`.toLowerCase().includes(agentSearch.toLowerCase())
-    );
-  }, [availableAgents, agentSearch]);
+    if (!allAgents) return [];
+    return allAgents
+      .filter(agent => 
+        `${agent.fullName} ${agent.registrationNumber}`.toLowerCase().includes(agentSearch.toLowerCase())
+      )
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [allAgents, agentSearch]);
 
 
   return (
@@ -423,24 +408,22 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                                     const isChecked = field.value?.includes(agent.id);
                                     const isCurrentlyAssigned = (mission.assignedAgentIds || []).includes(agent.id);
                                     
-                                    const hasConflict = (allMissions || []).some(m => {
-                                        if (m.id === mission.id) return false;
-                                        if (m.status === 'Terminée' || m.status === 'Annulée') return false;
-                                        if (!m.assignedAgentIds.includes(agent.id)) return false;
-                                        
-                                        const missionStart = m.startDate.toDate();
-                                        const missionEnd = m.endDate.toDate();
-                                        
-                                        return startDate < missionEnd && endDate > missionStart;
-                                    });
+                                    const conflict = checkAgentMissionConflict(
+                                      agent,
+                                      allMissions || [],
+                                      startDate,
+                                      endDate,
+                                      startTime,
+                                      endTime,
+                                      mission.id
+                                    );
 
-                                    const isOnLeave = agent.leaveStartDate && agent.leaveEndDate && startDate < agent.leaveEndDate.toDate() && endDate > agent.leaveStartDate.toDate();
-                                    const isDisabled = !isCurrentlyAssigned && (isOnLeave || hasConflict);
+                                    const isDisabled = !isCurrentlyAssigned && conflict.hasConflict;
 
                                     return (
                                         <div
                                             key={agent.id}
-                                            className={cn("flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground", isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}
+                                            className={cn("flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 hover:bg-accent hover:text-accent-foreground", isDisabled ? "opacity-60 cursor-not-allowed bg-muted/40" : "cursor-pointer")}
                                             onClick={() => {
                                                 if(isDisabled) return;
                                                 const currentValues = field.value || [];
@@ -454,13 +437,18 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
                                               {isChecked && <Check className="h-4 w-4" />}
                                             </div>
                                             <div className="font-medium flex-1">
-                                                {agent.fullName}
+                                                <div className="flex items-center gap-2">
+                                                  <span>{agent.fullName}</span>
+                                                  {isDisabled && (
+                                                    <span className="text-xs text-destructive font-normal">({conflict.reason})</span>
+                                                  )}
+                                                </div>
                                                 <div className="text-sm text-muted-foreground">
                                                   {agent.rank} | {agent.registrationNumber}
                                                 </div>
                                             </div>
-                                             <Badge variant={isDisabled ? 'destructive' : 'outline'}>
-                                                {isOnLeave ? 'En congé' : hasConflict ? 'Conflit' : 'Disponible'}
+                                             <Badge variant={isDisabled ? 'destructive' : isChecked ? 'default' : 'outline'}>
+                                                {isDisabled ? (conflict.type === 'leave' ? 'En congé' : 'Indisponible') : isChecked ? 'Assigné' : 'Disponible'}
                                              </Badge>
                                         </div>
                                     );

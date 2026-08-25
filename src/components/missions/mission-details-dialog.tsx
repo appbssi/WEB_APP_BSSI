@@ -52,8 +52,22 @@ export function MissionDetailsDialog({
     return vehicles.find(v => v.id === mission.vehicleId);
   }, [vehicles, mission.vehicleId]);
 
-  const startDate = mission.startDate.toDate();
-  const endDate = mission.endDate.toDate();
+  const parseDateSafe = (d: any): Date => {
+    if (!d) return new Date();
+    if (typeof d.toDate === 'function') return d.toDate();
+    if (d instanceof Date) return d;
+    if (typeof d === 'string' || typeof d === 'number') {
+      const parsed = new Date(d);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+    if (typeof d === 'object' && d.seconds !== undefined) {
+      return new Date(d.seconds * 1000);
+    }
+    return new Date();
+  };
+
+  const startDate = parseDateSafe(mission.startDate);
+  const endDate = parseDateSafe(mission.endDate);
   const isSingleDay = isSameDay(startDate, endDate);
   const duration = differenceInDays(endDate, startDate) + 1;
 

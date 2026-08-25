@@ -37,11 +37,12 @@ export function initializeFirebase() {
     auth = getAuth(firebaseApp);
     setPersistence(auth, browserLocalPersistence);
     
-    // Initialisation robuste de Firestore pour éviter les conflits de cache
+    // Initialisation robuste de Firestore pour éviter les conflits de cache et les erreurs de champs undefined
     firestore = initializeFirestore(firebaseApp, {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
       }),
+      ignoreUndefinedProperties: true,
     });
   } else {
     firebaseApp = getApp();

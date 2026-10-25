@@ -466,12 +466,20 @@ export function generateAutorisationAbsencePDF(demande: any, agent: any) {
   );
 }
 
-export function generateFicheAgentPDF(agent: any, missions: any[], explications: any[] = []) {
+export async function generateFicheAgentPDF(agent: any, missions: any[], explications: any[] = []) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
   });
+
+  let qrDataUrl = '';
+  try {
+    const { generateAgentQRCodeDataURL } = await import('./agent-qrcode');
+    qrDataUrl = await generateAgentQRCodeDataURL(agent, { size: 300 });
+  } catch (err) {
+    console.warn('Could not generate agent QR code for fiche PDF:', err);
+  }
 
   const generatePDF = (headerImg: HTMLImageElement | null, photoImg: HTMLImageElement | null, stampImg: HTMLImageElement | null) => {
     // Header
@@ -508,19 +516,43 @@ export function generateFicheAgentPDF(agent: any, missions: any[], explications:
 
     // Agent info grid box
     doc.setFillColor(250, 250, 250);
-    doc.rect(15, 74 + yShift, 180, 50, 'F');
+    doc.rect(15, 74 + yShift, 180, 52, 'F');
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
-    doc.rect(15, 74 + yShift, 180, 50, 'D');
+    doc.rect(15, 74 + yShift, 180, 52, 'D');
 
     if (photoImg) {
       try {
-        doc.addImage(photoImg, 'JPEG', 152, 79 + yShift, 36, 40);
-        // Draw border around photo
+        doc.addImage(photoImg, 'JPEG', 156, 78 + yShift, 34, 42);
         doc.setDrawColor(200, 200, 200);
-        doc.rect(152, 79 + yShift, 36, 40, 'D');
+        doc.rect(156, 78 + yShift, 34, 42, 'D');
       } catch (err) {
         console.error("Error adding photo to agent PDF", err);
+      }
+      if (qrDataUrl) {
+        try {
+          doc.addImage(qrDataUrl, 'PNG', 124, 82 + yShift, 27, 27);
+          doc.setDrawColor(220, 220, 220);
+          doc.rect(124, 82 + yShift, 27, 27, 'D');
+          doc.setFont('Helvetica', 'bold');
+          doc.setFontSize(6);
+          doc.setTextColor(26, 43, 76);
+          doc.text('QR IDENTIFIANT', 137.5, 113 + yShift, { align: 'center' });
+        } catch (err) {
+          console.error("Error adding QR to agent PDF", err);
+        }
+      }
+    } else if (qrDataUrl) {
+      try {
+        doc.addImage(qrDataUrl, 'PNG', 154, 78 + yShift, 36, 36);
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(154, 78 + yShift, 36, 36, 'D');
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(26, 43, 76);
+        doc.text('CODE QR OFFICIEL', 172, 118 + yShift, { align: 'center' });
+      } catch (err) {
+        console.error("Error adding QR to agent PDF", err);
       }
     }
 
@@ -638,3 +670,180 @@ export function generateFicheAgentPDF(agent: any, missions: any[], explications:
     }
   );
 }
+
+/**
+ * Generates an official printable identity badge for the agent (ISO/IEC 7810 ID-1 standard format: 85.6mm x 54mm)
+ */
+export async function generateAgentBadgeCardPDF(agent: any): Promise<void> {
+  const { jsPDF } = await import('jspdf');
+  const { generateAgentQRCodeDataURL } = await import('./agent-qrcode');
+
+  const qrDataUrl = await generateAgentQRCodeDataURL(agent, { size: 360 });
+
+  return new Promise<void>((resolve) => {
+    preloadImages([agent.photo || '', PDF_STAMP_IMAGE_URL], ([photoImg]) => {
+      // 85.6 x 53.98 mm (Standard ID Card format)
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [85.6, 54],
+      });
+
+      // Background Card styling
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, 85.6, 54, 'F');
+
+      // Top flag colors (CI: Orange, White, Green)
+      doc.setFillColor(247, 127, 0); // Orange
+      doc.rect(0, 0, 28.53, 2, 'F');
+      doc.setFillColor(255, 255, 255); // White
+      doc.rect(28.53, 0, 28.53, 2, 'F');
+      doc.setFillColor(0, 158, 96); // Green
+      doc.rect(57.06, 0, 28.54, 2, 'F');
+
+      // Header Navy Banner
+      doc.setFillColor(26, 43, 76);
+      doc.rect(0, 2, 85.6, 9.5, 'F');
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(5.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text("RÉPUBLIQUE DE CÔTE D'IVOIRE", 42.8, 5, { align: 'center' });
+      doc.setFontSize(6.5);
+      doc.text("BRIGADE SPÉCIALE DE SURVEILLANCE ET D'INTERVENTION", 42.8, 8, { align: 'center' });
+      doc.setFontSize(4.5);
+      doc.setTextColor(230, 230, 230);
+      doc.text("CARTE D'IDENTIFICATION OFFICIELLE - sBSSI", 42.8, 10.5, { align: 'center' });
+
+      // Left column: Agent Photo
+      const photoX = 4;
+      const photoY = 14;
+      const photoW = 21;
+      const photoH = 26;
+
+      if (photoImg) {
+        try {
+          doc.addImage(photoImg, 'JPEG', photoX, photoY, photoW, photoH);
+          doc.setDrawColor(26, 43, 76);
+          doc.setLineWidth(0.3);
+          doc.rect(photoX, photoY, photoW, photoH, 'D');
+        } catch {
+          doc.setFillColor(240, 240, 240);
+          doc.rect(photoX, photoY, photoW, photoH, 'F');
+        }
+      } else {
+        doc.setFillColor(245, 247, 250);
+        doc.rect(photoX, photoY, photoW, photoH, 'F');
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        doc.rect(photoX, photoY, photoW, photoH, 'D');
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(150, 150, 150);
+        doc.text('PHOTO', photoX + photoW / 2, photoY + photoH / 2, { align: 'center' });
+      }
+
+      // Middle column: Details
+      const detailX = 27;
+      let textY = 16.5;
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('NOM & PRÉNOMS :', detailX, textY);
+      textY += 3.5;
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(26, 43, 76);
+      const displayName = doc.splitTextToSize((agent.fullName || 'AGENT').toUpperCase(), 35);
+      doc.text(displayName, detailX, textY);
+      textY += (displayName.length * 3.2) + 1;
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('GRADE :', detailX, textY);
+      doc.setFontSize(6.5);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(40, 40, 40);
+      doc.text(agent.rank || 'N/A', detailX + 11, textY);
+      textY += 3.5;
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('MATRICULE :', detailX, textY);
+      doc.setFontSize(6.5);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(26, 43, 76);
+      doc.text(agent.registrationNumber || 'N/A', detailX + 15, textY);
+      textY += 3.5;
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('SECTION :', detailX, textY);
+      doc.setFontSize(6);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(40, 40, 40);
+      doc.text((agent.section || 'Non assigné').toUpperCase(), detailX + 12, textY);
+      textY += 3.5;
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('IDC UNIQUE :', detailX, textY);
+      doc.setFontSize(6);
+      doc.setFont('Courier', 'bold');
+      doc.setTextColor(26, 43, 76);
+      doc.text((agent.id || '').substring(0, 8).toUpperCase(), detailX + 14, textY);
+
+      // Right column: QR Code
+      const qrX = 63.5;
+      const qrY = 14;
+      const qrSize = 18;
+
+      try {
+        doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.2);
+        doc.rect(qrX, qrY, qrSize, qrSize, 'D');
+
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(4);
+        doc.setTextColor(26, 43, 76);
+        doc.text('SCAN IDENTIFICATION', qrX + qrSize / 2, qrY + qrSize + 2.5, { align: 'center' });
+      } catch (err) {
+        console.error('Error drawing QR on badge card:', err);
+      }
+
+      // Bottom Bar with Security & Emergency Contact
+      doc.setFillColor(245, 247, 250);
+      doc.rect(0, 45, 85.6, 9, 'F');
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.2);
+      doc.line(0, 45, 85.6, 45);
+
+      doc.setFont('Helvetica', 'italic');
+      doc.setFontSize(4.2);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Carte strictement personnelle et réservée aux missions officielles.', 4, 48.5);
+      doc.text(`Émise par le Commandement BSSI - Contact: ${agent.contact || '+225 00 00 00 00'}`, 4, 51.5);
+
+      // Mini watermark badge
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(4.5);
+      doc.setTextColor(0, 158, 96);
+      doc.text('● SÉCURISÉ BSSI', 82, 50, { align: 'right' });
+
+      // Outer boundary cut mark
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.2);
+      doc.rect(0.2, 0.2, 85.2, 53.6, 'D');
+
+      doc.save(`Badge_BSSI_${agent.registrationNumber || (agent.id || '').substring(0, 6)}_${(agent.fullName || 'Agent').replace(/\s+/g, '_')}.pdf`);
+      resolve();
+    });
+  });
+}
+

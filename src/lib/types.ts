@@ -19,7 +19,9 @@ export type Agent = {
 
 export type Availability = 'Disponible' | 'En mission' | 'En congé' | 'En permission';
 
-export type MissionStatus = 'Planification' | 'En cours' | 'Terminée' | 'Annulée';
+export type MissionStatus = 'En attente' | 'Planification' | 'En cours' | 'Terminée' | 'Annulée' | 'Rejetée';
+
+export type MissionValidationStatus = 'En attente' | 'Validée' | 'Rejetée';
 
 export type Mission = {
   id: string;
@@ -30,8 +32,18 @@ export type Mission = {
   startTime?: string;
   endTime?: string;
   status: MissionStatus;
+  validationStatus?: MissionValidationStatus;
+  validatedBy?: string;
+  validatedAt?: Timestamp;
+  rejectionReason?: string;
+  rejectedAt?: Timestamp;
+  rejectedBy?: string;
   assignedAgentIds: string[];
   vehicleId?: string;
+  leaderId?: string;
+  detachement?: string | null;
+  section?: string | null;
+  createdAt?: Timestamp;
 };
 
 export type WeaponType = 'Arme de poing' | "Fusil d'assaut" | 'Munition' | 'Accessoire' | 'Casque' | 'Gilets par balle';

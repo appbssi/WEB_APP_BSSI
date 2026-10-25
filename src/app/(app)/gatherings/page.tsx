@@ -139,7 +139,7 @@ function GatheringsContent() {
                 <PlusCircle className="mr-2 h-4 w-4" /> Créer un rassemblement
               </button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
                 <DialogTitle className="sr-only">Créer un nouveau rassemblement</DialogTitle>
                 <CreateGatheringForm onGatheringCreated={() => setCreateOpen(false)} />
             </DialogContent>

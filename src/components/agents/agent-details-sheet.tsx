@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import type { Agent, Availability, Mission, Explication } from '@/lib/types';
-import { User, Shield, Phone, MapPin, Briefcase, Printer } from 'lucide-react';
+import { User, Shield, Phone, MapPin, Briefcase, Printer, QrCode } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getDisplayStatus } from '@/lib/missions';
@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { generateFicheAgentPDF } from '@/lib/pdf-generator';
+import { AgentQRBadgeDialog } from './agent-qr-badge-dialog';
 
 interface AgentDetailsProps {
   agent: Agent & { availability: Availability };
@@ -38,6 +39,7 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
   const { toast } = useToast();
   const [requestText, setRequestText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isQrOpen, setIsQrOpen] = useState(false);
 
   const explicationsQuery = useMemoFirebase(() => {
     if (!firestore || !agent) return null;
@@ -113,16 +115,28 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
               Consultez les informations détaillées et le registre d'activité de l'élément.
             </SheetDescription>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 cursor-pointer border-primary/20 hover:bg-primary/5 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-sans text-xs h-9"
-            onClick={() => generateFicheAgentPDF(agent, missions, explications || [])}
-          >
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">Imprimer Fiche Technique</span>
-            <span className="inline sm:hidden">Fiche Tech</span>
-          </Button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 cursor-pointer border-[#1a2b4c]/30 hover:bg-[#1a2b4c]/10 text-[#1a2b4c] dark:text-blue-300 font-sans text-xs h-9"
+              onClick={() => setIsQrOpen(true)}
+            >
+              <QrCode className="h-4 w-4" />
+              <span className="hidden sm:inline">Badge & Code QR</span>
+              <span className="inline sm:hidden">Badge QR</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 cursor-pointer border-primary/20 hover:bg-primary/5 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-sans text-xs h-9"
+              onClick={() => generateFicheAgentPDF(agent, missions, explications || [])}
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Imprimer Fiche Technique</span>
+              <span className="inline sm:hidden">Fiche Tech</span>
+            </Button>
+          </div>
         </SheetHeader>
         
         <div className="flex-1 relative overflow-hidden">
@@ -158,6 +172,35 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
                           Affecté à la brigade en tant que personnel opérationnel.
                         </p>
                     </div>
+                </div>
+
+                {/* Badge & Code QR d'Identification Attribué */}
+                <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-[#1a2b4c]/10 to-transparent flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2.5 bg-background rounded-xl border shadow-sm shrink-0 text-primary">
+                      <QrCode className="h-6 w-6 text-[#1a2b4c] dark:text-blue-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-foreground">
+                          Code QR d'Identification Attribué
+                        </h4>
+                        <Badge variant="outline" className="text-[10px] font-mono py-0 h-4 border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                          Actif
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        Identifiant cryptographique unique pour contrôle terrain et badge officiel
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0 h-8 text-xs font-semibold bg-[#1a2b4c] hover:bg-[#132038] text-white cursor-pointer w-full sm:w-auto"
+                    onClick={() => setIsQrOpen(true)}
+                  >
+                    Afficher le Badge & QR
+                  </Button>
                 </div>
 
                 {/* Statistiques rapides */}
@@ -351,6 +394,12 @@ export function AgentDetailsSheet({ agent, missions, isOpen, onOpenChange }: Age
           </ScrollArea>
         </div>
       </SheetContent>
+
+      <AgentQRBadgeDialog
+        agent={agent}
+        isOpen={isQrOpen}
+        onOpenChange={setIsQrOpen}
+      />
     </Sheet>
   );
 }

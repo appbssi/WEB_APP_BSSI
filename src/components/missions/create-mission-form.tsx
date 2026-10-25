@@ -46,7 +46,9 @@ const getMidnightTimestamp = (date: Date) => {
   return d.getTime();
 };
 
-import { UserCheck } from 'lucide-react';
+import { useDetachement } from '@/context/detachement-context';
+import { useRole } from '@/hooks/use-role';
+import { UserCheck, ShieldCheck, Clock } from 'lucide-react';
 
 const missionSchema = z.object({
   name: z.string().min(3, 'Le nom de la mission est requis'),
@@ -58,6 +60,7 @@ const missionSchema = z.object({
   assignedAgentIds: z.array(z.string()).min(1, "Vous devez assigner au moins un agent."),
   leaderId: z.string().optional(),
   vehicleId: z.string().optional(),
+  adminImmediateValidation: z.boolean().optional(),
 }).refine(data => {
   const start = parseLocalDate(data.startDate);
   const end = parseLocalDate(data.endDate);
@@ -88,7 +91,7 @@ type MissionFormValues = z.infer<typeof missionSchema>;
 
 export function CreateMissionForm({
   onMissionCreated,
-  initialStatus = 'Planification',
+  initialStatus = 'En attente',
 }: {
   onMissionCreated?: () => void;
   initialStatus?: MissionStatus;
@@ -100,6 +103,9 @@ export function CreateMissionForm({
   const [isEndOpen, setEndOpen] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { selectedDetachement } = useDetachement();
+  const { role } = useRole();
+  const isAdmin = role === 'admin';
 
   const form = useForm<MissionFormValues>({
     resolver: zodResolver(missionSchema),
@@ -112,6 +118,7 @@ export function CreateMissionForm({
       endTime: '17:00',
       assignedAgentIds: [],
       vehicleId: 'none',
+      adminImmediateValidation: isAdmin && initialStatus !== 'Terminée',
     },
   });
   
@@ -177,6 +184,13 @@ export function CreateMissionForm({
     
     const selectedLeaderId = data.leaderId || (data.assignedAgentIds && data.assignedAgentIds.length > 0 ? data.assignedAgentIds[0] : null);
     
+    const isCompletedForm = initialStatus === 'Terminée';
+    const shouldValidate = isCompletedForm || (isAdmin && Boolean(data.adminImmediateValidation));
+    const targetStatus: MissionStatus = shouldValidate
+      ? (isCompletedForm ? 'Terminée' : 'Planification')
+      : 'En attente';
+    const targetValidationStatus = shouldValidate ? 'Validée' : 'En attente';
+
     const newMissionData: any = {
         name: data.name,
         location: data.location,
@@ -184,10 +198,18 @@ export function CreateMissionForm({
         endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
         assignedAgentIds: data.assignedAgentIds || [],
         leaderId: selectedLeaderId || null,
-        status: initialStatus,
+        status: targetStatus,
+        validationStatus: targetValidationStatus,
         vehicleId: data.vehicleId && data.vehicleId !== 'none' ? data.vehicleId : null,
+        detachement: selectedDetachement && selectedDetachement !== 'ALL' ? selectedDetachement : null,
+        section: selectedDetachement && selectedDetachement !== 'ALL' ? selectedDetachement : null,
         createdAt: Timestamp.now(),
     };
+
+    if (shouldValidate) {
+      newMissionData.validatedBy = isAdmin ? 'Administrateur' : 'Système';
+      newMissionData.validatedAt = Timestamp.now();
+    }
 
     if (isSingleDayMission) {
         newMissionData.startTime = data.startTime || null;
@@ -199,7 +221,7 @@ export function CreateMissionForm({
 
     batch.set(newMissionRef, newMissionData);
 
-    if (initialStatus === 'Terminée') {
+    if (targetStatus === 'Terminée') {
       for (const agentId of data.assignedAgentIds) {
         const agentObj = safeAgents.find(a => a.id === agentId);
         if (agentObj) {
@@ -213,59 +235,70 @@ export function CreateMissionForm({
     try {
       await batch.commit();
 
-      toast({
-        title: "Mission créée !",
-        description: `La mission "${data.name}" a été créée avec succès.`,
-      });
-      logActivity(firestore, `La mission "${data.name}" a été créée.`, 'Mission', '/missions');
+      if (shouldValidate) {
+        toast({
+          title: "Mission créée et validée !",
+          description: `La mission "${data.name}" a été validée. L'ordre de mission a été généré.`,
+        });
+        logActivity(firestore, `La mission "${data.name}" a été créée et validée.`, 'Mission', '/missions');
+      } else {
+        toast({
+          title: "Mission soumise pour validation",
+          description: `La mission "${data.name}" est en attente de confirmation par l'administrateur. L'ordre de mission sera généré après validation.`,
+        });
+        logActivity(firestore, `La mission "${data.name}" a été soumise en attente de validation.`, 'Mission', '/missions');
+      }
 
       // Traitements secondaires en arrière-plan non bloquants
       try {
         const assignedAgents = data.assignedAgentIds
           .map(id => safeAgents.find(a => a.id === id))
-          .filter((a): a is Agent => !!a);
+          .filter((a): a is Agent => Boolean(a));
 
         const leaderAgent = safeAgents.find(a => a.id === selectedLeaderId);
         const selectedVehicle = data.vehicleId && data.vehicleId !== 'none' ? allVehicles?.find(v => v.id === data.vehicleId) : null;
         const vehiclePlate = selectedVehicle ? `${selectedVehicle.model} (${selectedVehicle.plateNumber})` : undefined;
 
-        generateOrdreDeMissionPDF(
-          {
-            name: data.name,
-            location: data.location,
-            startDate: newMissionData.startDate,
-            endDate: newMissionData.endDate,
-            startTime: newMissionData.startTime,
-            endTime: newMissionData.endTime,
-            leaderId: selectedLeaderId,
-          },
-          assignedAgents,
-          vehiclePlate,
-          selectedLeaderId
-        );
+        // Générer le PDF UNIQUEMENT si la mission est validée !
+        if (shouldValidate) {
+          generateOrdreDeMissionPDF(
+            {
+              name: data.name,
+              location: data.location,
+              startDate: newMissionData.startDate,
+              endDate: newMissionData.endDate,
+              startTime: newMissionData.startTime,
+              endTime: newMissionData.endTime,
+              leaderId: selectedLeaderId,
+            },
+            assignedAgents,
+            vehiclePlate,
+            selectedLeaderId
+          );
 
-        // Record PDF in Firestore pdf_documents collection
-        addDoc(collection(firestore, 'pdf_documents'), {
-          title: `Ordre de Mission - ${data.name}`,
-          type: 'ordre_de_mission',
-          createdAt: Timestamp.now(),
-          agentIds: data.assignedAgentIds,
-          agentNames: assignedAgents.map(a => a.fullName),
-          leaderId: selectedLeaderId || null,
-          leaderName: leaderAgent?.fullName || 'Non désigné',
-          missionData: {
-            id: newMissionRef.id,
-            name: data.name,
-            location: data.location,
-            startDate: newMissionData.startDate,
-            endDate: newMissionData.endDate,
-            startTime: newMissionData.startTime || null,
-            endTime: newMissionData.endTime || null,
+          // Record PDF in Firestore pdf_documents collection
+          addDoc(collection(firestore, 'pdf_documents'), {
+            title: `Ordre de Mission - ${data.name}`,
+            type: 'ordre_de_mission',
+            createdAt: Timestamp.now(),
+            agentIds: data.assignedAgentIds,
+            agentNames: assignedAgents.map(a => a.fullName),
             leaderId: selectedLeaderId || null,
-            agents: assignedAgents,
-          },
-          vehiclePlate: vehiclePlate || null,
-        }).catch(console.error);
+            leaderName: leaderAgent?.fullName || 'Non désigné',
+            missionData: {
+              id: newMissionRef.id,
+              name: data.name,
+              location: data.location,
+              startDate: newMissionData.startDate,
+              endDate: newMissionData.endDate,
+              startTime: newMissionData.startTime || null,
+              endTime: newMissionData.endTime || null,
+              leaderId: selectedLeaderId || null,
+              agents: assignedAgents,
+            },
+            vehiclePlate: vehiclePlate || null,
+          }).catch(console.error);
+        }
 
         const agentNames = data.assignedAgentIds.map(id => safeAgents.find(a => a.id === id)?.fullName || 'Inconnu');
 
@@ -287,11 +320,13 @@ export function CreateMissionForm({
           endDate: newMissionData.endDate.toDate().toISOString(),
           startTime: newMissionData.startTime || null,
           endTime: newMissionData.endTime || null,
+          status: targetStatus,
+          validationStatus: targetValidationStatus,
           checklist: [
             { id: 'briefing', label: "Briefing d'équipe & tactique", checked: false },
             { id: 'equipment', label: "Vérification et chargement du matériel", checked: false },
             { id: 'vehicle', label: "Attribution/préparation du véhicule de service", checked: false },
-            { id: 'validation', label: "Validation finale de l'ordre de mission", checked: false }
+            { id: 'validation', label: "Validation finale de l'ordre de mission", checked: shouldValidate }
           ],
           agents: agentNames,
         });
@@ -637,12 +672,56 @@ export function CreateMissionForm({
                     )}
                   />
                 )}
+
+                {/* Workflow de Validation Administrateur */}
+                {initialStatus !== 'Terminée' && (
+                  <div className="rounded-xl border p-4 bg-muted/30 space-y-3 mt-4">
+                    {isAdmin ? (
+                      <FormField
+                        control={form.control}
+                        name="adminImmediateValidation"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <input
+                                type="checkbox"
+                                checked={field.value}
+                                onChange={field.onChange}
+                                className="h-4 w-4 mt-1 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
+                                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                Valider immédiatement cette mission (Administrateur)
+                              </FormLabel>
+                              <p className="text-xs text-muted-foreground">
+                                {field.value
+                                  ? "La mission sera enregistrée comme validée et l'Ordre de Mission (PDF) sera généré et téléchargé immédiatement."
+                                  : "La mission sera créée avec le statut « En attente de validation ». Aucun ordre de mission ne sera généré tant qu'elle ne sera pas validée."}
+                              </p>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    ) : (
+                      <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
+                        <Clock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold text-foreground">Validation requise :</span> Cette mission sera enregistrée avec le statut <span className="font-bold text-amber-600">« En attente de validation »</span>. L'Ordre de Mission officiel ne sera généré qu'après approbation par l'administrateur.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <div className="flex justify-between pt-4">
                   <button type="button" className="button-13" onClick={() => setCurrentStep(1)}>Précédent</button>
                   <button type="submit" className="button-13" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Créer la mission
+                    {initialStatus === 'Terminée' 
+                      ? 'Enregistrer la mission terminée' 
+                      : (isAdmin && form.watch('adminImmediateValidation') ? 'Valider et créer la mission' : 'Soumettre pour validation')}
                   </button>
                 </div>
               </div>

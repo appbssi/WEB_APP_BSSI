@@ -163,7 +163,7 @@ export function RegisterAgentForm({ onAgentRegistered }: RegisterAgentFormProps)
       <DialogHeader>
         <DialogTitle>Enregistrer un nouvel agent</DialogTitle>
         <DialogDescription>
-          Ajoutez un nouvel agent à la brigade.
+          Ajoutez un nouvel agent à la brigade. Un code QR unique d'identification et un badge officiel lui seront automatiquement attribués.
         </DialogDescription>
       </DialogHeader>
       

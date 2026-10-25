@@ -84,7 +84,7 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Modifier le visiteur</DialogTitle>
           <DialogDescription>

@@ -92,7 +92,7 @@ export function ManageAttendanceDialog({ isOpen, onOpenChange, gathering, agents
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Gérer les présences</DialogTitle>
           <DialogDescription>
@@ -107,7 +107,7 @@ export function ManageAttendanceDialog({ isOpen, onOpenChange, gathering, agents
               render={({ field }) => (
                 <div className="space-y-2">
                   <div className="rounded-lg border">
-                    <ScrollArea className="h-96">
+                    <ScrollArea className="max-h-[50vh]">
                       <div className="p-4 space-y-2">
                         {assignedAgents.length > 0 ? (
                           assignedAgents.map((agent) => {

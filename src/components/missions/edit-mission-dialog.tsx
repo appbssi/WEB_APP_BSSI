@@ -244,7 +244,7 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Modifier la mission</DialogTitle>
           <DialogDescription>

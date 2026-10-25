@@ -64,7 +64,7 @@ import { useDetachement } from '@/context/detachement-context';
 import { differenceInDays, isSameDay } from 'date-fns';
 import { logActivity } from '@/lib/activity-logger';
 import { getDisplayStatus, MissionWithDisplayStatus } from '@/lib/missions';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
 
@@ -168,7 +168,7 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
 
 
     return (
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
                 <DialogTitle>AGENT A LA MISSION "{missionName.toUpperCase()}"</DialogTitle>
                 <DialogDescription>Liste des agents assignés à cette mission.</DialogDescription>
@@ -239,6 +239,7 @@ export default function MissionsPage() {
 
 function MissionsContent() {
   const { isObserver } = useRole();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [isCreateMissionOpen, setCreateMissionOpen] = useState(false);
   const [isRecordCompletedOpen, setRecordCompletedOpen] = useState(false);
@@ -259,6 +260,14 @@ function MissionsContent() {
       setStatusFilter(status);
     }
   }, [searchParams]);
+
+  const handleMissionCreated = () => {
+    setCreateMissionOpen(false);
+    setRecordCompletedOpen(false);
+    setStatusFilter('all');
+    setSearchQuery('');
+    router.replace('/missions');
+  };
   
   const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
   const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
@@ -292,7 +301,12 @@ function MissionsContent() {
     if (!missions) return [];
     
     const statusOrder: Record<MissionStatus, number> = {
-      'En cours': 1, 'Planification': 2, 'Terminée': 3, 'Annulée': 4,
+      'En attente': 0,
+      'En cours': 1,
+      'Planification': 2,
+      'Terminée': 3,
+      'Annulée': 4,
+      'Rejetée': 5,
     };
     const now = new Date();
     return [...missions]
@@ -301,14 +315,14 @@ function MissionsContent() {
         const orderA = statusOrder[a.displayStatus] || 5;
         const orderB = statusOrder[b.displayStatus] || 5;
         if (orderA !== orderB) return orderA - orderB;
-        
-        const dateA = toSafeDate(a.startDate).getTime();
-        const dateB = toSafeDate(b.startDate).getTime();
-        if (dateB !== dateA) return dateB - dateA;
 
         const createdA = toSafeDate((a as any).createdAt).getTime();
         const createdB = toSafeDate((b as any).createdAt).getTime();
-        return createdB - createdA;
+        if (createdB !== createdA) return createdB - createdA;
+        
+        const dateA = toSafeDate(a.startDate).getTime();
+        const dateB = toSafeDate(b.startDate).getTime();
+        return dateB - dateA;
       });
   }, [missions]);
 
@@ -322,22 +336,29 @@ function MissionsContent() {
       let matchesDetachement = true;
       if (selectedDetachement && selectedDetachement !== 'ALL') {
         const assignedAgents = (mission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);
-        if (assignedAgents.length > 0) {
-          matchesDetachement = assignedAgents.some(a => a.section === selectedDetachement || a.detachement === selectedDetachement);
-        } else {
-          matchesDetachement = (mission as any).section === selectedDetachement || (mission.location || '').toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase());
-        }
+        const matchAgent = assignedAgents.length > 0 && assignedAgents.some(a => a.section === selectedDetachement || a.detachement === selectedDetachement);
+        const matchMissionDet = (mission as any).detachement === selectedDetachement;
+        const matchMissionSec = (mission as any).section === selectedDetachement;
+        const matchLocation = (mission.location || '').toUpperCase().includes(selectedDetachement.replace('DETACHEMENT ', '').toUpperCase());
+
+        matchesDetachement = matchAgent || matchMissionDet || matchMissionSec || matchLocation;
       }
 
       return matchesSearch && matchesFilter && matchesDetachement;
     });
   }, [sortedMissions, searchQuery, statusFilter, selectedDetachement, agentsById]);
 
+  const pendingMissionsCount = useMemo(() => {
+    return sortedMissions.filter(m => m.displayStatus === 'En attente').length;
+  }, [sortedMissions]);
+
   const getBadgeVariant = (status: MissionStatus) => {
     switch (status) {
       case 'En cours': return 'default';
       case 'Terminée': return 'outline';
       case 'Annulée': return 'destructive';
+      case 'Rejetée': return 'destructive';
+      case 'En attente': return 'secondary';
       case 'Planification':
       default: return 'secondary';
     }
@@ -430,11 +451,7 @@ function MissionsContent() {
                 </DialogHeader>
                 <CreateMissionForm 
                   initialStatus="Terminée" 
-                  onMissionCreated={() => {
-                    setRecordCompletedOpen(false);
-                    setStatusFilter('all');
-                    setSearchQuery('');
-                  }}
+                  onMissionCreated={handleMissionCreated}
                 />
               </DialogContent>
             </Dialog>
@@ -454,16 +471,32 @@ function MissionsContent() {
                 <DialogHeader>
                     <DialogTitle>Créer une nouvelle mission</DialogTitle>
                 </DialogHeader>
-                <CreateMissionForm onMissionCreated={() => {
-                  setCreateMissionOpen(false);
-                  setStatusFilter('all');
-                  setSearchQuery('');
-                }}/>
+                <CreateMissionForm onMissionCreated={handleMissionCreated}/>
               </DialogContent>
             </Dialog>
           </div>
         )}
       </div>
+
+      {/* Bannière d'alerte pour missions en attente de validation */}
+      {pendingMissionsCount > 0 && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+            <p className="text-sm font-medium">
+              <span className="font-bold">{pendingMissionsCount} mission{pendingMissionsCount > 1 ? 's' : ''}</span> en attente de validation administrative. L'ordre de mission officiel ne sera généré qu'après approbation.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-500/30 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-semibold h-8 cursor-pointer"
+            onClick={() => setStatusFilter(statusFilter === 'En attente' ? 'all' : 'En attente')}
+          >
+            {statusFilter === 'En attente' ? 'Afficher toutes les missions' : 'Filtrer les missions en attente'}
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4">
@@ -478,15 +511,19 @@ function MissionsContent() {
             </div>
              <div className="flex items-center gap-2 flex-wrap">
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MissionStatus | 'all')}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="Filtrer par statut" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Toutes</SelectItem>
+                    <SelectItem value="all">Toutes les missions</SelectItem>
+                    <SelectItem value="En attente">
+                      En attente de validation {pendingMissionsCount > 0 ? `(${pendingMissionsCount})` : ''}
+                    </SelectItem>
                     <SelectItem value="Planification">Planifiées</SelectItem>
                     <SelectItem value="En cours">En cours</SelectItem>
                     <SelectItem value="Terminée">Terminées</SelectItem>
                     <SelectItem value="Annulée">Annulées</SelectItem>
+                    <SelectItem value="Rejetée">Rejetées</SelectItem>
                   </SelectContent>
                 </Select>
             </div>
@@ -521,7 +558,21 @@ function MissionsContent() {
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => setSelectedMissionDetails(mission)}
               >
-                <TableCell className="font-medium">{mission.name}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex flex-col">
+                    <span>{mission.name}</span>
+                    {mission.displayStatus === 'En attente' && (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
+                        Action requise : validation administrateur
+                      </span>
+                    )}
+                    {mission.displayStatus === 'Rejetée' && (
+                      <span className="text-[11px] text-destructive font-medium">
+                        Refusée {mission.rejectionReason ? `(${mission.rejectionReason})` : ''}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>{mission.location}</TableCell>
                 <TableCell>
                     <div className="flex flex-col">
@@ -548,7 +599,20 @@ function MissionsContent() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell><Badge variant={getBadgeVariant(mission.displayStatus)}>{mission.displayStatus}</Badge></TableCell>
+                <TableCell>
+                  <Badge 
+                    variant={getBadgeVariant(mission.displayStatus)}
+                    className={
+                      mission.displayStatus === 'En attente'
+                        ? 'bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400 font-semibold'
+                        : mission.displayStatus === 'Rejetée'
+                        ? 'bg-destructive/15 text-destructive border-destructive/30 font-semibold'
+                        : ''
+                    }
+                  >
+                    {mission.displayStatus}
+                  </Badge>
+                </TableCell>
               </TableRow>
             )})
             ) : (

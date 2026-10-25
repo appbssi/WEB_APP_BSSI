@@ -115,7 +115,7 @@ function GAVContent() {
                 <PlusCircle className="mr-2 h-4 w-4" /> Nouvel Enregistrement
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle>Enregistrer une personne en GAV</DialogTitle>
               </DialogHeader>

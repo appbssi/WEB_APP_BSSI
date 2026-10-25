@@ -2,7 +2,24 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: [
+    'firebase',
+    '@firebase/app',
+    '@firebase/auth',
+    '@firebase/firestore',
+    '@firebase/util',
+    '@firebase/component',
+    '@firebase/logger',
+  ],
   /* config options here */
+  experimental: {
+    allowedDevOrigins: [
+      '*.europe-west2.run.app',
+      '*.run.app',
+      'localhost:3000',
+      'localhost:8080',
+    ],
+  },
   async headers() {
     return [
       {
@@ -29,12 +46,6 @@ const nextConfig: NextConfig = {
   },
   eslint: {
     ignoreDuringBuilds: true,
-  },
-  webpack: (config, { dev }) => {
-    if (!dev) {
-      config.cache = false;
-    }
-    return config;
   },
   images: {
     remotePatterns: [

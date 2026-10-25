@@ -33,6 +33,8 @@ import type { Agent, Mission } from '@/lib/types';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { ScrollArea } from '../ui/scroll-area';
 import { useMemo, useState } from 'react';
+import { useDetachement } from '@/context/detachement-context';
+import { useRole } from '@/hooks/use-role';
 import { getAgentAvailability } from '@/lib/agents';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
 import { checkAgentMissionConflict } from '@/lib/missions';
@@ -76,6 +78,7 @@ interface CreateMissionFromGatheringFormProps {
 export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCancel }: CreateMissionFromGatheringFormProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { selectedDetachement } = useDetachement();
   const [isStartOpen, setStartOpen] = useState(false);
   const [isEndOpen, setEndOpen] = useState(false);
 
@@ -135,16 +138,19 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
         location: data.location,
         startDate: Timestamp.fromDate(parseLocalDate(data.startDate)),
         endDate: Timestamp.fromDate(parseLocalDate(data.endDate)),
-        status: 'Planification',
+        status: 'En attente',
+        validationStatus: 'En attente',
         assignedAgentIds: finalAgentIds,
+        detachement: selectedDetachement && selectedDetachement !== 'ALL' ? selectedDetachement : null,
+        section: selectedDetachement && selectedDetachement !== 'ALL' ? selectedDetachement : null,
         createdAt: Timestamp.now(),
     };
     batch.set(newMissionRef, newMissionData);
 
     batch.commit().then(() => {
         toast({
-            title: "Mission créée !",
-            description: `La mission "${data.name}" a été créée avec les agents sélectionnés.`,
+            title: "Mission soumise pour validation !",
+            description: `La mission "${data.name}" est enregistrée avec le statut « En attente ». L'ordre de mission sera généré dès sa validation par l'administrateur.`,
         });
 
         const agentNames = finalAgentIds.map(id => {

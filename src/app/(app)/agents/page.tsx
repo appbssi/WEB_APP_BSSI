@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User, HelpCircle, Pencil, Calendar } from 'lucide-react';
+import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User, HelpCircle, Pencil, Calendar, QrCode } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +49,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AgentDetailsSheet } from '@/components/agents/agent-details-sheet';
 import { AgentExplicationForm } from '@/components/agents/agent-explication-form';
+import { AgentQRBadgeDialog } from '@/components/agents/agent-qr-badge-dialog';
+import { AgentQRScannerDialog } from '@/components/agents/agent-qr-scanner-dialog';
 import { useRole } from '@/hooks/use-role';
 import { useLogo } from '@/context/logo-context';
 import { useDetachement } from '@/context/detachement-context';
@@ -70,14 +72,54 @@ import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
 import Image from 'next/image';
 
+function AgentsLoadingFallback() {
+  const [isScannerOpen, setScannerOpen] = useState(false);
+  const firestore = useFirestore();
+  const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
+  const { data: agents } = useCollection<Agent>(agentsQuery);
+
+  return (
+    <>
+      <div id="agents-loading" className="flex items-center justify-center gap-3.5 h-[calc(100vh-10rem)] w-full">
+        <div className="loader"></div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setScannerOpen(true)}
+          className="gap-2 text-xs font-semibold border-[#1a2b4c]/30 text-[#1a2b4c] dark:text-blue-300 hover:bg-[#1a2b4c]/10 shadow-xs cursor-pointer items-center"
+          title="Scan QR - Prêt"
+          aria-label="Scan QR - Prêt"
+        >
+          <span className="relative flex h-2 w-2 shrink-0" aria-label="Prêt" title="Prêt">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <QrCode className="h-4 w-4" />
+          <span>Scan QR</span>
+        </Button>
+      </div>
+
+      <AgentQRScannerDialog
+        isOpen={isScannerOpen}
+        onOpenChange={setScannerOpen}
+        agents={(agents as any) || []}
+        onSelectAgent={(agent) => {
+          if (typeof window !== 'undefined' && agent?.id) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('agentId', agent.id);
+            window.location.href = url.toString();
+          }
+        }}
+      />
+    </>
+  );
+}
+
 export default function AgentsPage() {
   return (
     <ClientOnly>
-      <Suspense fallback={
-        <div id="agents-loading" className="flex h-[calc(100vh-10rem)] w-full items-center justify-center">
-          <div className="loader"></div>
-        </div>
-      }>
+      <Suspense fallback={<AgentsLoadingFallback />}>
         <AgentsContent />
       </Suspense>
     </ClientOnly>
@@ -100,6 +142,8 @@ function AgentsContent() {
   const [isCleaning, setIsCleaning] = useState(false);
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'Disponible' | 'En mission' | 'En congé'>('all');
   const [sectionFilter, setSectionFilter] = useState<string>('all');
+  const [qrBadgeAgent, setQrBadgeAgent] = useState<Agent | null>(null);
+  const [isScannerOpen, setScannerOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -137,6 +181,22 @@ function AgentsContent() {
       return nameA.localeCompare(nameB);
     });
   }, [agentsWithDetails]);
+
+  // Auto-select agent if agentId is in URL query (e.g. from scanning QR with external phone camera)
+  const agentIdParam = searchParams.get('agentId');
+  useEffect(() => {
+    if (agentIdParam && sortedAgents.length > 0) {
+      const match = sortedAgents.find(
+        (a) =>
+          a.id.toLowerCase() === agentIdParam.toLowerCase() ||
+          (a.registrationNumber && a.registrationNumber.trim().toLowerCase() === agentIdParam.trim().toLowerCase()) ||
+          a.id.substring(0, 6).toUpperCase() === agentIdParam.trim().toUpperCase()
+      );
+      if (match) {
+        setSelectedAgent(match);
+      }
+    }
+  }, [agentIdParam, sortedAgents]);
 
   const filteredAgents = useMemo(() => {
     return sortedAgents.filter(agent => {
@@ -369,7 +429,7 @@ function AgentsContent() {
                       <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer
                     </button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
+                  <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
                     <DialogTitle className="sr-only">Enregistrer un nouvel agent</DialogTitle>
                     <RegisterAgentForm onAgentRegistered={() => setRegisterOpen(false)} />
                   </DialogContent>
@@ -382,6 +442,12 @@ function AgentsContent() {
                     </button>
                   </ImportAgentsDialog>
               )}
+              <button 
+                className="button-13 flex items-center justify-center text-[#1a2b4c] dark:text-blue-300 font-semibold"
+                onClick={() => setScannerOpen(true)}
+              >
+                <QrCode className="mr-2 h-4 w-4" /> Scanner QR
+              </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="button-13 flex items-center justify-center text-primary">
@@ -432,7 +498,7 @@ function AgentsContent() {
               <TableHead>Grade</TableHead>
               <TableHead>Missions</TableHead>
               <TableHead>Disponibilité</TableHead>
-              <TableHead>IDC</TableHead>
+              <TableHead>IDC / QR</TableHead>
               {isAdmin && <TableHead className="text-center">Explication</TableHead>}
               {isAdmin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
@@ -466,20 +532,32 @@ function AgentsContent() {
                     </TableCell>
                     <TableCell><Badge variant={getBadgeVariant(agent.availability)}>{agent.availability || '...'}</Badge></TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                        {agent.id.substring(0, 6).toUpperCase()}
-                      </code>
+                      <div className="flex items-center gap-1.5">
+                        <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                          {agent.id.substring(0, 6).toUpperCase()}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 w-7 p-0 border-[#1a2b4c]/30 text-[#1a2b4c] dark:text-blue-300 hover:bg-[#1a2b4c]/10 cursor-pointer"
+                          onClick={() => setQrBadgeAgent(agent)}
+                          title="Afficher le Code QR et Badge officiel de l'agent"
+                        >
+                          <QrCode className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                     {isAdmin && (
                       <TableCell onClick={(e) => e.stopPropagation()} className="text-center">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 gap-1 border-orange-500/30 text-orange-600 hover:bg-orange-500/10 hover:text-orange-700 font-semibold"
+                          className="h-8 w-8 p-0 border-orange-500/30 text-orange-600 hover:bg-orange-500/10 hover:text-orange-700 font-semibold mx-auto"
                           onClick={() => setExplicationAgent(agent)}
+                          title="Demander une explication"
+                          aria-label="Demander une explication"
                         >
                           <HelpCircle className="h-4 w-4" />
-                          <span>Demander</span>
                         </Button>
                       </TableCell>
                     )}
@@ -585,6 +663,32 @@ function AgentsContent() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* QR Code Badge Dialog */}
+      <AgentQRBadgeDialog
+        agent={qrBadgeAgent ? {
+          ...qrBadgeAgent,
+          availability: getAgentAvailability(qrBadgeAgent, missions || [], new Date(), undefined, demandes || [])!,
+        } : null}
+        isOpen={!!qrBadgeAgent}
+        onOpenChange={(open) => !open && setQrBadgeAgent(null)}
+        onOpenDetails={() => {
+          if (qrBadgeAgent) {
+            setSelectedAgent(qrBadgeAgent);
+            setQrBadgeAgent(null);
+          }
+        }}
+      />
+
+      {/* QR Code Scanner Dialog */}
+      <AgentQRScannerDialog
+        isOpen={isScannerOpen}
+        onOpenChange={setScannerOpen}
+        agents={agentsWithDetails}
+        onSelectAgent={(agent) => {
+          setSelectedAgent(agent);
+        }}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { clearRole } from '@/hooks/use-role';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function UserNav() {
   const auth = useAuth();
@@ -21,12 +22,23 @@ export function UserNav() {
   };
 
   return (
-    <button
-      onClick={handleLogout}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/35 transition-all duration-200 text-xs font-bold tracking-tight shadow-sm active:scale-95 cursor-pointer"
-    >
-      <LogOut size={14} className="stroke-[2.5]" />
-      <span>Se déconnecter</span>
-    </button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={handleLogout}
+            title="Se déconnecter"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/40 transition-all duration-200 shadow-sm active:scale-95 cursor-pointer"
+            aria-label="Se déconnecter"
+          >
+            <LogOut size={16} className="stroke-[2.2]" />
+            <span className="sr-only">Se déconnecter</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs font-semibold">
+          Se déconnecter
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

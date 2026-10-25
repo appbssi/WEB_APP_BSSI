@@ -79,7 +79,7 @@ export function checkAgentMissionConflict(
   // 2. Check existing Missions
   for (const mission of missions) {
     if (!mission || mission.id === excludeMissionId) continue;
-    if (mission.status === 'Annulée') continue;
+    if (mission.status === 'Annulée' || mission.status === 'Rejetée' || mission.validationStatus === 'Rejetée') continue;
     if (!mission.assignedAgentIds || !mission.assignedAgentIds.includes(agent.id)) continue;
 
     const mStart = parseToDate(mission.startDate);
@@ -128,6 +128,14 @@ export function checkAgentMissionConflict(
 export const getDisplayStatus = (mission: Mission, now: Date | null): MissionStatus => {
     if (!mission) return 'Planification';
     
+    if (mission.status === 'Rejetée' || mission.validationStatus === 'Rejetée') {
+        return 'Rejetée';
+    }
+
+    if (mission.status === 'En attente' || mission.validationStatus === 'En attente') {
+        return 'En attente';
+    }
+
     if (mission.status === 'Annulée') {
         return 'Annulée';
     }

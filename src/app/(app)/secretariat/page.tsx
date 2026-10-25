@@ -358,7 +358,7 @@ function SecretariatContent() {
                             <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer un Visiteur
                         </button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
                         <DialogHeader>
                             <DialogTitle>Enregistrer un nouveau visiteur</DialogTitle>
                             <DialogDescription>
@@ -496,7 +496,7 @@ function SecretariatContent() {
                             <Plus className="mr-2 h-4 w-4" /> Enregistrer un Contact d'Urgence
                         </button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
                         <DialogHeader>
                             <DialogTitle>{contactToEdit ? 'Modifier le Contact' : 'Enregistrer dans l\'Annuaire'}</DialogTitle>
                             <DialogDescription>

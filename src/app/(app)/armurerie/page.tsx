@@ -283,7 +283,7 @@ function ArmurerieContent() {
                 <PlusCircle className="mr-2 h-4 w-4" /> Nouvel Équipement
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader><DialogTitle>Enregistrer un équipement</DialogTitle></DialogHeader>
               <AddWeaponForm onSuccess={() => setAddWeaponOpen(false)} />
             </DialogContent>
@@ -294,7 +294,7 @@ function ArmurerieContent() {
                 <UserPlus className="mr-2 h-4 w-4" /> Attribuer
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader><DialogTitle>Attribuer du matériel à un agent</DialogTitle></DialogHeader>
               <AssignWeaponForm 
                 weapons={weapons?.filter(w => w.status === 'Fonctionnel' && (w.type !== 'Munition' || w.quantity > 0)) || []} 
@@ -494,7 +494,7 @@ function ArmurerieContent() {
       </Tabs>
 
       <Dialog open={!!assignmentToReturn} onOpenChange={(open) => !open && setAssignmentToReturn(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Enregistrer le retour de matériel</DialogTitle>
             <DialogDescription>

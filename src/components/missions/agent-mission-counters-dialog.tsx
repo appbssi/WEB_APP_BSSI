@@ -160,7 +160,7 @@ export function AgentMissionCountersDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90dvh] flex flex-col overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Shield className="h-5 w-5 text-primary" />
@@ -193,7 +193,7 @@ export function AgentMissionCountersDialog({
           </Button>
         </div>
 
-        <div className="border rounded-lg overflow-y-auto max-h-[50vh] flex-1">
+        <div className="border rounded-lg overflow-auto max-h-[50vh] flex-1">
           <Table>
             <TableHeader className="bg-muted/50 sticky top-0 z-10">
               <TableRow>

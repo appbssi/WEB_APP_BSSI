@@ -318,7 +318,7 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
         }
     }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-4xl lg:max-w-5xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Importer et Mettre à jour des Agents</DialogTitle>
           <DialogDescription>
@@ -331,7 +331,7 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
             <Input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileChange} />
 
             {agentsToImport.length > 0 && (
-                <div className="max-h-96 overflow-y-auto rounded-lg border">
+                <div className="max-h-[45vh] overflow-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>

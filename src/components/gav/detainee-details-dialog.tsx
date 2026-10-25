@@ -22,7 +22,7 @@ interface DetaineeDetailsDialogProps {
 export function DetaineeDetailsDialog({ detainee, isOpen, onOpenChange }: DetaineeDetailsDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh]">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Dossier GAV - Détails</DialogTitle>
           <DialogDescription>

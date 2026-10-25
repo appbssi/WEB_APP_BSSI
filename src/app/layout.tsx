@@ -8,8 +8,12 @@ import { DetachementProvider } from '@/context/detachement-context';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export const metadata: Metadata = {
-  title: 'sBSSI',
-  description: 'Système de gestion des agents et des missions.',
+  title: 'BSSI Portal',
+  description: "Système de Brigade Spéciale de Surveillance et d'Intervention",
+  openGraph: {
+    title: 'BSSI Portal',
+    description: "Système de Brigade Spéciale de Surveillance et d'Intervention",
+  },
 };
 
 export default function RootLayout({

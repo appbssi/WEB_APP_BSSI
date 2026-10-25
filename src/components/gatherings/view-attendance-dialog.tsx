@@ -159,7 +159,7 @@ export function ViewAttendanceDialog({ isOpen, onOpenChange, gathering, agentsBy
 
   const AgentList = ({ agents, onStartMission }: { agents: Agent[], onStartMission: (agents: Agent[]) => void }) => (
      <>
-        <ScrollArea className="h-72">
+        <ScrollArea className="max-h-[45vh]">
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -203,7 +203,7 @@ export function ViewAttendanceDialog({ isOpen, onOpenChange, gathering, agentsBy
         }
         onOpenChange(open);
     }}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         {showCreateMissionForm ? (
              <CreateMissionFromGatheringForm 
                 agents={agentsForMission}

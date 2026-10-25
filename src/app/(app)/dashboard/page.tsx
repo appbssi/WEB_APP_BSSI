@@ -81,6 +81,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ExpiringMissionsAlert } from '@/components/dashboard/expiring-missions-alert';
 
 
 export default function DashboardPage() {
@@ -530,6 +531,15 @@ function DashboardContent() {
           </div>
         )}
       </div>
+
+      {/* Notifications pour les missions expirant dans moins de 48 heures */}
+      {role === 'admin' && (
+        <ExpiringMissionsAlert
+          missions={filteredMissions || []}
+          agents={agents || []}
+          onViewMissionDetails={(m) => setSelectedMission(m)}
+        />
+      )}
 
       {/* Notifications pour réponses aux demandes d'explication */}
       {role === 'admin' && pendingExplicationReplies.length > 0 && (

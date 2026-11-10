@@ -10,7 +10,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Users, Search, FileDown, CheckCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Users, Search, FileDown, CheckCircle, Database } from 'lucide-react';
+import {
+  saveMissionsOfflineCache,
+  getMissionsOfflineCache,
+  type MissionsOfflineData,
+  useOfflineStatus,
+} from '@/lib/offline-cache';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -269,11 +275,45 @@ function MissionsContent() {
     router.replace('/missions');
   };
   
+  const { isOnline, formattedSyncTime } = useOfflineStatus();
+  const [cachedData, setCachedData] = useState<MissionsOfflineData | null>(null);
+
+  useEffect(() => {
+    const cached = getMissionsOfflineCache();
+    if (cached) {
+      setCachedData(cached);
+    }
+  }, []);
+
   const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
   const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
 
-  const { data: missions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
-  const { data: agents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
+  const { data: rawMissions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
+  const { data: rawAgents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
+
+  // Synchronize missions with offline cache
+  useEffect(() => {
+    if (rawMissions || rawAgents) {
+      saveMissionsOfflineCache({
+        missions: rawMissions,
+        agents: rawAgents,
+      });
+    }
+  }, [rawMissions, rawAgents]);
+
+  const missions = useMemo(() => {
+    if (rawMissions && rawMissions.length > 0) return rawMissions;
+    if (cachedData?.missions && cachedData.missions.length > 0) return cachedData.missions;
+    return rawMissions;
+  }, [rawMissions, cachedData]);
+
+  const agents = useMemo(() => {
+    if (rawAgents && rawAgents.length > 0) return rawAgents;
+    if (cachedData?.agents && cachedData.agents.length > 0) return cachedData.agents;
+    return rawAgents;
+  }, [rawAgents, cachedData]);
+
+  const isUsingOfflineCache = !isOnline || (!rawMissions && !!cachedData?.missions);
   
   const agentsById = useMemo(() => {
     if (!agents) return {};
@@ -428,8 +468,16 @@ function MissionsContent() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Missions</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight">Missions</h1>
+          {isUsingOfflineCache && (
+            <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs gap-1 font-semibold py-0.5">
+              <Database className="w-3.5 h-3.5" />
+              <span>Cache Hors-Ligne ({formattedSyncTime})</span>
+            </Badge>
+          )}
+        </div>
         {!isObserver && (
           <div className="flex flex-wrap items-center gap-2">
             <Dialog open={isRecordCompletedOpen} onOpenChange={setRecordCompletedOpen}>
@@ -542,8 +590,8 @@ function MissionsContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {missionsLoading || agentsLoading ? (
-              <TableRow><TableCell colSpan={5} className="text-center">Chargement des missions...</TableCell></TableRow>
+            {(missionsLoading || agentsLoading) && (!cachedData || !cachedData.missions || cachedData.missions.length === 0) ? (
+              <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Chargement des missions...</TableCell></TableRow>
             ) : filteredMissions.length > 0 ? (
             filteredMissions.map((mission) => {
               const assignedAgents = (mission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);

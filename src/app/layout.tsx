@@ -10,6 +10,10 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 export const metadata: Metadata = {
   title: 'BSSI Portal',
   description: "Système de Brigade Spéciale de Surveillance et d'Intervention",
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+  },
   openGraph: {
     title: 'BSSI Portal',
     description: "Système de Brigade Spéciale de Surveillance et d'Intervention",

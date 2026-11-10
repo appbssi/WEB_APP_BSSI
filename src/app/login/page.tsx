@@ -155,9 +155,12 @@ function LoginContent() {
                 <CardHeader className="text-center">
                     <div className="mx-auto mb-4 h-28 w-28 flex items-center justify-center">
                         <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-emerald-500/20 bg-transparent shadow-lg">
-                            {logo ? (
-                            <Image src={logo} alt="Logo" fill className="object-cover scale-105" />
-                            ) : null}
+                            <Image
+                              src="https://i.ibb.co/v4p7NtMh/dd.png"
+                              alt="Logo"
+                              fill
+                              className="object-cover rounded-full"
+                            />
                         </div>
                     </div>
                     <CardTitle><span className="text-primary">s</span>BSSI</CardTitle>

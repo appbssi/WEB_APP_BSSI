@@ -15,6 +15,16 @@ interface LogoContextType {
 
 const LogoContext = createContext<LogoContextType | undefined>(undefined);
 
+const DEFAULT_LOGO = '/logo.png?v=sBSSI_2026';
+
+const isInvalidLogoUrl = (url?: string | null): boolean => {
+  if (!url) return true;
+  if (url.includes('imgur.com')) return true;
+  if (url.includes('v4p7NtMh/dd.png')) return true;
+  if (url.includes('aconvert.com')) return true;
+  return false;
+};
+
 export function LogoProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -27,17 +37,19 @@ export function LogoProvider({ children }: { children: ReactNode }) {
   
   const { data: settingsData, isLoading: isDocLoading } = useDoc<{ logo: string }>(settingsDocRef);
   
-  const [logo, setLogoState] = useState<string | null>(null);
+  const [logo, setLogoState] = useState<string | null>(DEFAULT_LOGO);
 
   useEffect(() => {
-    if (settingsData && settingsData.logo && !settingsData.logo.includes('imgur.com') && settingsData.logo.startsWith('http')) {
+    if (settingsData && settingsData.logo && !isInvalidLogoUrl(settingsData.logo) && settingsData.logo.startsWith('http')) {
       setLogoState(settingsData.logo);
     } else {
-      // Use a cache-buster query parameter to force browser refresh for logo.png changes
-      const defaultLogo = '/logo.png?v=sBSSI_2026';
-      setLogoState(defaultLogo);
+      setLogoState(DEFAULT_LOGO);
+      if (firestore && user && settingsData?.logo && isInvalidLogoUrl(settingsData.logo)) {
+        const settingsRef = doc(firestore, 'settings', 'app');
+        setDoc(settingsRef, { logo: DEFAULT_LOGO }).catch(() => {});
+      }
     }
-  }, [settingsData, isDocLoading]);
+  }, [settingsData, isDocLoading, firestore, user]);
 
   const setLogo = useCallback((newLogo: string | null) => {
     if (newLogo) {

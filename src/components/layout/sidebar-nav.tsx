@@ -15,6 +15,7 @@ import {
   Truck,
   Map,
   PackageCheck,
+  BookOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -55,6 +56,7 @@ const navItems: NavItem[] = [
   { href: '/saisies', label: 'Saisies', icon: PackageCheck, roles: ['admin', 'observer', 'secretariat'] },
   { href: '/finance', label: 'Finances', icon: Banknote, roles: ['admin'] },
   { href: '/secretariat', label: 'Secrétariat', icon: BookUser, roles: ['admin', 'secretariat'] },
+  { href: '/tutoriel', label: 'Tutoriel & Guide', icon: BookOpen },
 ];
 
 export function SidebarNav() {
@@ -81,13 +83,14 @@ export function SidebarNav() {
     const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH' || userIdc === 'QXTSLG';
     if (isSpecialIdc) {
       return navItems.filter(item =>
-        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'].includes(item.href)
+        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies', '/tutoriel'].includes(item.href)
       );
     }
 
     return navItems.filter(item => {
+      if (item.href === '/tutoriel') return true;
       if (role !== 'admin') {
-        return item.href === '/demandes';
+        return item.href === '/demandes' || (item.roles && role && item.roles.includes(role));
       }
       if (!item.roles) return true;
       return role ? item.roles.includes(role) : false;
@@ -99,18 +102,10 @@ export function SidebarNav() {
   }
 
   return (
-    <div className="relative h-full w-full bg-gradient-to-b from-background/95 via-background/90 to-background/95 backdrop-blur-md border-r border-border/40 flex flex-col justify-between">
-      {logo && (
-          <Image
-              src={logo}
-              alt="Sidebar background"
-              fill
-              className="opacity-10 pointer-events-none object-cover"
-          />
-      )}
-      <div className={cn("relative z-10 flex flex-col h-full justify-between", logo ? "" : "")}>
+    <div className="relative h-full w-full bg-gradient-to-b from-card/95 via-background to-card/90 dark:from-slate-950 dark:via-background dark:to-slate-900/90 backdrop-blur-xl border-r border-border/50 flex flex-col justify-between shadow-sm">
+      <div className="relative z-10 flex flex-col h-full justify-between">
         <div className="flex flex-col flex-1 min-h-0">
-          <SidebarHeader className="border-b border-border/40 pb-4 bg-background/40 backdrop-blur-md">
+          <SidebarHeader className="border-b border-border/40 pb-4 bg-muted/20 dark:bg-slate-900/40 backdrop-blur-md">
             <div className="flex flex-col items-center w-full pt-6 pb-2 px-4">
                 <div className="flex items-center justify-center gap-3 w-full">
                      {isLogoLoading ? (
@@ -118,8 +113,13 @@ export function SidebarNav() {
                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
                           </div>
                       ) : logo ? (
-                          <div className="relative w-14 h-14 shrink-0 rounded-full overflow-hidden bg-transparent border-2 border-primary/30 p-0.5 shadow-lg shadow-primary/10 hover:scale-105 transition-transform duration-300">
-                               <Image src={logo} alt="Logo" fill className="object-cover rounded-full" />
+                          <div className="relative w-14 h-14 shrink-0 rounded-full overflow-hidden bg-transparent border-2 border-primary/30 p-0.5 shadow-lg shadow-primary/10 hover:scale-105 transition-transform duration-300"
+                               ><Image
+  src="https://i.ibb.co/v4p7NtMh/dd.png"
+  alt="Logo"
+  fill
+  className="object-cover rounded-full"
+/>
                            </div>
                       ) : null}
                      <div className="flex flex-col items-start justify-center">

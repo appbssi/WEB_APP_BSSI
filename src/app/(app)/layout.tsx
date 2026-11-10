@@ -9,11 +9,13 @@ import {
 import { AuthGuard } from '@/components/layout/auth-guard';
 import { DeviceTracker } from '@/components/layout/device-tracker';
 import { NavigationWatcher } from '@/components/layout/navigation-watcher';
-
+import { OfflineBanner } from '@/components/layout/offline-banner';
+import { ServiceWorkerRegister } from '@/components/layout/service-worker-register';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
+      <ServiceWorkerRegister />
       <DeviceTracker />
       <NavigationWatcher />
       <SidebarProvider>
@@ -21,6 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarNav />
         </Sidebar>
         <SidebarInset className="min-w-0 overflow-x-hidden w-full max-w-full">
+          <OfflineBanner />
           <Header />
           <main className="p-3 sm:p-5 lg:p-8 min-w-0 w-full overflow-x-hidden">
             {children}

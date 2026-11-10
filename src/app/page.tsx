@@ -71,7 +71,12 @@ function LandingContent() {
             <div className="mx-auto mb-6 h-32 w-32 flex items-center justify-center">
                 <div className="relative h-28 w-28 rounded-full overflow-hidden border-2 border-emerald-500/20 bg-transparent shadow-lg">
                     {logo ? (
-                        <Image src={logo} alt="Logo" fill className="object-cover scale-105" />
+                        <Image
+  src="https://i.ibb.co/v4p7NtMh/dd.png"
+  alt="Logo"
+  fill
+  className="object-cover rounded-full"
+/>
                     ) : null}
                 </div>
             </div>

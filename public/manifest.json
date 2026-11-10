@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "sBSSI - Brigade Spéciale",
+  "short_name": "sBSSI",
+  "description": "Système de Brigade Spéciale de Surveillance et d'Intervention",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1d",
+  "theme_color": "#1a2b4c",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

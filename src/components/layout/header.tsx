@@ -10,7 +10,14 @@ import { Button } from '../ui/button';
 import { useRole } from '@/hooks/use-role';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import Link from 'next/link';
+import { Bell, BookOpen } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where, doc, setDoc } from 'firebase/firestore';
@@ -181,6 +188,24 @@ export function Header() {
         {displayRole && (
             <span className="text-sm font-semibold text-foreground hidden sm:inline-block">{displayRole}</span>
         )}
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/tutoriel">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full w-9 h-9 border-primary/20 hover:bg-primary/10 text-primary cursor-pointer shadow-sm"
+                >
+                  <BookOpen className="h-4 w-4" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="text-xs font-semibold">Tutoriel & Manuel sBSSI</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <ChatSheet />
         <RecentActivitiesDialog />
         <DetachementSelector />

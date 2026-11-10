@@ -30,7 +30,15 @@ import {
   RotateCcw,
   Trash2,
   PackageCheck,
+  Database,
+  WifiOff,
 } from 'lucide-react';
+import {
+  saveDashboardOfflineCache,
+  getDashboardOfflineCache,
+  type DashboardOfflineData,
+  useOfflineStatus,
+} from '@/lib/offline-cache';
 import {
   Tooltip,
   TooltipContent,
@@ -103,11 +111,66 @@ function DashboardContent() {
   const demandesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'demandes') : null), [firestore]);
   const saisiesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'saisies') : null), [firestore]);
 
-  const { data: agents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
-  const { data: missions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
-  const { data: detainees, isLoading: detaineesLoading } = useCollection<Detainee>(detaineesQuery);
-  const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
-  const { data: saisies, isLoading: saisiesLoading } = useCollection<Saisie>(saisiesQuery);
+  const { isOnline, formattedSyncTime } = useOfflineStatus();
+  const [cachedData, setCachedData] = useState<DashboardOfflineData | null>(null);
+
+  useEffect(() => {
+    const cached = getDashboardOfflineCache();
+    if (cached) {
+      setCachedData(cached);
+    }
+  }, []);
+
+  const { data: rawAgents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
+  const { data: rawMissions, isLoading: missionsLoading } = useCollection<Mission>(missionsQuery);
+  const { data: rawDetainees, isLoading: detaineesLoading } = useCollection<Detainee>(detaineesQuery);
+  const { data: rawDemandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
+  const { data: rawSaisies, isLoading: saisiesLoading } = useCollection<Saisie>(saisiesQuery);
+
+  // Synchronize with offline cache whenever online data is received
+  useEffect(() => {
+    if (rawAgents || rawMissions || rawDetainees || rawDemandes || rawSaisies) {
+      saveDashboardOfflineCache({
+        agents: rawAgents,
+        missions: rawMissions,
+        detainees: rawDetainees,
+        demandes: rawDemandes,
+        saisies: rawSaisies,
+      });
+    }
+  }, [rawAgents, rawMissions, rawDetainees, rawDemandes, rawSaisies]);
+
+  const agents = useMemo(() => {
+    if (rawAgents && rawAgents.length > 0) return rawAgents;
+    if (cachedData?.agents && cachedData.agents.length > 0) return cachedData.agents;
+    return rawAgents;
+  }, [rawAgents, cachedData]);
+
+  const missions = useMemo(() => {
+    if (rawMissions && rawMissions.length > 0) return rawMissions;
+    if (cachedData?.missions && cachedData.missions.length > 0) return cachedData.missions;
+    return rawMissions;
+  }, [rawMissions, cachedData]);
+
+  const detainees = useMemo(() => {
+    if (rawDetainees && rawDetainees.length > 0) return rawDetainees;
+    if (cachedData?.detainees && cachedData.detainees.length > 0) return cachedData.detainees;
+    return rawDetainees;
+  }, [rawDetainees, cachedData]);
+
+  const demandes = useMemo(() => {
+    if (rawDemandes && rawDemandes.length > 0) return rawDemandes;
+    if (cachedData?.demandes && cachedData.demandes.length > 0) return cachedData.demandes;
+    return rawDemandes;
+  }, [rawDemandes, cachedData]);
+
+  const saisies = useMemo(() => {
+    if (rawSaisies && rawSaisies.length > 0) return rawSaisies;
+    if (cachedData?.saisies && cachedData.saisies.length > 0) return cachedData.saisies;
+    return rawSaisies;
+  }, [rawSaisies, cachedData]);
+
+  const isUsingOfflineCache = !isOnline || (!rawAgents && !!cachedData?.agents);
   
   // Explanation requests for administration
   const explicationsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'explications') : null), [firestore]);
@@ -482,7 +545,15 @@ function DashboardContent() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+            {isUsingOfflineCache && (
+              <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs gap-1 font-semibold py-0.5">
+                <Database className="w-3.5 h-3.5" />
+                <span>Cache Hors-Ligne ({formattedSyncTime})</span>
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 font-medium">
             <Shield className="h-4 w-4 text-primary shrink-0" />
             Détachement actif : <span className="font-bold text-foreground">{selectedDetachement === 'ALL' ? 'Tous les détachements' : selectedDetachement}</span>
@@ -631,7 +702,7 @@ function DashboardContent() {
         </div>
       )}
 
-      {(agentsLoading || missionsLoading || detaineesLoading || saisiesLoading) ? (
+      {(agentsLoading || missionsLoading || detaineesLoading || saisiesLoading) && !cachedData ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
              <Card key={i} className="flex flex-col justify-between p-6 rounded-2xl">

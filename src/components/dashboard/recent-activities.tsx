@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
@@ -23,6 +23,14 @@ import { useRole } from '@/hooks/use-role';
 import { deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
+const toActivityDate = (ts: any): Date => {
+  if (!ts) return new Date();
+  if (typeof ts.toDate === 'function') return ts.toDate();
+  if (ts.seconds) return new Date(ts.seconds * 1000);
+  const parsed = new Date(ts);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 const getActivityIcon = (type: ActivityLog['type']) => {
     switch (type) {
         case 'Agent': return '🧑‍✈️';
@@ -36,6 +44,18 @@ const getActivityIcon = (type: ActivityLog['type']) => {
 export function RecentActivities() {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const [cachedActivities, setCachedActivities] = useState<ActivityLog[] | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const raw = localStorage.getItem('sbssi_offline_activities');
+            if (raw) {
+                try {
+                    setCachedActivities(JSON.parse(raw));
+                } catch (e) {}
+            }
+        }
+    }, []);
 
     const activitiesQuery = useMemoFirebase(
         () => (firestore 
@@ -44,7 +64,15 @@ export function RecentActivities() {
         [firestore]
     );
 
-    const { data: activities, isLoading } = useCollection<ActivityLog>(activitiesQuery);
+    const { data: rawActivities, isLoading } = useCollection<ActivityLog>(activitiesQuery);
+
+    useEffect(() => {
+        if (rawActivities && rawActivities.length > 0 && typeof window !== 'undefined') {
+            localStorage.setItem('sbssi_offline_activities', JSON.stringify(rawActivities));
+        }
+    }, [rawActivities]);
+
+    const activities = (rawActivities && rawActivities.length > 0) ? rawActivities : (cachedActivities || []);
 
     const handleClearActivities = async () => {
         if (!firestore || !activities || activities.length === 0) return;
@@ -84,7 +112,7 @@ export function RecentActivities() {
                 </div>
             )}
             <ScrollArea className="h-[60vh]">
-            {isLoading ? (
+            {isLoading && activities.length === 0 ? (
                 <div className="flex justify-center items-center h-40">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
@@ -99,7 +127,7 @@ export function RecentActivities() {
                                 <p className="text-sm text-muted-foreground">{activity.description}</p>
                                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                                     <p>
-                                        {formatDistanceToNow(activity.timestamp.toDate(), { addSuffix: true, locale: fr })}
+                                        {formatDistanceToNow(toActivityDate(activity.timestamp), { addSuffix: true, locale: fr })}
                                     </p>
                                     {activity.link && (
                                         <Button asChild variant="link" size="sm" className="p-0 h-auto">

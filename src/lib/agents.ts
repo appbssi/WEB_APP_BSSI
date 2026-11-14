@@ -23,6 +23,9 @@ export function safeToDate(val: any): Date | null {
   if (val.seconds !== undefined) {
     return new Date(val.seconds * 1000);
   }
+  if (val._seconds !== undefined) {
+    return new Date(val._seconds * 1000);
+  }
   return null;
 }
 

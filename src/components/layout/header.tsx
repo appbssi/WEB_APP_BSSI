@@ -11,7 +11,7 @@ import { useRole } from '@/hooks/use-role';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, BookOpen } from 'lucide-react';
+import { Bell, BookOpen, QrCode } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -22,6 +22,7 @@ import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where, doc, setDoc } from 'firebase/firestore';
 import type { Demande, Agent, Mission } from '@/lib/types';
+import { AgentQRBadgeDialog } from '../agents/agent-qr-badge-dialog';
 
 function NotificationBell() {
   const { role } = useRole();
@@ -137,6 +138,7 @@ export function Header() {
   const { role } = useRole();
   const firestore = useFirestore();
   const [userIdc, setUserIdc] = useState<string>('');
+  const [isMyBadgeOpen, setIsMyBadgeOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -188,6 +190,28 @@ export function Header() {
         {displayRole && (
             <span className="text-sm font-semibold text-foreground hidden sm:inline-block">{displayRole}</span>
         )}
+        {currentAgent && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsMyBadgeOpen(true)}
+                  className="h-9 gap-1.5 rounded-full border-primary/30 text-primary hover:bg-primary/10 cursor-pointer shadow-sm px-2.5 sm:px-3"
+                  aria-label="Mon Badge & Code QR d'Identification"
+                >
+                  <QrCode className="h-4 w-4 shrink-0" />
+                  <span className="hidden md:inline text-xs font-semibold">Mon QR</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs font-semibold">Mon Badge &amp; Code QR d&apos;Identification</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -212,6 +236,13 @@ export function Header() {
         <ThemeToggle />
         <UserNav />
       </div>
+      {currentAgent && (
+        <AgentQRBadgeDialog
+          agent={currentAgent}
+          isOpen={isMyBadgeOpen}
+          onOpenChange={setIsMyBadgeOpen}
+        />
+      )}
     </header>
   );
 }

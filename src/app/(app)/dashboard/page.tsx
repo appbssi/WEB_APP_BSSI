@@ -72,7 +72,10 @@ import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication, Sai
 import { useMemo, useState, useEffect } from 'react';
 import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
 import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
-import { getAgentAvailability } from '@/lib/agents';
+import { getAgentAvailability, safeToDate } from '@/lib/agents';
+
+const toMillisSafe = (val: any): number => safeToDate(val)?.getTime() ?? 0;
+const formatDateSafe = (val: any): string => safeToDate(val)?.toLocaleDateString('fr-FR') ?? 'N/A';
 import { getDisplayStatus, MissionWithDisplayStatus } from '@/lib/missions';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MissionDetailsDialog } from '@/components/missions/mission-details-dialog';
@@ -293,11 +296,7 @@ function DashboardContent() {
         list = list.filter(e => e.status === 'sanctionne');
       }
     }
-    return list.sort((a, b) => {
-      const timeA = a.requestDate ? (typeof a.requestDate.toMillis === 'function' ? a.requestDate.toMillis() : new Date(a.requestDate as any).getTime()) : 0;
-      const timeB = b.requestDate ? (typeof b.requestDate.toMillis === 'function' ? b.requestDate.toMillis() : new Date(b.requestDate as any).getTime()) : 0;
-      return timeB - timeA;
-    });
+    return list.sort((a, b) => toMillisSafe(b.requestDate) - toMillisSafe(a.requestDate));
   }, [explications, explicationFilter]);
 
   // Decision management for requests
@@ -311,12 +310,9 @@ function DashboardContent() {
 
   const processedDemandes = useMemo(() => {
     if (!demandes) return [];
-    return demandes.filter(d => d.status === 'acceptee' || d.status === 'refusee')
-      .sort((a, b) => {
-        const timeA = a.createdAt?.toMillis() || 0;
-        const timeB = b.createdAt?.toMillis() || 0;
-        return timeB - timeA;
-      });
+    return demandes
+      .filter(d => d.status === 'acceptee' || d.status === 'refusee')
+      .sort((a, b) => toMillisSafe(b.createdAt) - toMillisSafe(a.createdAt));
   }, [demandes]);
 
   const handleAcceptDemande = async (dem: Demande) => {
@@ -637,9 +633,9 @@ function DashboardContent() {
                     <p className="font-semibold bg-background p-3 rounded-xl border border-emerald-500/20 mt-1 shadow-sm leading-relaxed text-foreground">
                       « {exp.replyText} »
                     </p>
-                    {exp.replyDate && (
+                    {safeToDate(exp.replyDate) && (
                       <div className="text-[10px] text-muted-foreground text-right font-mono mt-1">
-                        Transmis le {exp.replyDate.toDate().toLocaleDateString('fr-FR')} à {exp.replyDate.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        Transmis le {safeToDate(exp.replyDate)!.toLocaleDateString('fr-FR')} à {safeToDate(exp.replyDate)!.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     )}
                   </div>
@@ -776,18 +772,32 @@ function DashboardContent() {
                   <div className="space-y-4">
                     {ongoingMissions.map((mission) => (
                       <div key={mission.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setSelectedMission(mission)}>
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start gap-3">
                            <div>
                               <p className="font-semibold">{mission.name}</p>
                               <p className="text-sm text-muted-foreground flex items-center gap-2">
                                 <MapPin className="h-4 w-4" /> {mission.location}
                               </p>
                            </div>
-                           <Badge variant="default">{mission.displayStatus}</Badge>
+                           <Badge
+                             variant="default"
+                             className={cn(
+                               'shrink-0',
+                               mission.displayStatus === 'En cours' && 'gap-1.5 animate-soft-pulse'
+                             )}
+                           >
+                             {mission.displayStatus === 'En cours' && (
+                               <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/80 opacity-75" />
+                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                               </span>
+                             )}
+                             <span>{mission.displayStatus}</span>
+                           </Badge>
                         </div>
                         <div className="flex items-center text-sm text-muted-foreground mt-2 gap-2">
                           <Calendar className="h-4 w-4" />
-                          <span>{mission.startDate.toDate().toLocaleDateString('fr-FR')} - {mission.endDate.toDate().toLocaleDateString('fr-FR')}</span>
+                          <span>{formatDateSafe(mission.startDate)} - {formatDateSafe(mission.endDate)}</span>
                         </div>
                       </div>
                     ))}
@@ -850,8 +860,8 @@ function DashboardContent() {
                             <div className="text-xs text-muted-foreground space-y-1">
                               <p>
                                 <strong className="text-foreground">Période :</strong>{' '}
-                                {dem.startDate?.toDate().toLocaleDateString('fr-FR')} au{' '}
-                                {dem.endDate?.toDate().toLocaleDateString('fr-FR')}
+                                {formatDateSafe(dem.startDate)} au{' '}
+                                {formatDateSafe(dem.endDate)}
                               </p>
                               {dem.reason && (
                                 <p className="italic bg-black/10 dark:bg-white/5 p-2 rounded mt-1 border border-border">
@@ -923,8 +933,8 @@ function DashboardContent() {
                             <div className="text-xs text-muted-foreground space-y-1">
                               <p>
                                 <strong className="text-foreground">Période :</strong>{' '}
-                                {dem.startDate?.toDate().toLocaleDateString('fr-FR')} au{' '}
-                                {dem.endDate?.toDate().toLocaleDateString('fr-FR')}
+                                {formatDateSafe(dem.startDate)} au{' '}
+                                {formatDateSafe(dem.endDate)}
                               </p>
                               {dem.reason && (
                                 <p className="italic bg-black/10 dark:bg-white/5 p-2 rounded mt-1 border border-border">
@@ -982,7 +992,7 @@ function DashboardContent() {
                             <div className="min-w-0 flex-1">
                               <p className="font-bold text-sm text-foreground truncate">{dem.agentName}</p>
                               <p className="text-[10px] text-muted-foreground mt-0.5">
-                                {dem.type} • {dem.startDate?.toDate().toLocaleDateString('fr-FR')} au {dem.endDate?.toDate().toLocaleDateString('fr-FR')}
+                                {dem.type} • {formatDateSafe(dem.startDate)} au {formatDateSafe(dem.endDate)}
                               </p>
                             </div>
                             <Button
@@ -1111,8 +1121,8 @@ function DashboardContent() {
                     </TableHeader>
                     <TableBody>
                       {filteredExplications.map((exp) => {
-                        const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
-                        const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
+                        const reqDate = safeToDate(exp.requestDate);
+                        const repDate = safeToDate(exp.replyDate);
                         return (
                           <TableRow key={exp.id} className="hover:bg-muted/5 transition-colors">
                             <TableCell className="font-bold whitespace-nowrap py-4">
@@ -1201,8 +1211,8 @@ function DashboardContent() {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredExplications.map((exp) => {
-                    const reqDate = exp.requestDate ? (typeof exp.requestDate.toDate === 'function' ? exp.requestDate.toDate() : new Date(exp.requestDate as any)) : null;
-                    const repDate = exp.replyDate ? (typeof exp.replyDate.toDate === 'function' ? exp.replyDate.toDate() : new Date(exp.replyDate as any)) : null;
+                    const reqDate = safeToDate(exp.requestDate);
+                    const repDate = safeToDate(exp.replyDate);
                     return (
                       <div key={exp.id} className="p-4 rounded-xl border bg-card/60 flex flex-col justify-between gap-3 shadow-sm hover:border-orange-500/20 transition-all">
                         <div className="space-y-2">

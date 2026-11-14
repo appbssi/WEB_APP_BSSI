@@ -23,9 +23,11 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
-import type { Demande, Agent, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
-import { generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
+import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck, ChevronDown, ChevronUp, Trash2, QrCode, Download, IdCard } from 'lucide-react';
+import type { Demande, Agent, Availability, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
+import { generateAutorisationAbsencePDF, generateFicheAgentPDF, generateAgentBadgeCardPDF } from '@/lib/pdf-generator';
+import { generateAgentQRCodeDataURL } from '@/lib/agent-qrcode';
+import { AgentQRBadgeDialog } from '@/components/agents/agent-qr-badge-dialog';
 import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
 import { getAgentAvailability, safeToDate } from '@/lib/agents';
 import { useRole } from '@/hooks/use-role';
@@ -222,11 +224,78 @@ function DemandesContent() {
     return missions.filter(m => m.assignedAgentIds && m.assignedAgentIds.includes(currentAgent.id));
   }, [missions, currentAgent]);
 
-  const currentAgentAvailability = useMemo(() => {
+  const currentAgentAvailability = useMemo<Availability>(() => {
     if (!currentAgent || !missions) return 'Disponible';
     const computed = getAgentAvailability(currentAgent, missions, new Date(), undefined, demandes || []);
-    return computed || currentAgent.availability || 'Disponible';
+    return (computed || currentAgent.availability || 'Disponible') as Availability;
   }, [currentAgent, missions, demandes]);
+
+  const currentAgentWithDetails = useMemo(() => {
+    if (!currentAgent) return null;
+    return {
+      ...currentAgent,
+      availability: currentAgentAvailability,
+      missionCount: currentAgent.missionCount !== undefined ? currentAgent.missionCount : currentAgentMissions.length,
+    };
+  }, [currentAgent, currentAgentAvailability, currentAgentMissions.length]);
+
+  const [agentQrUrl, setAgentQrUrl] = useState<string>('');
+  const [isQrBadgeOpen, setIsQrBadgeOpen] = useState<boolean>(false);
+  const [isGeneratingBadgePdf, setIsGeneratingBadgePdf] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!currentAgent) {
+      setAgentQrUrl('');
+      return;
+    }
+    generateAgentQRCodeDataURL(currentAgent, { size: 320, margin: 2 })
+      .then((url) => {
+        if (!isCancelled) setAgentQrUrl(url);
+      })
+      .catch((err) => {
+        console.error('Failed to generate personal agent QR code:', err);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentAgent]);
+
+  const handleDownloadPersonalQR = () => {
+    if (!agentQrUrl || !currentAgent) return;
+    const idc = (currentAgent.id || '').substring(0, 6).toUpperCase();
+    const link = document.createElement('a');
+    link.href = agentQrUrl;
+    link.download = `QRCode_Agent_${currentAgent.registrationNumber || idc}_${currentAgent.fullName.replace(/\s+/g, '_')}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({
+      title: 'Code QR téléchargé',
+      description: 'Votre code QR d’identification a été enregistré en PNG.',
+    });
+  };
+
+  const handlePrintPersonalBadge = async () => {
+    if (!currentAgentWithDetails) return;
+    try {
+      setIsGeneratingBadgePdf(true);
+      await generateAgentBadgeCardPDF(currentAgentWithDetails);
+      toast({
+        title: 'Badge officiel généré',
+        description: 'Votre carte d’identification PDF a été téléchargée.',
+      });
+    } catch (error) {
+      console.error('Error generating personal badge PDF:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Impossible de générer votre badge officiel.',
+      });
+    } finally {
+      setIsGeneratingBadgePdf(false);
+    }
+  };
 
   const handleDownloadFicheTechnique = () => {
     if (!currentAgent) {
@@ -668,13 +737,13 @@ function DemandesContent() {
         </p>
       </div>
 
-      {/* Carte d'identité et fiche technique de l'agent */}
-      {currentAgent && (
+      {/* Carte d'identité, Code QR personnel et fiche technique de l'agent */}
+      {currentAgent && currentAgentWithDetails && (
         <Card className="rounded-2xl border border-primary/20 bg-primary/5 shadow-md overflow-hidden">
-          <div className="p-6 flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
-            <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+          <div className="p-5 sm:p-6 flex flex-col lg:flex-row items-center lg:items-stretch justify-between gap-6">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-5 text-center md:text-left flex-1 min-w-0">
               {currentAgent.photo ? (
-                <div className="relative w-20 h-24 rounded-lg overflow-hidden border-2 border-primary/20 bg-background shrink-0 shadow-sm">
+                <div className="relative w-24 h-28 rounded-xl overflow-hidden border-2 border-primary/20 bg-background shrink-0 shadow-sm">
                   <Image
                     src={currentAgent.photo}
                     alt={currentAgent.fullName}
@@ -684,13 +753,13 @@ function DemandesContent() {
                   />
                 </div>
               ) : (
-                <div className="relative w-20 h-24 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-2xl font-bold shrink-0 shadow-sm">
+                <div className="relative w-24 h-28 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-2xl font-bold shrink-0 shadow-sm">
                   {currentAgent.fullName.substring(0, 2).toUpperCase()}
                 </div>
               )}
-              <div className="space-y-1.5 min-w-0">
+              <div className="space-y-2 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
-                  <h2 className="text-xl font-bold text-foreground truncate max-w-[280px] sm:max-w-[320px]">
+                  <h2 className="text-xl font-bold text-foreground truncate max-w-[280px] sm:max-w-[360px]">
                     {currentAgent.fullName}
                   </h2>
                   <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary text-[10px] sm:text-xs font-semibold">
@@ -699,6 +768,9 @@ function DemandesContent() {
                   <Badge variant="outline" className={cn("text-[10px] sm:text-xs font-semibold border", getAvailabilityBadgeStyle(currentAgentAvailability))}>
                     {currentAgentAvailability}
                   </Badge>
+                  <Badge variant="secondary" className="font-mono text-[10px] sm:text-xs">
+                    IDC : {(currentAgent.id || '').substring(0, 6).toUpperCase()}
+                  </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono">
                   Matricule : {currentAgent.registrationNumber || 'N/A'} • Section : {(currentAgent.section || 'Non assigné').toUpperCase()}
@@ -706,18 +778,89 @@ function DemandesContent() {
                 <p className="text-xs text-muted-foreground">
                   Contact : {currentAgent.contact || 'N/A'} • Adresse : {currentAgent.address || 'N/A'}
                 </p>
+
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-2">
+                  <Button
+                    type="button"
+                    onClick={() => setIsQrBadgeOpen(true)}
+                    className="font-bold text-white bg-[#1a2b4c] hover:bg-[#132038] rounded-xl gap-2 shadow-md cursor-pointer h-10 px-4"
+                  >
+                    <IdCard className="h-4 w-4" />
+                    <span>Badge &amp; Code QR d&apos;Identification</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDownloadFicheTechnique}
+                    className="font-semibold border-primary/30 text-primary hover:bg-primary/10 rounded-xl gap-2 cursor-pointer h-10 px-4"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    <span>Télécharger ma Fiche Technique (PDF)</span>
+                  </Button>
+                </div>
               </div>
             </div>
-            <Button
-              onClick={handleDownloadFicheTechnique}
-              className="font-bold text-white bg-primary hover:bg-primary/95 rounded-xl gap-2 shadow-lg shadow-primary/10 w-full md:w-auto mt-2 md:mt-0 cursor-pointer h-10 px-4"
-            >
-              <FileDown className="h-4 w-4" />
-              <span>Télécharger ma Fiche Technique (PDF)</span>
-            </Button>
+
+            {/* Aperçu direct du Code QR personnel de l'agent */}
+            <div className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-card/90 border border-primary/20 shadow-sm shrink-0 w-full sm:w-auto lg:min-w-[210px]">
+              <button
+                type="button"
+                onClick={() => setIsQrBadgeOpen(true)}
+                className="group relative flex flex-col items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 shadow-inner hover:border-primary/50 transition-all cursor-pointer"
+                title="Cliquer pour afficher mon Badge & Code QR d'Identification"
+              >
+                {agentQrUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={agentQrUrl}
+                    alt={`Mon Code QR - ${currentAgent.fullName}`}
+                    className="h-28 w-28 object-contain"
+                  />
+                ) : (
+                  <div className="h-28 w-28 flex items-center justify-center text-muted-foreground">
+                    <QrCode className="h-10 w-10 animate-pulse text-muted-foreground/40" />
+                  </div>
+                )}
+                <span className="text-[9px] font-mono font-bold text-slate-800 tracking-wider mt-1">
+                  MON CODE QR • BSSI
+                </span>
+              </button>
+              <div className="flex items-center gap-1.5 mt-2.5 w-full">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownloadPersonalQR}
+                  disabled={!agentQrUrl}
+                  className="flex-1 h-8 text-[11px] gap-1 cursor-pointer"
+                  title="Télécharger mon Code QR (PNG)"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>PNG</span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrintPersonalBadge}
+                  disabled={!agentQrUrl || isGeneratingBadgePdf}
+                  className="flex-1 h-8 text-[11px] gap-1 cursor-pointer"
+                  title="Télécharger mon Badge officiel (PDF)"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>{isGeneratingBadgePdf ? '...' : 'Badge PDF'}</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </Card>
       )}
+
+      <AgentQRBadgeDialog
+        agent={currentAgentWithDetails}
+        isOpen={isQrBadgeOpen}
+        onOpenChange={setIsQrBadgeOpen}
+      />
 
       {/* Confirmation de dépôt de matériel */}
       {unacknowledgedReturnedAssignments.length > 0 && (

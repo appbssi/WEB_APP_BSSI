@@ -253,17 +253,17 @@ export function AgentQRScannerDialog({
       }}
     >
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-0 bg-background border shadow-2xl">
-        <DialogHeader className="p-4 sm:p-5 pb-3 bg-gradient-to-r from-slate-900 via-[#1a2b4c] to-slate-900 text-white">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-white/10 rounded-lg">
-              <QrCode className="h-5 w-5 text-amber-400" />
+        <DialogHeader className="p-4 sm:p-5 pb-3 border-b border-border text-left">
+          <div className="flex items-center gap-2.5 pr-6">
+            <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0">
+              <QrCode className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-base sm:text-lg font-bold text-white">
+              <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
                 Scanner & Identifier un Agent
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-300">
-                Pointez la caméra ou importez une photo du code QR du badge de l'agent.
+              <DialogDescription className="text-xs text-muted-foreground">
+                Pointez la caméra ou importez une photo du code QR du badge de l&apos;agent.
               </DialogDescription>
             </div>
           </div>

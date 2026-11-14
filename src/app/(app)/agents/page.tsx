@@ -321,76 +321,194 @@ function AgentsContent() {
   const handleExportPDF = async () => {
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
-    const doc = new jsPDF();
-    const tableTitle = "Liste des Agents";
-    const generationDate = new Date().toLocaleDateString('fr-FR');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const tableTitle = "LISTE OFFICIELLE DES AGENTS";
+    const now = new Date();
+    const generationDate = now.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+    const generationTime = now.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 12;
 
     const addContent = (logoImg: HTMLImageElement | null) => {
-        let currentY = 15;
+      // Top institutional accent stripe
+      doc.setFillColor(26, 43, 76); // Navy
+      doc.rect(0, 0, pageWidth, 4, 'F');
+      doc.setFillColor(247, 127, 0); // Orange accent
+      doc.rect(0, 4, pageWidth, 1.2, 'F');
 
-        if (logoImg) {
-            const aspectRatio = logoImg.width / logoImg.height;
-            const logoWidth = 30;
-            const logoHeight = logoWidth / aspectRatio;
-            doc.addImage(logoImg, 'PNG', (pageWidth - logoWidth) / 2, currentY, logoWidth, logoHeight);
-            currentY += logoHeight + 5;
-        }
+      let currentY = 12;
 
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text("BRIGADE SPECIALE DE SURVEILLANCE ET D'INTERVENTION", pageWidth / 2, currentY, { align: 'center' });
-        currentY += 5;
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text("Duralex - Sed Lex", pageWidth / 2, currentY, { align: 'center' });
-        currentY += 15;
+      if (logoImg) {
+        const naturalW = logoImg.naturalWidth || logoImg.width || 1;
+        const naturalH = logoImg.naturalHeight || logoImg.height || 1;
+        const aspectRatio = naturalW / naturalH;
+        const logoWidth = 26;
+        const logoHeight = logoWidth / aspectRatio;
+        doc.addImage(logoImg, 'PNG', (pageWidth - logoWidth) / 2, currentY, logoWidth, logoHeight);
+        currentY += logoHeight + 4;
+      }
 
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text(tableTitle, 14, currentY);
-        currentY += 7;
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Généré le: ${generationDate}`, 14, currentY);
-        currentY += 8;
+      doc.setTextColor(26, 43, 76);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text("BRIGADE SPÉCIALE DE SURVEILLANCE ET D'INTERVENTION", pageWidth / 2, currentY, { align: 'center' });
+      currentY += 4.5;
 
-        autoTable(doc, {
-            head: [['Nom complet', 'Matricule', 'Grade', 'Section', 'Disponibilité', 'IDC']],
-            body: filteredAgents.map(agent => [
-                agent.fullName,
-                agent.registrationNumber || '',
-                agent.rank || '',
-                ((agent.section as string) === 'Officier' || (agent.section as string) === 'OFFICIER') ? 'N/A' : (agent.section || 'Non assigné').toUpperCase(),
-                agent.availability || '',
-                agent.id.substring(0, 6).toUpperCase(),
-            ]),
-            startY: currentY,
-            theme: 'striped',
-            headStyles: { fillColor: [39, 55, 70], textColor: 255, fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [245, 245, 245] },
-            didDrawPage: (data) => {
-                const pageCount = doc.getNumberOfPages();
-                doc.setFontSize(10);
-                doc.text(`Page ${data.pageNumber} sur ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'italic');
+      doc.text("Duralex - Sed Lex", pageWidth / 2, currentY, { align: 'center' });
+      currentY += 6;
+
+      // Summary banner card above the table
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(marginX, currentY, pageWidth - marginX * 2, 16, 2, 2, 'FD');
+
+      // Left accent inside banner
+      doc.setFillColor(247, 127, 0);
+      doc.rect(marginX, currentY, 2.2, 16, 'F');
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text(tableTitle, marginX + 6, currentY + 6.5);
+
+      doc.setTextColor(71, 85, 105);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Édité le ${generationDate} à ${generationTime}`, marginX + 6, currentY + 12);
+
+      // Right count pill inside banner
+      const countText = `${filteredAgents.length} agent${filteredAgents.length > 1 ? 's' : ''}`;
+      doc.setFillColor(26, 43, 76);
+      doc.roundedRect(pageWidth - marginX - 36, currentY + 4, 32, 8, 1.5, 1.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(countText, pageWidth - marginX - 20, currentY + 9.2, { align: 'center' });
+
+      currentY += 21;
+
+      autoTable(doc, {
+        head: [['N°', 'Nom complet', 'Matricule', 'Grade', 'Section', 'Disponibilité', 'IDC']],
+        body: filteredAgents.map((agent, index) => [
+          String(index + 1),
+          agent.fullName || '—',
+          agent.registrationNumber || '—',
+          agent.rank || '—',
+          ((agent.section as string) === 'Officier' || (agent.section as string) === 'OFFICIER')
+            ? 'N/A'
+            : (agent.section || 'Non assigné').toUpperCase(),
+          agent.availability || 'Non défini',
+          agent.id.substring(0, 6).toUpperCase(),
+        ]),
+        startY: currentY,
+        margin: { top: 14, right: marginX, bottom: 18, left: marginX },
+        theme: 'grid',
+        showHead: 'everyPage',
+        styles: {
+          font: 'helvetica',
+          fontSize: 8.5,
+          textColor: [15, 23, 42],
+          lineColor: [148, 163, 184], // Visible crisp borders between every row & column
+          lineWidth: 0.35,
+          cellPadding: { top: 3.4, right: 3, bottom: 3.4, left: 3 },
+          valign: 'middle',
+          overflow: 'linebreak',
+        },
+        headStyles: {
+          fillColor: [26, 43, 76],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 8.8,
+          halign: 'left',
+          lineColor: [26, 43, 76],
+          lineWidth: 0.35,
+          cellPadding: { top: 4, right: 3, bottom: 4, left: 3 },
+        },
+        bodyStyles: {
+          fillColor: [255, 255, 255],
+        },
+        alternateRowStyles: {
+          fillColor: [241, 245, 249],
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10, fontStyle: 'bold', textColor: [71, 85, 105] },
+          1: { cellWidth: 46, fontStyle: 'bold', textColor: [15, 23, 42] },
+          2: { cellWidth: 26, halign: 'center' },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 24, halign: 'center' },
+          5: { cellWidth: 30, halign: 'center', fontStyle: 'bold' },
+          6: { cellWidth: 22, halign: 'center', fontStyle: 'bold', textColor: [51, 65, 85] },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'head' && (data.column.index === 0 || data.column.index === 2 || data.column.index === 4 || data.column.index === 5 || data.column.index === 6)) {
+            data.cell.styles.halign = 'center';
+          }
+          if (data.section === 'body' && data.column.index === 5) {
+            const val = String(data.cell.raw || '');
+            if (val === 'Disponible') {
+              data.cell.styles.fillColor = [236, 253, 245];
+              data.cell.styles.textColor = [4, 120, 87];
+            } else if (val === 'En mission') {
+              data.cell.styles.fillColor = [239, 246, 255];
+              data.cell.styles.textColor = [29, 78, 216];
+            } else if (val === 'En congé') {
+              data.cell.styles.fillColor = [255, 251, 235];
+              data.cell.styles.textColor = [180, 83, 9];
+            } else if (val === 'En permission') {
+              data.cell.styles.fillColor = [245, 243, 255];
+              data.cell.styles.textColor = [109, 40, 217];
             }
-        });
-        doc.save('liste_agents.pdf');
+          }
+        },
+        didDrawPage: (data) => {
+          const pageCount = doc.getNumberOfPages();
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.3);
+          doc.line(marginX, pageHeight - 13, pageWidth - marginX, pageHeight - 13);
+
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(100, 116, 139);
+          doc.text(
+            "sBSSI · Liste officielle des agents",
+            marginX,
+            pageHeight - 8
+          );
+          doc.setFont('helvetica', 'bold');
+          doc.text(
+            `Page ${data.pageNumber} sur ${pageCount}`,
+            pageWidth - marginX,
+            pageHeight - 8,
+            { align: 'right' }
+          );
+        },
+      });
+
+      doc.save('liste_agents.pdf');
     };
 
-    if (logo) {
-        // Use window.Image instead of Image to avoid collision with next/image
-        const img = new window.Image();
-        img.crossOrigin = 'Anonymous';
-        img.onload = () => addContent(img);
-        img.onerror = () => {
-            console.error("Erreur de chargement du logo pour le PDF.");
-            addContent(null);
-        };
-        img.src = logo;
-    } else {
-        addContent(null);
-    }
+    const imageUrl = 'https://i.ibb.co/v4p7NtMh/dd.png';
+
+    const img = new window.Image();
+    img.crossOrigin = 'Anonymous'; // Obligatoire pour les URLs externes avec jsPDF
+    img.onload = () => addContent(img);
+    img.onerror = () => {
+      console.error("Erreur de chargement du logo pour le PDF.");
+      addContent(null);
+    };
+    img.src = imageUrl;
   };
 
   return (

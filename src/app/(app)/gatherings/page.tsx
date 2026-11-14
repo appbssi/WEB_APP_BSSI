@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, UserCheck, UserX, Users } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, UserCheck, UserX, Users, ListChecks, QrCode, FileDown, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,12 +39,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useRole } from '@/hooks/use-role';
 import { useDetachement } from '@/context/detachement-context';
+import { useLogo } from '@/context/logo-context';
 import { CreateGatheringForm } from '@/components/gatherings/create-gathering-sheet';
 import { ManageAttendanceDialog } from '@/components/gatherings/manage-attendance-dialog';
 import { ViewAttendanceDialog } from '@/components/gatherings/view-attendance-dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { logActivity } from '@/lib/activity-logger';
-import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
 
 
@@ -58,9 +58,10 @@ export default function GatheringsPage() {
 
 function GatheringsContent() {
   const { isObserver } = useRole();
+  const { logo } = useLogo();
   const [isCreateOpen, setCreateOpen] = useState(false);
-  const [selectedGathering, setSelectedGathering] = useState<Gathering | null>(null);
-  const [viewingAttendance, setViewingAttendance] = useState<Gathering | null>(null);
+  const [attendanceGatheringId, setAttendanceGatheringId] = useState<string | null>(null);
+  const [viewingAttendanceId, setViewingAttendanceId] = useState<string | null>(null);
   const [gatheringToDelete, setGatheringToDelete] = useState<Gathering | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -76,6 +77,16 @@ function GatheringsContent() {
 
   const { data: gatherings, isLoading: gatheringsLoading } = useCollection<Gathering>(gatheringsQuery);
   const { data: agents, isLoading: agentsLoading } = useCollection<Agent>(agentsQuery);
+
+  const attendanceGathering = useMemo(
+    () => gatherings?.find((g) => g.id === attendanceGatheringId) || null,
+    [gatherings, attendanceGatheringId]
+  );
+
+  const viewingAttendance = useMemo(
+    () => gatherings?.find((g) => g.id === viewingAttendanceId) || null,
+    [gatherings, viewingAttendanceId]
+  );
   
   const agentsById = useMemo(() => {
     if (!agents) return {};
@@ -114,7 +125,7 @@ function GatheringsContent() {
         description: `Le rassemblement "${gatheringToDelete.name}" a été supprimé.`,
       });
       logActivity(firestore, `Le rassemblement "${gatheringToDelete.name}" a été supprimé.`, 'Rassemblement', '/gatherings');
-    }).catch((serverError) => {
+    }).catch(() => {
       const permissionError = new FirestorePermissionError({
         path: gatheringRef.path,
         operation: 'delete',
@@ -122,6 +133,82 @@ function GatheringsContent() {
       errorEmitter.emit('permission-error', permissionError);
     });
     setGatheringToDelete(null);
+  };
+
+  const handleExportGatheringPDF = async (gathering: Gathering) => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const dateTime = gathering.dateTime.toDate().toLocaleString('fr-FR');
+
+    const assignedAgents = (gathering.assignedAgentIds || [])
+      .map((id) => agentsById[id])
+      .filter((a): a is Agent => !!a)
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    const body = assignedAgents.map((agent) => {
+      const isAbsent = (gathering.absentAgentIds || []).includes(agent.id);
+      const qrTime = gathering.attendanceTimestamps?.[agent.id]
+        ? new Date(gathering.attendanceTimestamps[agent.id]).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        : null;
+      const statusText = isAbsent ? 'Absent' : qrTime ? `Présent (QR ${qrTime})` : 'Présent';
+      return [
+        agent.fullName,
+        agent.registrationNumber || 'N/A',
+        agent.rank || 'N/A',
+        statusText,
+      ];
+    });
+
+    const renderPdf = (img?: HTMLImageElement) => {
+      let currentY = 15;
+      if (img) {
+        const aspectRatio = img.width / img.height;
+        const logoWidth = 24;
+        const logoHeight = logoWidth / aspectRatio;
+        pdf.addImage(img, 'PNG', (pageWidth - logoWidth) / 2, currentY, logoWidth, logoHeight);
+        currentY += logoHeight + 8;
+      }
+
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text("BRIGADE SPECIALE DE SURVEILLANCE ET D'INTERVENTION", pageWidth / 2, currentY, { align: 'center' });
+      currentY += 10;
+
+      pdf.setFontSize(16);
+      pdf.text(`Rassemblement : ${gathering.name}`, pageWidth / 2, currentY, { align: 'center' });
+      currentY += 7;
+
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Feuille de présence complète — ${dateTime}`, pageWidth / 2, currentY, { align: 'center' });
+      currentY += 10;
+
+      autoTable(pdf, {
+        head: [['Nom complet', 'Matricule', 'Grade', 'Statut']],
+        body,
+        startY: currentY,
+        theme: 'striped',
+        headStyles: { fillColor: [26, 43, 76] },
+      });
+
+      pdf.save(`presence_${gathering.name.replace(/\s+/g, '_')}.pdf`);
+      toast({
+        title: 'PDF généré',
+        description: `La feuille de présence pour "${gathering.name}" a été téléchargée.`,
+      });
+    };
+
+    if (logo) {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => renderPdf(img);
+      img.onerror = () => renderPdf();
+      img.src = logo;
+    } else {
+      renderPdf();
+    }
   };
 
   const getStatus = (gathering: Gathering) => {
@@ -147,7 +234,7 @@ function GatheringsContent() {
         )}
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -156,9 +243,7 @@ function GatheringsContent() {
               <TableHead>Agents Assignés</TableHead>
               <TableHead>Présence</TableHead>
               <TableHead>Statut</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -172,10 +257,6 @@ function GatheringsContent() {
                 const absentCount = gathering.absentAgentIds.length;
                 const presentCount = assignedCount - absentCount;
                 const status = getStatus(gathering);
-
-                const gatheringTime = gathering.dateTime.toDate();
-                const sixHoursAfter = new Date(gatheringTime.getTime() + 6 * 60 * 60 * 1000);
-                const isAttendanceManagementLocked = new Date() > sixHoursAfter;
 
                 return (
                   <TableRow key={gathering.id}>
@@ -202,27 +283,63 @@ function GatheringsContent() {
                     <TableCell>
                       <Badge variant={status === 'Passé' ? 'outline' : 'secondary'}>{status}</Badge>
                     </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
+                    <TableCell className="text-right">
+                      <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <Button
+                            type="button"
+                            aria-haspopup="true"
+                            aria-label={`Menu d'actions pour ${gathering.name}`}
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 cursor-pointer hover:bg-accent"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                           <DropdownMenuItem onSelect={() => setViewingAttendance(gathering)}>
-                            Afficher les listes
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Actions du rassemblement</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onSelect={() => {
+                              setTimeout(() => setViewingAttendanceId(gathering.id), 0);
+                            }}
+                          >
+                            <ListChecks className="mr-2 h-4 w-4" />
+                            <span>Afficher les listes</span>
+                          </DropdownMenuItem>
+                          {!isObserver && (
+                            <DropdownMenuItem
+                              className="cursor-pointer font-medium text-primary focus:text-primary"
+                              onSelect={() => {
+                                setTimeout(() => setAttendanceGatheringId(gathering.id), 0);
+                              }}
+                            >
+                              <QrCode className="mr-2 h-4 w-4" />
+                              <span>Pointage par Scan QR</span>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onSelect={() => {
+                              handleExportGatheringPDF(gathering);
+                            }}
+                          >
+                            <FileDown className="mr-2 h-4 w-4" />
+                            <span>Exporter en PDF</span>
                           </DropdownMenuItem>
                           {!isObserver && (
                             <>
-                              <DropdownMenuItem onSelect={() => setSelectedGathering(gathering)} disabled={isAttendanceManagementLocked}>
-                                Gérer les présences
-                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onSelect={() => setGatheringToDelete(gathering)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                                Supprimer
+                              <DropdownMenuItem
+                                className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                onSelect={() => {
+                                  setTimeout(() => setGatheringToDelete(gathering), 0);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>Supprimer</span>
                               </DropdownMenuItem>
                             </>
                           )}
@@ -242,20 +359,21 @@ function GatheringsContent() {
           </TableBody>
         </Table>
       </div>
-      
-      {selectedGathering && (
+
+      {attendanceGathering && (
         <ManageAttendanceDialog
-            isOpen={!!selectedGathering}
-            onOpenChange={(open) => !open && setSelectedGathering(null)}
-            gathering={selectedGathering}
-            agents={agents || []}
+          isOpen={!!attendanceGathering}
+          onOpenChange={(open) => !open && setAttendanceGatheringId(null)}
+          gathering={attendanceGathering}
+          agents={agents || []}
+          initialTab="scanner"
         />
       )}
-
+      
        {viewingAttendance && (
         <ViewAttendanceDialog
             isOpen={!!viewingAttendance}
-            onOpenChange={(open) => !open && setViewingAttendance(null)}
+            onOpenChange={(open) => !open && setViewingAttendanceId(null)}
             gathering={viewingAttendance}
             agentsById={agentsById}
         />

@@ -22,7 +22,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Agent, Gathering } from '@/lib/types';
 import { CreateMissionFromGatheringForm } from '../missions/create-mission-from-gathering-form';
-import { Rocket } from 'lucide-react';
+import { Rocket, QrCode } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useLogo } from '@/context/logo-context';
 
 interface ViewAttendanceDialogProps {
@@ -166,20 +167,36 @@ export function ViewAttendanceDialog({ isOpen, onOpenChange, gathering, agentsBy
                         <TableHead>Nom Complet</TableHead>
                         <TableHead>Matricule</TableHead>
                         <TableHead>Grade</TableHead>
+                        <TableHead>Pointage</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {agents.length > 0 ? (
-                        agents.map(agent => (
-                            <TableRow key={agent.id}>
-                                <TableCell>{agent.fullName}</TableCell>
-                                <TableCell>{agent.registrationNumber}</TableCell>
-                                <TableCell>{agent.rank}</TableCell>
-                            </TableRow>
-                        ))
+                        agents.map(agent => {
+                            const qrIso = gathering.attendanceTimestamps?.[agent.id];
+                            const qrTime = qrIso ? new Date(qrIso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+                            const isAbsent = gathering.absentAgentIds.includes(agent.id);
+                            return (
+                              <TableRow key={agent.id}>
+                                  <TableCell>{agent.fullName}</TableCell>
+                                  <TableCell>{agent.registrationNumber}</TableCell>
+                                  <TableCell>{agent.rank}</TableCell>
+                                  <TableCell>
+                                    {!isAbsent && qrTime ? (
+                                      <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[11px] gap-1">
+                                        <QrCode className="h-3 w-3" />
+                                        <span>{qrTime}</span>
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">Manuel</span>
+                                    )}
+                                  </TableCell>
+                              </TableRow>
+                            );
+                        })
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={3} className="text-center h-24">
+                            <TableCell colSpan={4} className="text-center h-24">
                                 Aucun agent dans cette liste.
                             </TableCell>
                         </TableRow>

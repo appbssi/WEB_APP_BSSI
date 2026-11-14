@@ -105,6 +105,7 @@ export type Gathering = {
   dateTime: Timestamp;
   assignedAgentIds: string[];
   absentAgentIds: string[];
+  attendanceTimestamps?: Record<string, string>;
 }
 
 export type Visitor = {

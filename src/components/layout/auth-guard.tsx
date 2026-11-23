@@ -1,21 +1,23 @@
 'use client';
 
-import { useUser, useAuth } from '@/firebase';
-import { Loader2 } from 'lucide-react';
+import { useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-import { signOut } from 'firebase/auth';
-import { useRole } from '@/hooks/use-role';
+import { useRole, canAccessRoute, getDefaultRouteForUser } from '@/hooks/use-role';
 
 const publicPaths = ['/', '/login'];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const { role, isRoleLoading } = useRole();
-  const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [userIdc, setUserIdc] = useState<string>('');
+  const [userIdc, setUserIdc] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('app-user-idc') || '').toUpperCase().trim();
+    }
+    return '';
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -23,45 +25,27 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH' || userIdc === 'QXTSLG';
-  const allowedPathsForSpecial = ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'];
-  const isAllowedSpecial = isSpecialIdc && allowedPathsForSpecial.some(p => pathname.startsWith(p));
+  const isPublicPath = publicPaths.includes(pathname);
+  const isRouteAllowed = isPublicPath || canAccessRoute(role, userIdc, pathname);
 
   useEffect(() => {
     if (isUserLoading || isRoleLoading) return;
 
-    const isPublicPath = publicPaths.includes(pathname);
-
     if (user) {
-      if (isPublicPath) {
-        if (role === 'admin' || isSpecialIdc) {
-          router.push('/dashboard');
-        } else {
-          router.push('/demandes');
-        }
-      } else {
-        if (isSpecialIdc) {
-          if (!isAllowedSpecial) {
-            router.push('/dashboard');
-          }
-        } else if (role !== 'admin' && pathname !== '/demandes') {
-          router.push('/demandes');
-        }
+      if (isPublicPath || !isRouteAllowed) {
+        router.push(getDefaultRouteForUser(role, userIdc));
       }
-    } else {
-      if (!isPublicPath) {
-        router.push('/');
-      }
+    } else if (!isPublicPath) {
+      router.push('/');
     }
-  }, [user, isUserLoading, role, isRoleLoading, router, pathname, auth, isSpecialIdc, isAllowedSpecial]);
+  }, [user, isUserLoading, role, isRoleLoading, router, pathname, userIdc, isPublicPath, isRouteAllowed]);
 
-  // Show loader during auth check or when redirecting.
-  const isPublicPath = publicPaths.includes(pathname);
-  const showLoader = isUserLoading || isRoleLoading || 
-    (user && isPublicPath) || 
-    (!user && !isPublicPath) || 
-    (user && !isSpecialIdc && role !== 'admin' && pathname !== '/demandes') || 
-    (user && isSpecialIdc && !isAllowedSpecial);
+  const showLoader =
+    isUserLoading ||
+    isRoleLoading ||
+    (user && isPublicPath) ||
+    (!user && !isPublicPath) ||
+    (user && !isRouteAllowed);
 
   if (showLoader) {
     return (

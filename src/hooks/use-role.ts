@@ -3,9 +3,62 @@
 
 import { useState, useEffect } from 'react';
 
-type Role = 'admin' | 'observer' | 'secretariat' | null;
+export type Role = 'admin' | 'observer' | 'secretariat' | null;
 
 const ROLE_STORAGE_KEY = 'app-user-role';
+
+export const SPECIAL_IDCS = ['VUCE1Z', 'CQZSBH', 'QXTSLG'] as const;
+
+export const SPECIAL_ALLOWED_PATHS = [
+  '/dashboard',
+  '/cartographie',
+  '/agents',
+  '/missions',
+  '/logistique',
+  '/gav',
+  '/saisies',
+  '/tutoriel',
+] as const;
+
+export const SECRETARIAT_ALLOWED_PATHS = [
+  '/demandes',
+  '/secretariat',
+  '/gatherings',
+  '/gav',
+  '/saisies',
+  '/tutoriel',
+] as const;
+
+export const AGENT_ALLOWED_PATHS = [
+  '/demandes',
+  '/tutoriel',
+] as const;
+
+export function isSpecialOfficerIdc(idc?: string | null): boolean {
+  if (!idc) return false;
+  return (SPECIAL_IDCS as readonly string[]).includes(idc.trim().toUpperCase());
+}
+
+export function canAccessRoute(role: Role, userIdc: string | null | undefined, pathname: string): boolean {
+  if (isSpecialOfficerIdc(userIdc)) {
+    return SPECIAL_ALLOWED_PATHS.some((p) => pathname.startsWith(p));
+  }
+  if (role === 'admin') {
+    return true;
+  }
+  if (role === 'secretariat') {
+    return SECRETARIAT_ALLOWED_PATHS.some((p) => pathname.startsWith(p));
+  }
+  // Ordinary agent ('observer') or unprivileged user: strictly restricted to personal space and guide
+  return AGENT_ALLOWED_PATHS.some((p) => pathname.startsWith(p));
+}
+
+export function getDefaultRouteForUser(role: Role, userIdc?: string | null): string {
+  if (role === 'admin' || isSpecialOfficerIdc(userIdc)) {
+    return '/dashboard';
+  }
+  return '/demandes';
+}
 
 // --- State Management outside of React ---
 let memoryState: Role = null;

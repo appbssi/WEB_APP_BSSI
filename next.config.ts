@@ -12,14 +12,12 @@ const nextConfig: NextConfig = {
     '@firebase/logger',
   ],
   /* config options here */
-  experimental: {
-    allowedDevOrigins: [
-      '*.europe-west2.run.app',
-      '*.run.app',
-      'localhost:3000',
-      'localhost:8080',
-    ],
-  },
+  allowedDevOrigins: [
+    '*.europe-west2.run.app',
+    '*.run.app',
+    'localhost:3000',
+    'localhost:8080',
+  ],
   async headers() {
     return [
       {

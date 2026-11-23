@@ -5,6 +5,46 @@ import { useUser } from '@/firebase';
 
 export type Role = 'admin' | 'observer' | 'secretariat' | null;
 
+// --- Droits d'accès par rôle (source unique de vérité pour le menu et le garde d'accès) ---
+
+/** Administrateurs à accès limité (jeton signé avec restricted = true). */
+export const RESTRICTED_ADMIN_ALLOWED_PATHS = [
+  '/dashboard',
+  '/cartographie',
+  '/agents',
+  '/missions',
+  '/logistique',
+  '/gav',
+  '/saisies',
+] as const;
+
+export const SECRETARIAT_ALLOWED_PATHS = [
+  '/demandes',
+  '/secretariat',
+  '/gatherings',
+  '/gav',
+  '/saisies',
+] as const;
+
+export const AGENT_ALLOWED_PATHS = ['/demandes'] as const;
+
+export function canAccessRoute(role: Role, restricted: boolean, pathname: string): boolean {
+  if (role === 'admin') {
+    return restricted ? RESTRICTED_ADMIN_ALLOWED_PATHS.some((p) => pathname.startsWith(p)) : true;
+  }
+  if (role === 'secretariat') {
+    return SECRETARIAT_ALLOWED_PATHS.some((p) => pathname.startsWith(p));
+  }
+  // Agent ('observer') : uniquement son espace personnel
+  return AGENT_ALLOWED_PATHS.some((p) => pathname.startsWith(p));
+}
+
+export function getDefaultRouteForUser(role: Role): string {
+  return role === 'admin' ? '/dashboard' : '/demandes';
+}
+
+// --- Identité signée par le serveur ---
+
 export interface Identity {
   role: Role;
   /** IDC saisi à la connexion (normalisé en majuscules). */

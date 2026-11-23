@@ -20,6 +20,9 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && request.auth.token.role == 'admin';
     }
+    function isSecretariat() {
+      return signedIn() && request.auth.token.role == 'secretariat';
+    }
     function myIdc() {
       return request.auth.token.idc;
     }
@@ -70,6 +73,22 @@ service cloud.firestore {
         && request.resource.data.status in [resource.data.status, 'repondu'];
     }
 
+    // --- Documents PDF : chaque agent lit ceux qui le concernent ------------
+    match /pdf_documents/{id} {
+      allow read: if signedIn() && resource.data.agentIds.hasAny([myAgentId(), myIdc()]);
+    }
+
+    // --- Secrétariat : rubriques Secrétariat, Rassemblements, GAV, Saisies --
+    match /visitors/{id}      { allow read, write: if isSecretariat(); }
+    match /contacts/{id}      { allow read, write: if isSecretariat(); }
+    match /broadcasts/{id}    { allow read, write: if isSecretariat(); }
+    match /gatherings/{id}    { allow read, write: if isSecretariat(); }
+    match /detainees/{id}     { allow read, write: if isSecretariat(); }
+    match /saisies/{id}       { allow read, write: if isSecretariat(); }
+    match /activity_logs/{id} { allow create: if isSecretariat(); }
+    // Journal d'activité : le secrétariat peut y ajouter une ligne, pas le lire ni le modifier
+    match /activities/{id}    { allow create: if isSecretariat(); }
+
     // --- Messagerie interne ------------------------------------------------
     match /messages/{id} {
       allow read: if signedIn();
@@ -86,7 +105,7 @@ service cloud.firestore {
         && request.resource.data.role == request.auth.token.role;
     }
 
-    // Toute autre collection (activités, GAV, saisies, finances, armurerie,
-    // secrétariat, limitation des connexions…) : administrateurs uniquement.
+    // Toute autre collection (finances, armurerie, logistique, journal d'activité,
+    // limitation des connexions…) : administrateurs uniquement.
   }
 }

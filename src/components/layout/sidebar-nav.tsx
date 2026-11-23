@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useLogo } from '@/context/logo-context';
 import Image from 'next/image';
-import { useRole } from '@/hooks/use-role';
+import { useRole, canAccessRoute } from '@/hooks/use-role';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useUser } from '@/firebase';
 import { useMemo } from 'react';
@@ -39,52 +39,34 @@ type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  roles?: Array<'admin' | 'observer' | 'secretariat'>;
 };
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-  { href: '/demandes', label: 'Mes Demandes', icon: CalendarClock },
+  { href: '/demandes', label: 'Mon Espace Agent', icon: CalendarClock },
   { href: '/cartographie', label: 'Cartographie', icon: Map },
-  { href: '/agents', label: 'Agents', icon: Users, roles: ['admin', 'observer'] },
-  { href: '/missions', label: 'Missions', icon: Rocket, roles: ['admin', 'observer'] },
-  { href: '/gatherings', label: 'Rassemblements', icon: CalendarClock, roles: ['admin', 'observer', 'secretariat'] },
-  { href: '/armurerie', label: 'Armurerie', icon: Sword, roles: ['admin'] },
-  { href: '/logistique', label: 'Logistique', icon: Truck, roles: ['admin'] },
-  { href: '/gav', label: 'GAV', icon: Lock, roles: ['admin', 'secretariat'] },
-  { href: '/saisies', label: 'Saisies', icon: PackageCheck, roles: ['admin', 'observer', 'secretariat'] },
-  { href: '/finance', label: 'Finances', icon: Banknote, roles: ['admin'] },
-  { href: '/secretariat', label: 'Secrétariat', icon: BookUser, roles: ['admin', 'secretariat'] },
+  { href: '/agents', label: 'Agents', icon: Users },
+  { href: '/missions', label: 'Missions', icon: Rocket },
+  { href: '/gatherings', label: 'Rassemblements', icon: CalendarClock },
+  { href: '/armurerie', label: 'Armurerie', icon: Sword },
+  { href: '/logistique', label: 'Logistique', icon: Truck },
+  { href: '/gav', label: 'GAV', icon: Lock },
+  { href: '/saisies', label: 'Saisies', icon: PackageCheck },
+  { href: '/finance', label: 'Finances', icon: Banknote },
+  { href: '/secretariat', label: 'Secrétariat', icon: BookUser },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { logo, isLogoLoading } = useLogo();
-  const { role, restricted } = useRole();
+  const { role, isRoleLoading, restricted } = useRole();
   const { user } = useUser();
   const isMounted = useIsMounted();
 
-  const userName = useMemo(() => {
-    if (!role) return 'Utilisateur';
-    return role.charAt(0).toUpperCase() + role.slice(1);
-  }, [role]);
-
-
   const filteredNavItems = useMemo(() => {
-    if (role === 'admin' && restricted) {
-      return navItems.filter(item =>
-        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'].includes(item.href)
-      );
-    }
-
-    return navItems.filter(item => {
-      if (role !== 'admin') {
-        return item.href === '/demandes' || (item.roles && role && item.roles.includes(role));
-      }
-      if (!item.roles) return true;
-      return role ? item.roles.includes(role) : false;
-    });
-  }, [role, restricted]);
+    if (isRoleLoading) return [];
+    return navItems.filter((item) => canAccessRoute(role, restricted, item.href));
+  }, [role, restricted, isRoleLoading]);
 
   if (!isMounted) {
     return null; 

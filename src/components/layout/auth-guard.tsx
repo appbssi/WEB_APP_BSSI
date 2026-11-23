@@ -4,12 +4,9 @@ import { useUser, useAuth } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import React, { useEffect } from 'react';
 import { signOut } from 'firebase/auth';
-import { useRole } from '@/hooks/use-role';
+import { useRole, canAccessRoute, getDefaultRouteForUser } from '@/hooks/use-role';
 
 const publicPaths = ['/', '/login'];
-
-// Rubriques accessibles aux administrateurs à accès limité
-const allowedPathsForRestricted = ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -18,8 +15,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isRestricted = role === 'admin' && restricted;
-  const isAllowedRestricted = isRestricted && allowedPathsForRestricted.some(p => pathname.startsWith(p));
+  const isPublicPath = publicPaths.includes(pathname);
+  const isRouteAllowed = isPublicPath || canAccessRoute(role, restricted, pathname);
   // Session sans rôle signé (ex. ancienne connexion anonyme) : elle n'est plus valable.
   const hasInvalidSession = !!user && !isRoleLoading && !role;
 
@@ -31,29 +28,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const isPublicPath = publicPaths.includes(pathname);
-
     if (user) {
-      if (isPublicPath) {
-        router.push(role === 'admin' ? '/dashboard' : '/demandes');
-      } else if (isRestricted) {
-        if (!isAllowedRestricted) router.push('/dashboard');
-      } else if (role !== 'admin' && pathname !== '/demandes') {
-        router.push('/demandes');
+      if (isPublicPath || !isRouteAllowed) {
+        router.push(getDefaultRouteForUser(role));
       }
     } else if (!isPublicPath) {
       router.push('/');
     }
-  }, [user, isUserLoading, role, isRoleLoading, router, pathname, auth, isRestricted, isAllowedRestricted, hasInvalidSession]);
+  }, [user, isUserLoading, role, isRoleLoading, router, pathname, auth, isPublicPath, isRouteAllowed, hasInvalidSession]);
 
-  // Loader pendant la vérification ou la redirection.
-  const isPublicPath = publicPaths.includes(pathname);
-  const showLoader = isUserLoading || isRoleLoading ||
+  const showLoader =
+    isUserLoading ||
+    isRoleLoading ||
     hasInvalidSession ||
     (user && isPublicPath) ||
     (!user && !isPublicPath) ||
-    (user && !isRestricted && role !== 'admin' && pathname !== '/demandes') ||
-    (user && isRestricted && !isAllowedRestricted);
+    (user && !isRouteAllowed);
 
   if (showLoader) {
     return (

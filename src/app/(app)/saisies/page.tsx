@@ -8,9 +8,6 @@ import { useRole } from '@/hooks/use-role';
 import type { Saisie, Agent, SaisieStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -176,7 +173,7 @@ export default function SaisiesPage() {
   };
 
   // Export to Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (!filteredSaisies || filteredSaisies.length === 0) {
       toast({ variant: 'destructive', title: 'Export impossible', description: 'Aucune donnée à exporter.' });
       return;
@@ -198,6 +195,8 @@ export default function SaisiesPage() {
       Observations: s.notes || '',
     }));
 
+    // Chargé à la demande pour ne pas alourdir le premier chargement de la page
+    const XLSX = await import('xlsx');
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Saisies');
@@ -207,12 +206,17 @@ export default function SaisiesPage() {
   };
 
   // Export to PDF
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (!filteredSaisies || filteredSaisies.length === 0) {
       toast({ variant: 'destructive', title: 'Export impossible', description: 'Aucune donnée à exporter.' });
       return;
     }
 
+    // Chargés à la demande pour ne pas alourdir le premier chargement de la page
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
     const docPdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
     // Header Title

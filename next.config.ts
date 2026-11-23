@@ -10,16 +10,15 @@ const nextConfig: NextConfig = {
     '@firebase/util',
     '@firebase/component',
     '@firebase/logger',
+    'firebase-admin',
   ],
-  /* config options here */
-  experimental: {
-    allowedDevOrigins: [
-      '*.europe-west2.run.app',
-      '*.run.app',
-      'localhost:3000',
-      'localhost:8080',
-    ],
-  },
+  // Option de premier niveau depuis Next.js 15 (elle était ignorée sous "experimental")
+  allowedDevOrigins: [
+    '*.europe-west2.run.app',
+    '*.run.app',
+    'localhost:3000',
+    'localhost:8080',
+  ],
   async headers() {
     return [
       {
@@ -37,15 +36,33 @@ const nextConfig: NextConfig = {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
           },
+          // Empêche l'intégration du portail dans une iframe d'un autre site (clickjacking)
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          // CSP volontairement limitée aux directives sans risque de casser Firebase,
+          // les tuiles de carte ou les images externes.
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
+          },
+          // Caméra (scan QR) et géolocalisation (suivi des appareils) réservées au portail lui-même
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(self), geolocation=(self), microphone=(), payment=(), usb=()',
+          },
         ],
       },
     ];
   },
+  // Les erreurs TypeScript et ESLint bloquent de nouveau le build,
+  // pour qu'aucune régression ne parte en production sans être vue.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   images: {
     remotePatterns: [

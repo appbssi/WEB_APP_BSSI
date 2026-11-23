@@ -1,9 +1,92 @@
 rules_version = '2';
+
+// Règles d'accès sBSSI
+//
+// Le rôle n'est plus choisi par le navigateur : il est inscrit dans le jeton
+// Firebase par le serveur (route /api/auth/idc) après vérification de l'IDC.
+//   request.auth.token.role      : 'admin' | 'secretariat' | 'observer'
+//   request.auth.token.idc       : IDC saisi à la connexion
+//   request.auth.token.agentId   : document agent correspondant (ou null)
+//
+// Une session anonyme ou sans rôle signé n'a accès à RIEN.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Sécurité renforcée : authentification obligatoire pour lire et écrire dans la base de données
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.role in ['admin', 'secretariat', 'observer'];
     }
+    function isAdmin() {
+      return signedIn() && request.auth.token.role == 'admin';
+    }
+    function myIdc() {
+      return request.auth.token.idc;
+    }
+    function myAgentId() {
+      return request.auth.token.get('agentId', null);
+    }
+    // Seuls ces champs sont modifiés par la requête
+    function onlyChanges(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // --- Administrateurs : accès complet à toutes les rubriques -------------
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // --- Données de référence lisibles par tout utilisateur connecté -------
+    match /agents/{id}      { allow read: if signedIn(); }
+    match /missions/{id}    { allow read: if signedIn(); }
+    match /weapons/{id}     { allow read: if signedIn(); }
+    match /settings/{id}    { allow read: if signedIn(); }
+
+    // --- Matériel attribué : chaque agent ne voit que le sien ---------------
+    match /weaponAssignments/{id} {
+      allow read: if signedIn() && resource.data.agentId == myAgentId();
+    }
+
+    // --- Demandes d'absence : chaque agent ne gère que les siennes ----------
+    match /demandes/{id} {
+      allow read: if signedIn() && resource.data.agentId == myIdc();
+      allow create: if signedIn()
+        && request.resource.data.agentId == myIdc()
+        && request.resource.data.status == 'en_attente';
+      // L'agent peut seulement marquer ses demandes comme vues
+      allow update: if signedIn()
+        && resource.data.agentId == myIdc()
+        && onlyChanges(['notified', 'vu_par_agent']);
+      allow delete: if signedIn() && resource.data.agentId == myIdc();
+    }
+
+    // --- Demandes d'explication / sanctions --------------------------------
+    // L'agent lit les siennes et y répond, mais ne peut ni les créer ni les effacer.
+    match /explications/{id} {
+      allow read: if signedIn() && resource.data.agentId == myAgentId();
+      allow update: if signedIn()
+        && resource.data.agentId == myAgentId()
+        && onlyChanges(['replyText', 'replyDate', 'status', 'notifiedAdmin', 'notifiedAgent', 'notifiedAgentSanction'])
+        && request.resource.data.status in [resource.data.status, 'repondu'];
+    }
+
+    // --- Messagerie interne ------------------------------------------------
+    match /messages/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.senderId == request.auth.uid;
+      // Cocher la check-list d'un ordre de mission
+      allow update: if signedIn() && onlyChanges(['text']);
+    }
+
+    // --- Position des appareils --------------------------------------------
+    // Chacun ne peut publier que SA position ; seuls les admins les consultent.
+    match /device_locations/{id} {
+      allow create, update: if signedIn()
+        && request.resource.data.userIdc == myIdc()
+        && request.resource.data.role == request.auth.token.role;
+    }
+
+    // Toute autre collection (activités, GAV, saisies, finances, armurerie,
+    // secrétariat, limitation des connexions…) : administrateurs uniquement.
   }
 }

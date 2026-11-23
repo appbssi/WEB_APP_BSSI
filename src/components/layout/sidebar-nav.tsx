@@ -15,7 +15,6 @@ import {
   Truck,
   Map,
   PackageCheck,
-  BookOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -33,7 +32,7 @@ import Image from 'next/image';
 import { useRole } from '@/hooks/use-role';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useUser } from '@/firebase';
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -56,23 +55,15 @@ const navItems: NavItem[] = [
   { href: '/saisies', label: 'Saisies', icon: PackageCheck, roles: ['admin', 'observer', 'secretariat'] },
   { href: '/finance', label: 'Finances', icon: Banknote, roles: ['admin'] },
   { href: '/secretariat', label: 'Secrétariat', icon: BookUser, roles: ['admin', 'secretariat'] },
-  { href: '/tutoriel', label: 'Tutoriel & Guide', icon: BookOpen },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { logo, isLogoLoading } = useLogo();
-  const { role } = useRole();
+  const { role, restricted } = useRole();
   const { user } = useUser();
   const isMounted = useIsMounted();
-  const [userIdc, setUserIdc] = useState<string>('');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setUserIdc((localStorage.getItem('app-user-idc') || '').toUpperCase().trim());
-    }
-  }, []);
-  
   const userName = useMemo(() => {
     if (!role) return 'Utilisateur';
     return role.charAt(0).toUpperCase() + role.slice(1);
@@ -80,22 +71,20 @@ export function SidebarNav() {
 
 
   const filteredNavItems = useMemo(() => {
-    const isSpecialIdc = userIdc === 'VUCE1Z' || userIdc === 'CQZSBH' || userIdc === 'QXTSLG';
-    if (isSpecialIdc) {
+    if (role === 'admin' && restricted) {
       return navItems.filter(item =>
-        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies', '/tutoriel'].includes(item.href)
+        ['/dashboard', '/cartographie', '/agents', '/missions', '/logistique', '/gav', '/saisies'].includes(item.href)
       );
     }
 
     return navItems.filter(item => {
-      if (item.href === '/tutoriel') return true;
       if (role !== 'admin') {
         return item.href === '/demandes' || (item.roles && role && item.roles.includes(role));
       }
       if (!item.roles) return true;
       return role ? item.roles.includes(role) : false;
     });
-  }, [role, userIdc]);
+  }, [role, restricted]);
 
   if (!isMounted) {
     return null; 
@@ -127,9 +116,6 @@ export function SidebarNav() {
                           <span className="text-primary">s</span>
                           <span className="text-foreground">BSSI</span>
                        </p>
-                       <span className="text-[9px] font-extrabold tracking-[0.15em] text-muted-foreground uppercase">
-                         Forces de Sécurité
-                       </span>
                      </div>
                 </div>
             </div>

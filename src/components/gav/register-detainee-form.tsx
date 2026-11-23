@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/form';
 import { Loader2, User, X, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { compressImageToDataUrl } from '@/lib/image-compress';
 import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -60,20 +61,16 @@ export function RegisterDetaineeForm({ onSuccess }: RegisterDetaineeFormProps) {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 800000) {
-        toast({
-          variant: 'destructive',
-          title: 'Photo trop volumineuse',
-          description: 'Veuillez choisir une photo de moins de 800 Ko.',
+      // Photo redimensionnée et compressée (~20 Ko) avant enregistrement
+      compressImageToDataUrl(file)
+        .then((dataUrl) => setPhoto(dataUrl))
+        .catch((err: Error) => {
+          toast({
+            variant: 'destructive',
+            title: 'Photo refusée',
+            description: err.message,
+          });
         });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 

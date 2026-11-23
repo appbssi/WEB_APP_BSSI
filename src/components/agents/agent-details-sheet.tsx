@@ -29,7 +29,7 @@ import { useRole } from '@/hooks/use-role';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { generateFicheAgentPDF } from '@/lib/pdf-generator';
+import { generateFicheAgentPDF } from '@/lib/pdf-generator-lazy';
 import { AgentQRBadgeDialog } from './agent-qr-badge-dialog';
 import { cn } from '@/lib/utils';
 

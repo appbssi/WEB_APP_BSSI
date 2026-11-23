@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Agent, Availability } from '@/lib/types';
 import { generateAgentQRCodeDataURL, getAgentQRPayloadString } from '@/lib/agent-qrcode';
-import { generateAgentBadgeCardPDF } from '@/lib/pdf-generator';
+import { generateAgentBadgeCardPDF } from '@/lib/pdf-generator-lazy';
 import {
   QrCode,
   Download,

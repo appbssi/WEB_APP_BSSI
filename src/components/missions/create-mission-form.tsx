@@ -31,7 +31,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { logActivity } from '@/lib/activity-logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sendMissionCreationWebhook } from '@/lib/webhooks';
-import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator';
+import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator-lazy';
 import { checkAgentMissionConflict } from '@/lib/missions';
 
 const parseLocalDate = (dateStr: string) => {
@@ -273,7 +273,7 @@ export function CreateMissionForm({
             },
             assignedAgents,
             vehiclePlate,
-            selectedLeaderId
+            selectedLeaderId ?? undefined
           );
 
           // Record PDF in Firestore pdf_documents collection

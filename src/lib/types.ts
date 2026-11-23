@@ -15,6 +15,7 @@ export type Agent = {
   availability?: Availability;
   missionCount?: number;
   onLeave?: boolean;
+  detachement?: string | null;
 };
 
 export type Availability = 'Disponible' | 'En mission' | 'En congé' | 'En permission';
@@ -210,7 +211,8 @@ export type Explication = {
   requestDate: Timestamp;
   replyText?: string;
   replyDate?: Timestamp | null;
-  status: 'en_attente' | 'repondu' | 'sanctionne';
+  // 'lu' | 'archive' | 'accepte' : anciens statuts encore présents dans d'anciens documents Firestore
+  status: 'en_attente' | 'repondu' | 'sanctionne' | 'lu' | 'archive' | 'accepte';
   sanctionText?: string;
   sanctionDate?: Timestamp | null;
   notifiedAgent: boolean;

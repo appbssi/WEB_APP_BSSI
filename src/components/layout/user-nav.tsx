@@ -2,23 +2,42 @@
 'use client';
 
 import { LogOut } from 'lucide-react';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
-import { clearRole } from '@/hooks/use-role';
+import { clearIndexedDbPersistence, terminate } from 'firebase/firestore';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+// Clés locales contenant des données ou une identité à effacer à la déconnexion
+const LOCAL_KEYS_TO_CLEAR = [
+  'sbssi_offline_dashboard_v1',
+  'sbssi_offline_missions_v1',
+  'app-user-idc', // ancien stockage de l'identité (avant les jetons signés)
+  'app-user-role',
+];
 
 export function UserNav() {
   const auth = useAuth();
-  const router = useRouter();
+  const firestore = useFirestore();
 
   const handleLogout = async () => {
-    await signOut(auth);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('app-user-idc');
+    try {
+      await signOut(auth);
+    } finally {
+      if (typeof window !== 'undefined') {
+        // Efface les copies hors-ligne (agents, GAV, saisies…) laissées sur l'appareil
+        LOCAL_KEYS_TO_CLEAR.forEach((key) => {
+          try { localStorage.removeItem(key); } catch {}
+        });
+        try {
+          await terminate(firestore);
+          await clearIndexedDbPersistence(firestore);
+        } catch (err) {
+          console.warn('Cache Firestore non effacé :', err);
+        }
+        // Rechargement complet : repart d'une instance Firestore neuve
+        window.location.replace('/');
+      }
     }
-    clearRole();
-    router.push('/');
   };
 
   return (

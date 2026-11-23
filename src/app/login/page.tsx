@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { signInAnonymously } from 'firebase/auth';
+import { signInWithCustomToken } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,6 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
 import { useIsMounted } from '@/hooks/use-is-mounted';
-import { setRole } from '@/hooks/use-role';
 import { FirebaseError } from 'firebase/app';
 import { ClientOnly } from '@/components/layout/client-only';
 import { AuthGuard } from '@/components/layout/auth-guard';
@@ -37,8 +36,6 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-
-const ADMIN_LOGIN = 'bssi';
 
 const images = [
   'https://i.imgur.com/kPlJEwW.jpeg',
@@ -84,34 +81,23 @@ function LoginContent() {
     setIsLoading(true);
     setHasError(false);
     try {
-      const { email: rawLogin } = data;
-      const login = rawLogin.trim().toUpperCase();
-      let userRole: 'admin' | 'observer' | 'secretariat' | null = null;
+      // L'IDC est vérifié par le serveur, qui renvoie un jeton signé portant le rôle.
+      const res = await fetch('/api/auth/idc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idc: data.email }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
 
-      if (login === '0CWKIX' || login === 'VUCE1Z' || login === 'CQZSBH' || login === 'QXTSLG') {
-        userRole = 'admin';
-      } else if (rawLogin.toLowerCase() === ADMIN_LOGIN) {
-        userRole = 'admin';
-      } else if (rawLogin.toLowerCase() === 'secretariat') {
-        userRole = 'secretariat';
-      } else if (login.length >= 3) {
-        // Any other non-empty IDC/login of at least 3 chars can log in as observer (restricted)
-        userRole = 'observer';
-      }
-
-      if (userRole) {
-        await signInAnonymously(auth);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('app-user-idc', login);
-        }
-        setRole(userRole);
-        // The AuthGuard will handle the redirection
+      if (res.ok && payload.token) {
+        await signInWithCustomToken(auth, payload.token);
+        // L'AuthGuard se charge de la redirection
       } else {
          setHasError(true);
          toast({
             variant: 'destructive',
             title: 'Erreur de connexion',
-            description: "Identifiant (IDC) incorrect.",
+            description: payload.error || "Identifiant (IDC) incorrect.",
         });
       }
     } catch (error) {
@@ -178,7 +164,7 @@ function LoginContent() {
                             <FormControl>
                             <Input 
                                 type="text" 
-                                placeholder="ex: 0CWKIX"
+                                placeholder="Votre identifiant"
                                 {...field}
                                 onChange={(e) => handleInputChange(field, e.target.value)}
                                 className="rounded-full neon-orange-input"

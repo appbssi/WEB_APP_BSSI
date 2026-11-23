@@ -40,8 +40,20 @@ const contactSchema = z.string()
   .or(z.literal(''));
 
 
-export function ImportAgentsDialog({ children }: { children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
+interface ImportAgentsDialogProps {
+  /** Bouton déclencheur (facultatif si la fenêtre est pilotée par open / onOpenChange). */
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function ImportAgentsDialog({ children, open, onOpenChange }: ImportAgentsDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setIsOpen = (value: boolean) => {
+    if (open === undefined) setInternalOpen(value);
+    onOpenChange?.(value);
+  };
   const [isImporting, setIsImporting] = useState(false);
   const [agentsToImport, setAgentsToImport] = useState<AgentImportData[]>([]);
   const { toast } = useToast();
@@ -317,7 +329,7 @@ export function ImportAgentsDialog({ children }: { children: React.ReactNode }) 
             setAgentsToImport([]);
         }
     }}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-4xl lg:max-w-5xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Importer et Mettre à jour des Agents</DialogTitle>

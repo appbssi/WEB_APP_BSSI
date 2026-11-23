@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, addDoc, doc, setDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useCollection } from '@/firebase/firestore/use-collection';
+import { useDoc } from '@/firebase/firestore/use-doc';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
@@ -25,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Calendar, AlertCircle, CheckCircle2, Clock, XCircle, Send, HelpCircle, MessageSquare, AlertTriangle, FileDown, Shield, Printer, ShieldAlert, PackageCheck, ChevronDown, ChevronUp, Trash2, QrCode, Download, IdCard } from 'lucide-react';
 import type { Demande, Agent, Availability, Explication, Mission, Weapon, WeaponAssignment } from '@/lib/types';
-import { generateAutorisationAbsencePDF, generateFicheAgentPDF, generateAgentBadgeCardPDF } from '@/lib/pdf-generator';
+import { generateAutorisationAbsencePDF, generateFicheAgentPDF, generateAgentBadgeCardPDF } from '@/lib/pdf-generator-lazy';
 import { generateAgentQRCodeDataURL } from '@/lib/agent-qrcode';
 import { AgentQRBadgeDialog } from '@/components/agents/agent-qr-badge-dialog';
 import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
@@ -54,7 +55,8 @@ function DemandesContent() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const isMounted = useIsMounted();
-  const { role } = useRole();
+  // IDC et identifiant agent proviennent du jeton signé par le serveur
+  const { role, idc: userIdc, agentId: signedAgentId } = useRole();
 
   // Helper to format Firestore/JS/ISO dates safely without crashing
   const formatDate = (val: any, formatType: 'date' | 'time' | 'datetime' = 'date') => {
@@ -84,8 +86,6 @@ function DemandesContent() {
     }
   };
 
-  const [userIdc, setUserIdc] = useState<string>('');
-  
   // Security States (Anti-Spam Rate Limit)
   const [lastSubmitTime, setLastSubmitTime] = useState<number>(0);
   
@@ -147,20 +147,18 @@ function DemandesContent() {
     });
   };
 
-  // Get user IDC from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedIdc = localStorage.getItem('app-user-idc') || '';
-      setUserIdc(savedIdc.toUpperCase());
-    }
-  }, []);
+  // Fiche de l'agent connecté uniquement (et non plus toute la liste des agents)
+  const agentRef = useMemoFirebase(
+    () => (firestore && signedAgentId ? doc(firestore, 'agents', signedAgentId) : null),
+    [firestore, signedAgentId]
+  );
+  const { data: signedAgent } = useDoc<Agent>(agentRef);
 
-  // Fetch current agent details to get their full name
-  const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
-  const { data: agents } = useCollection<Agent>(agentsQuery);
-
-  // Fetch missions for agent technical sheet
-  const missionsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'missions') : null), [firestore]);
+  // Missions de l'agent connecté uniquement
+  const missionsQuery = useMemoFirebase(() => {
+    if (!firestore || !signedAgentId) return null;
+    return query(collection(firestore, 'missions'), where('assignedAgentIds', 'array-contains', signedAgentId));
+  }, [firestore, signedAgentId]);
   const { data: missions } = useCollection<Mission>(missionsQuery);
 
   // Fetch requests for this agent
@@ -174,18 +172,7 @@ function DemandesContent() {
 
   const { data: demandes, isLoading: demandesLoading } = useCollection<Demande>(demandesQuery);
 
-  const currentAgent = useMemo(() => {
-    if (!agents || !userIdc) return null;
-    const cleanIdc = userIdc.trim().toUpperCase();
-    return agents.find(a => {
-      if (!a || !a.id) return false;
-      const aId = String(a.id).trim().toUpperCase();
-      const aReg = a.registrationNumber ? String(a.registrationNumber).trim().toUpperCase() : '';
-      return aId === cleanIdc || 
-             (aId.length >= 6 && aId.substring(0, 6) === cleanIdc) ||
-             (aReg && aReg === cleanIdc);
-    });
-  }, [agents, userIdc]);
+  const currentAgent = signedAgent ?? null;
 
   const agentDisplayName = useMemo(() => {
     if (currentAgent) {
@@ -1311,7 +1298,7 @@ function DemandesContent() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                const targetAgent = agents?.find(a => a.id === dem.agentId || a.registrationNumber === dem.agentId) || currentAgent;
+                                const targetAgent = currentAgent;
                                 generateAutorisationAbsencePDF(dem, targetAgent);
                               }}
                               className="text-xs h-8 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 font-semibold gap-1"
@@ -1519,7 +1506,7 @@ function DemandesContent() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      const targetAgent = agents?.find(a => a.id === dem.agentId || a.registrationNumber === dem.agentId) || currentAgent;
+                      const targetAgent = currentAgent;
                       generateAutorisationAbsencePDF(dem, targetAgent);
                     }}
                     className="w-full text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 cursor-pointer"

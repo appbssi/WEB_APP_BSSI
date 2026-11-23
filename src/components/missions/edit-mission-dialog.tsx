@@ -137,6 +137,8 @@ export function EditMissionDialog({ mission, isOpen, onOpenChange }: EditMission
   
   const startDate = form.watch('startDate');
   const endDate = form.watch('endDate');
+  const startTime = form.watch('startTime');
+  const endTime = form.watch('endTime');
   const isSingleDayMission = startDate && endDate && startDate === endDate;
 
   const operationalVehicles = useMemo(() => {

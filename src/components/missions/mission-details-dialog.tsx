@@ -36,7 +36,7 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRole } from '@/hooks/use-role';
-import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator';
+import { generateOrdreDeMissionPDF } from '@/lib/pdf-generator-lazy';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity } from '@/lib/activity-logger';
 import { Textarea } from '@/components/ui/textarea';

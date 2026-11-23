@@ -1,23 +1,28 @@
 'use client';
 
 import { useEffect, useRef, useMemo } from 'react';
-import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { useCollection } from '@/firebase/firestore/use-collection';
+import { useDoc } from '@/firebase/firestore/use-doc';
 import { useRole } from '@/hooks/use-role';
 import type { Agent } from '@/lib/types';
 
 export function DeviceTracker() {
   const firestore = useFirestore();
   const { user } = useUser();
-  const { role } = useRole();
+  const { role, idc, agentId } = useRole();
   const lastWriteTimeRef = useRef<number>(0);
 
-  const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
-  const { data: agents } = useCollection<Agent>(agentsQuery);
+  // Seule la fiche de l'agent connecté est chargée (identifiant fourni par le jeton signé)
+  const agentRef = useMemoFirebase(
+    () => (firestore && agentId ? doc(firestore, 'agents', agentId) : null),
+    [firestore, agentId]
+  );
+  const { data: matchedAgent } = useDoc<Agent>(agentRef);
 
   useEffect(() => {
-    if (!firestore || typeof window === 'undefined') return;
+    // Rien n'est envoyé tant que l'identité signée n'est pas connue (requis par les règles Firestore)
+    if (!firestore || !user || !idc || typeof window === 'undefined') return;
 
     // 1. Obtenir ou générer un ID de périphérique persistant unique dans localStorage
     let deviceId = localStorage.getItem('app-device-id');
@@ -26,33 +31,17 @@ export function DeviceTracker() {
       localStorage.setItem('app-device-id', deviceId);
     }
 
-    const userIdc = (localStorage.getItem('app-user-idc') || '').toUpperCase().trim();
-
-    // Trouver l'agent correspondant à l'IDC ou Matricule connecté
-    const matchedAgent = agents?.find(a => {
-      if (!a || !userIdc) return false;
-      const aId = String(a.id || '').toUpperCase().trim();
-      const aReg = String(a.registrationNumber || '').toUpperCase().trim();
-      return aId === userIdc || aReg === userIdc;
-    });
+    const userIdc = idc;
 
     let displayName = '';
     if (matchedAgent) {
       displayName = matchedAgent.fullName;
-    } else if (userIdc) {
-      if (['0CWKIX', 'CQZSBH', 'VUCE1Z', 'QXTSLG'].includes(userIdc) || role === 'admin') {
-        displayName = `Commandement (${userIdc})`;
-      } else if (role === 'secretariat') {
-        displayName = `Secrétariat (${userIdc})`;
-      } else {
-        displayName = `Agent (${userIdc})`;
-      }
     } else if (role === 'admin') {
-      displayName = 'Commandement Général';
+      displayName = `Commandement (${userIdc})`;
     } else if (role === 'secretariat') {
-      displayName = 'Poste Secrétariat';
+      displayName = `Secrétariat (${userIdc})`;
     } else {
-      displayName = `Terminal Agent (${deviceId.substring(0, 6)})`;
+      displayName = `Agent (${userIdc})`;
     }
 
     let watchId: number | null = null;
@@ -80,7 +69,7 @@ export function DeviceTracker() {
           userEmail: displayName,
           agentName: displayName,
           userIdc: userIdc || null,
-          agentId: matchedAgent?.id || null,
+          agentId: agentId || null,
           role: role || 'observer',
           userAgent: userAgent,
           deviceType: isMobile ? 'mobile' : 'desktop',
@@ -115,7 +104,7 @@ export function DeviceTracker() {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [firestore, user, role, agents]);
+  }, [firestore, user, role, idc, agentId, matchedAgent]);
 
   return null; // Composant de service en arrière-plan
 }

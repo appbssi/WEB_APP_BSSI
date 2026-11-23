@@ -70,7 +70,7 @@ import { collection, query, doc, setDoc, addDoc, deleteDoc, Timestamp } from 'fi
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication, Saisie } from '@/lib/types';
 import { useMemo, useState, useEffect } from 'react';
-import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator';
+import { generateAutorisationAbsencePDF } from '@/lib/pdf-generator-lazy';
 import { PdfHistoryViewer } from '@/components/pdf/pdf-history-viewer';
 import { getAgentAvailability, safeToDate } from '@/lib/agents';
 

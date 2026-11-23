@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { FileText, Download, Trash2, Search, Loader2, ShieldAlert, UserCheck, Calendar } from 'lucide-react';
-import { generateOrdreDeMissionPDF, generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator';
+import { generateOrdreDeMissionPDF, generateAutorisationAbsencePDF, generateFicheAgentPDF } from '@/lib/pdf-generator-lazy';
 
 export type PdfDocumentItem = {
   id: string;

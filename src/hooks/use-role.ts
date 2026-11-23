@@ -1,104 +1,102 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useUser } from '@/firebase';
 
-type Role = 'admin' | 'observer' | 'secretariat' | null;
+export type Role = 'admin' | 'observer' | 'secretariat' | null;
 
-const ROLE_STORAGE_KEY = 'app-user-role';
-
-// --- State Management outside of React ---
-let memoryState: Role = null;
-
-// Function to set the role and persist it
-export function setRole(newRole: Role) {
-  memoryState = newRole;
-  try {
-    if (typeof window !== 'undefined') {
-      if (newRole) {
-        localStorage.setItem(ROLE_STORAGE_KEY, newRole);
-      } else {
-        localStorage.removeItem(ROLE_STORAGE_KEY);
-      }
-    }
-  } catch (error) {
-    console.error("Failed to write role to localStorage", error);
-  }
-  // Notify listeners about the change
-  listeners.forEach((listener) => listener(newRole));
-}
-
-export function clearRole() {
-  setRole(null);
-}
-
-// --- Listener setup to update React components ---
-const listeners: Array<(role: Role) => void> = [];
-
-function subscribe(callback: (role: Role) => void) {
-  listeners.push(callback);
-  return function unsubscribe() {
-    const index = listeners.indexOf(callback);
-    if (index > -1) {
-      listeners.splice(index, 1);
-    }
-  };
-}
-
-// --- React Hook ---
-interface UseRoleResult {
+export interface Identity {
   role: Role;
+  /** IDC saisi à la connexion (normalisé en majuscules). */
+  idc: string;
+  /** Identifiant du document agent correspondant, s'il existe. */
+  agentId: string | null;
+  /** Administrateur à accès limité. */
+  restricted: boolean;
+}
+
+const EMPTY: Identity = { role: null, idc: '', agentId: null, restricted: false };
+
+// Cache mémoire : évite un écran de chargement à chaque changement de page.
+let cachedUid: string | null = null;
+let cachedIdentity: Identity = EMPTY;
+
+function isRole(v: unknown): v is Exclude<Role, null> {
+  return v === 'admin' || v === 'observer' || v === 'secretariat';
+}
+
+interface UseRoleResult extends Identity {
   isRoleLoading: boolean;
   isAdmin: boolean;
   isObserver: boolean;
   isSecretariat: boolean;
 }
 
-// Initialize state from localStorage on script load
-if (typeof window !== 'undefined') {
-  try {
-      const savedRole = localStorage.getItem(ROLE_STORAGE_KEY);
-      if (savedRole === 'admin' || savedRole === 'observer' || savedRole === 'secretariat') {
-          memoryState = savedRole;
-      }
-  } catch (error) {
-      console.error("Failed to read role from localStorage on init", error);
-  }
-}
-
-
+/**
+ * Rôle et identité de l'utilisateur connecté.
+ *
+ * Ils proviennent des « custom claims » du jeton Firebase, signés par le serveur
+ * (route /api/auth/idc). Modifier le localStorage ne permet plus de changer de rôle,
+ * et les règles Firestore vérifient ces mêmes informations.
+ */
 export function useRole(): UseRoleResult {
-  const [role, setRoleState] = useState<Role>(memoryState);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const { user, isUserLoading } = useUser();
+  // Identité résolue, associée à l'utilisateur (uid) pour lequel elle a été lue
+  const [resolved, setResolved] = useState<{ uid: string | null; identity: Identity }>(() => ({
+    uid: cachedUid,
+    identity: cachedIdentity,
+  }));
 
   useEffect(() => {
-    // This effect runs once on mount to ensure we have the correct initial value
-    // in case it was set from another tab after this script loaded.
-    if (typeof window !== 'undefined') {
-      try {
-          const savedRole = localStorage.getItem(ROLE_STORAGE_KEY) as Role;
-          if (['admin', 'observer', 'secretariat'].includes(savedRole as string)) {
-              if(memoryState !== savedRole) {
-                  memoryState = savedRole;
-              }
-          } else {
-              memoryState = null;
-          }
-      } catch(e) {
-          memoryState = null;
-      }
-    }
-    setRoleState(memoryState);
-    setIsInitialized(true);
-    
-    // Subscribe to future changes
-    const unsubscribe = subscribe(setRoleState);
-    return unsubscribe;
-  }, []);
+    let cancelled = false;
 
-  return { 
-    role, 
-    isRoleLoading: !isInitialized,
+    if (!user) {
+      cachedUid = null;
+      cachedIdentity = EMPTY;
+      setResolved({ uid: null, identity: EMPTY });
+      return;
+    }
+
+    if (user.uid === cachedUid) {
+      setResolved({ uid: cachedUid, identity: cachedIdentity });
+      return;
+    }
+
+    user
+      .getIdTokenResult()
+      .then((result) => {
+        const c = result.claims as Record<string, unknown>;
+        return isRole(c.role)
+          ? {
+              role: c.role,
+              idc: typeof c.idc === 'string' ? c.idc : '',
+              agentId: typeof c.agentId === 'string' ? c.agentId : null,
+              restricted: c.restricted === true,
+            }
+          : EMPTY;
+      })
+      .catch(() => EMPTY)
+      .then((next) => {
+        if (cancelled) return;
+        cachedUid = user.uid;
+        cachedIdentity = next;
+        setResolved({ uid: user.uid, identity: next });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Calculé à chaque rendu : tant que l'identité lue ne correspond pas à l'utilisateur
+  // courant, on est « en chargement » (évite de croire la session invalide juste après la connexion).
+  const isClaimsLoading = !!user && resolved.uid !== user.uid;
+  const identity = user && !isClaimsLoading ? resolved.identity : EMPTY;
+
+  const role = identity.role;
+  return {
+    ...identity,
+    isRoleLoading: isUserLoading || isClaimsLoading,
     isAdmin: role === 'admin',
     isObserver: role === 'observer',
     isSecretariat: role === 'secretariat',

@@ -1,10 +1,10 @@
-const CACHE_NAME = 'sbssi-pwa-cache-v1';
+// v2 : purge l'ancien cache qui contenait la page /tutoriel supprimée
+const CACHE_NAME = 'sbssi-pwa-cache-v2';
 
 const STATIC_ASSETS = [
   '/',
   '/dashboard',
   '/missions',
-  '/tutoriel',
   '/manifest.json',
   '/favicon.ico',
   '/logo.png'

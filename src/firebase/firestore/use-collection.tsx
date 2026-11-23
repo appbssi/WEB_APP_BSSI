@@ -75,24 +75,25 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // En cas d'erreur de permission, on renvoie une liste vide au lieu de faire planter le composant
-        console.debug('Firestore Subscription Error handled:', err.code);
-        
         const path: string =
           memoizedTargetRefOrQuery.type === 'collection'
             ? (memoizedTargetRefOrQuery as CollectionReference).path
             : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
 
-        const contextualError = new FirestorePermissionError({
-          operation: 'list',
-          path,
-        })
-
-        setError(contextualError);
-        setData([]); // Retourne un tableau vide au lieu de null pour éviter les erreurs de mapping
+        // Liste vide pour ne pas faire planter l'écran, mais l'erreur n'est plus masquée :
+        // un refus d'accès (attendu selon le rôle) est distingué d'une vraie panne.
+        setData([]);
         setIsLoading(false);
 
-        errorEmitter.emit('permission-error', contextualError);
+        if (err.code === 'permission-denied') {
+          console.debug(`[Firestore] Accès refusé à « ${path} » pour ce rôle.`);
+          const contextualError = new FirestorePermissionError({ operation: 'list', path });
+          setError(contextualError);
+          errorEmitter.emit('permission-error', contextualError);
+        } else {
+          console.error(`[Firestore] Erreur de lecture de « ${path} » (${err.code}) :`, err.message);
+          setError(err);
+        }
       }
     );
 

@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User, HelpCircle, Pencil, Calendar, QrCode } from 'lucide-react';
+import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User, HelpCircle, Pencil, Calendar, QrCode, ChevronDown, X, Layers } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,7 +58,6 @@ import { getAgentAvailability } from '@/lib/agents';
 import {
   Dialog,
   DialogContent,
-  DialogTrigger,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { logActivity } from '@/lib/activity-logger';
@@ -133,6 +132,7 @@ function AgentsContent() {
   const { logo } = useLogo();
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterOpen, setRegisterOpen] = useState(false);
+  const [isImportOpen, setImportOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [leaveAgent, setLeaveAgent] = useState<Agent | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -221,6 +221,28 @@ function AgentsContent() {
       return matchesSearch && matchesAvailability && matchesSection && matchesDetachement;
     });
   }, [sortedAgents, searchQuery, availabilityFilter, sectionFilter, selectedDetachement]);
+
+  // Nombre d'agents par disponibilité (selon la recherche, la section et le détachement en cours)
+  const availabilityCounts = useMemo(() => {
+    const counts = { all: 0, Disponible: 0, 'En mission': 0, 'En congé': 0 } as Record<string, number>;
+    const searchLower = searchQuery.toLowerCase();
+    for (const agent of sortedAgents) {
+      const matchesSearch = (agent.fullName || '').toLowerCase().includes(searchLower) ||
+                            (agent.registrationNumber || '').toLowerCase().includes(searchLower) ||
+                            (agent.rank || '').toLowerCase().includes(searchLower) ||
+                            (agent.id || '').toLowerCase().includes(searchLower);
+      const matchesSection = sectionFilter === 'all'
+        ? true
+        : sectionFilter === 'Non assigné'
+          ? !agent.section || agent.section === 'Non assigné'
+          : (agent.section || '').toLowerCase() === sectionFilter.toLowerCase();
+      const matchesDetachement = !selectedDetachement || selectedDetachement === 'ALL' || agent.section === selectedDetachement;
+      if (!(matchesSearch && matchesSection && matchesDetachement)) continue;
+      counts.all++;
+      if (agent.availability && agent.availability in counts) counts[agent.availability]++;
+    }
+    return counts;
+  }, [sortedAgents, searchQuery, sectionFilter, selectedDetachement]);
 
   const getBadgeVariant = (availability?: Availability) => {
     switch (availability) {
@@ -513,82 +535,40 @@ function AgentsContent() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline gap-4">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-3xl font-bold tracking-tight">Agents</h1>
-        <span className="text-muted-foreground">({filteredAgents.length} affiché(s))</span>
+        <span className="text-sm text-muted-foreground">
+          {filteredAgents.length} affiché{filteredAgents.length > 1 ? 's' : ''} sur {sortedAgents.length}
+        </span>
       </div>
-      
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
+      {/* Barre d'outils : recherche, section, actions, puis filtres de disponibilité */}
+      <div className="rounded-xl border bg-card/40 p-3 sm:p-4 space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                className="pl-10"
-                placeholder="Rechercher par nom, matricule ou grade..."
+                className="h-10 pl-10 pr-9"
+                placeholder="Nom, matricule ou grade…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Rechercher un agent"
               />
-            </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {isAdmin && (
-                <button 
-                  className="button-13 flex items-center justify-center text-destructive hover:bg-destructive/10 !w-auto px-4"
-                  onClick={handleCleanDuplicates}
-                  disabled={isCleaning}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label="Effacer la recherche"
                 >
-                  {isCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  Nettoyer Doublons
+                  <X className="h-4 w-4" />
                 </button>
               )}
-              {!isObserver && (
-                <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
-                  <DialogTrigger asChild>
-                    <button className="button-13 flex items-center justify-center text-primary">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
-                    <DialogTitle className="sr-only">Enregistrer un nouvel agent</DialogTitle>
-                    <RegisterAgentForm onAgentRegistered={() => setRegisterOpen(false)} />
-                  </DialogContent>
-                </Dialog>
-              )}
-               {!isObserver && (
-                  <ImportAgentsDialog>
-                    <button className="button-13 flex items-center justify-center text-primary">
-                      <FileUp className="mr-2 h-4 w-4" /> Importer
-                    </button>
-                  </ImportAgentsDialog>
-              )}
-              <button 
-                className="button-13 flex items-center justify-center text-[#1a2b4c] dark:text-blue-300 font-semibold"
-                onClick={() => setScannerOpen(true)}
-              >
-                <QrCode className="mr-2 h-4 w-4" /> Scanner QR
-              </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="button-13 flex items-center justify-center text-primary">
-                    <FileDown className="mr-2 h-4 w-4" /> Exporter
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>Choisir un format</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={handleExportPDF}>Exporter en PDF</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={handleExportXLSX}>Exporter en XLSX</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium">Filtrer par:</span>
-            <button className={cn('button-13', availabilityFilter === 'all' && 'active')} onClick={() => setAvailabilityFilter('all')}>Tous</button>
-            <button className={cn('button-13', availabilityFilter === 'Disponible' && 'active')} onClick={() => setAvailabilityFilter('Disponible')}>Disponibles</button>
-            <button className={cn('button-13', availabilityFilter === 'En mission' && 'active')} onClick={() => setAvailabilityFilter('En mission')}>En mission</button>
-            <button className={cn('button-13', availabilityFilter === 'En congé' && 'active')} onClick={() => setAvailabilityFilter('En congé')}>En congé</button>
+            <div className="flex items-center gap-2 sm:shrink-0">
             <Select value={sectionFilter} onValueChange={setSectionFilter}>
-              <SelectTrigger className="button-13 !w-[180px]">
+              <SelectTrigger className="h-10 flex-1 sm:w-[220px] sm:flex-none gap-2" aria-label="Filtrer par section">
+                <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <SelectValue placeholder="Filtrer par section" />
               </SelectTrigger>
               <SelectContent>
@@ -604,6 +584,106 @@ function AgentsContent() {
                 <SelectItem value="Non assigné">NON ASSIGNÉ</SelectItem>
               </SelectContent>
             </Select>
+              {/* Toutes les actions regroupées dans un seul menu déroulant.
+                  modal={false} : évite que la page reste bloquée quand une fenêtre s'ouvre depuis le menu. */}
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button className="h-10 shrink-0 gap-2 px-4 font-semibold">
+                    {isCleaning ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                    Actions
+                    <ChevronDown className="h-4 w-4 opacity-80" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {!isObserver && (
+                    <>
+                      <DropdownMenuItem onSelect={() => setRegisterOpen(true)}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer un agent
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                        <FileUp className="mr-2 h-4 w-4" /> Importer
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuItem onSelect={() => setScannerOpen(true)}>
+                    <QrCode className="mr-2 h-4 w-4" /> Scanner QR
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Exporter</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={handleExportPDF}>
+                    <FileDown className="mr-2 h-4 w-4" /> Exporter en PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={handleExportXLSX}>
+                    <FileDown className="mr-2 h-4 w-4" /> Exporter en XLSX
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={handleCleanDuplicates}
+                        disabled={isCleaning}
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Nettoyer les doublons
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Fenêtres ouvertes depuis le menu */}
+              {!isObserver && (
+                <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
+                  <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
+                    <DialogTitle className="sr-only">Enregistrer un nouvel agent</DialogTitle>
+                    <RegisterAgentForm onAgentRegistered={() => setRegisterOpen(false)} />
+                  </DialogContent>
+                </Dialog>
+              )}
+              {!isObserver && <ImportAgentsDialog open={isImportOpen} onOpenChange={setImportOpen} />}
+            </div>
+        </div>
+
+        {/* Filtres de disponibilité : contrôle segmenté avec compteurs */}
+        <div
+          role="tablist"
+          aria-label="Filtrer par disponibilité"
+          className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1 sm:flex sm:w-fit"
+        >
+          {([
+            { value: 'all', label: 'Tous', dot: 'bg-muted-foreground' },
+            { value: 'Disponible', label: 'Disponibles', dot: 'bg-emerald-500' },
+            { value: 'En mission', label: 'En mission', dot: 'bg-sky-500' },
+            { value: 'En congé', label: 'En congé', dot: 'bg-amber-500' },
+          ] as const).map((opt) => {
+            const isActive = availabilityFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setAvailabilityFilter(opt.value)}
+                className={cn(
+                  'inline-flex flex-1 sm:flex-none items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  isActive
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                )}
+              >
+                <span className={cn('h-2 w-2 rounded-full', opt.dot)} aria-hidden />
+                {opt.label}
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 text-xs tabular-nums',
+                    isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {availabilityCounts[opt.value] ?? 0}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

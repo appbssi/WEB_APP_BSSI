@@ -8,10 +8,9 @@ import { DetachementSelector } from './detachement-selector';
 import { ThemeToggle } from './theme-toggle';
 import { Button } from '../ui/button';
 import { useRole } from '@/hooks/use-role';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Bell, BookOpen, QrCode } from 'lucide-react';
+import { Bell, QrCode } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -20,21 +19,15 @@ import {
 } from '@/components/ui/tooltip';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
+import { useDoc } from '@/firebase/firestore/use-doc';
 import { collection, query, where, doc, setDoc } from 'firebase/firestore';
 import type { Demande, Agent, Mission } from '@/lib/types';
 import { AgentQRBadgeDialog } from '../agents/agent-qr-badge-dialog';
 
 function NotificationBell() {
-  const { role } = useRole();
+  const { role, idc: userIdc } = useRole();
   const firestore = useFirestore();
   const router = useRouter();
-  const [userIdc, setUserIdc] = useState<string>('');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setUserIdc((localStorage.getItem('app-user-idc') || '').toUpperCase());
-    }
-  }, []);
 
   const demandsQuery = useMemoFirebase(() => {
     if (!firestore || !role) return null;
@@ -135,32 +128,16 @@ function NotificationBell() {
 }
 
 export function Header() {
-  const { role } = useRole();
+  const { role, idc: userIdc, agentId } = useRole();
   const firestore = useFirestore();
-  const [userIdc, setUserIdc] = useState<string>('');
   const [isMyBadgeOpen, setIsMyBadgeOpen] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setUserIdc((localStorage.getItem('app-user-idc') || '').toUpperCase());
-    }
-  }, []);
-
-  const agentsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'agents') : null), [firestore]);
-  const { data: agents } = useCollection<Agent>(agentsQuery);
-
-  const currentAgent = useMemo(() => {
-    if (!agents || !userIdc) return null;
-    const cleanIdc = userIdc.trim().toUpperCase();
-    return agents.find(a => {
-      if (!a || !a.id) return false;
-      const aId = String(a.id).trim().toUpperCase();
-      const aReg = a.registrationNumber ? String(a.registrationNumber).trim().toUpperCase() : '';
-      return aId === cleanIdc || 
-             (aId.length >= 6 && aId.substring(0, 6) === cleanIdc) ||
-             (aReg && aReg === cleanIdc);
-    });
-  }, [agents, userIdc]);
+  // Seule la fiche de l'agent connecté est chargée (identifiant fourni par le jeton signé)
+  const agentRef = useMemoFirebase(
+    () => (firestore && agentId ? doc(firestore, 'agents', agentId) : null),
+    [firestore, agentId]
+  );
+  const { data: currentAgent } = useDoc<Agent>(agentRef);
 
   const displayRole = useMemo(() => {
     if (!role) return '';
@@ -212,24 +189,6 @@ export function Header() {
             </Tooltip>
           </TooltipProvider>
         )}
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/tutoriel">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full w-9 h-9 border-primary/20 hover:bg-primary/10 text-primary cursor-pointer shadow-sm"
-                >
-                  <BookOpen className="h-4 w-4" />
-                </Button>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p className="text-xs font-semibold">Tutoriel & Manuel sBSSI</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
         <ChatSheet />
         <RecentActivitiesDialog />
         <DetachementSelector />

@@ -1,4 +1,3 @@
-import QRCode from 'qrcode';
 import type { Agent } from './types';
 
 export interface AgentQRPayload {
@@ -47,6 +46,8 @@ export async function generateAgentQRCodeDataURL(
   options?: { size?: number; margin?: number; colorDark?: string; colorLight?: string }
 ): Promise<string> {
   const text = getAgentQRPayloadString(agent);
+  // Chargé à la demande : les pages qui ne font que scanner n'embarquent pas le générateur
+  const { default: QRCode } = await import('qrcode');
   return QRCode.toDataURL(text, {
     width: options?.size || 300,
     margin: options?.margin ?? 2,

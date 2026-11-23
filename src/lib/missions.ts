@@ -93,9 +93,10 @@ export function checkAgentMissionConflict(
     if (!isDayOverlap) continue;
 
     // If both are single-day missions on the exact same calendar day and both have start/end times:
-    const isSelSameDay = sStartDay.getTime() === sEndDay.getTime();
-    const isMSameDay = mStartDay.getTime() === mEndDay.getTime();
-    const isExactSameDay = isSelSameDay && isMSameDay && sStartDay.getTime() === mStartDay.getTime();
+    // (comparaison par jour calendaire : début et fin d'une même journée n'ont pas la même heure)
+    const isSelSameDay = isSameDay(selStart, selEnd);
+    const isMSameDay = isSameDay(mStart, mEnd);
+    const isExactSameDay = isSelSameDay && isMSameDay && isSameDay(selStart, mStart);
 
     if (isExactSameDay && startTime && endTime && mission.startTime && mission.endTime) {
       const timeOverlap = startTime < mission.endTime && endTime > mission.startTime;

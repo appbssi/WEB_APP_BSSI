@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+// jspdf-autotable v5 ne s'ajoute plus automatiquement à jsPDF : on l'appelle comme une fonction
+import autoTable from 'jspdf-autotable';
 
 // Direct link for the PDF header banner image (can be changed to any direct image URL)
 export const PDF_HEADER_IMAGE_URL = 'https://i.ibb.co/FL7ZKgSp/ent-te.png';
@@ -293,7 +294,7 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
       ];
     });
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: tableStartY + 4,
       head: [['N°', 'Matricule', 'Grade', 'Nom Complet', 'Contact']],
       body: tableBody,
@@ -629,7 +630,7 @@ export async function generateFicheAgentPDF(agent: any, missions: any[], explica
     });
 
     if (tableData.length > 0) {
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: 157 + yShift,
         head: [['N°', 'Libellé de la Mission', 'Lieu', 'Période', 'Statut']],
         body: tableData,

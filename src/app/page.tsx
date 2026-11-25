@@ -64,36 +64,46 @@ function LandingContent() {
         />
       ))}
       <div className="absolute inset-0 bg-black/60" />
+      {/* Voile renforcé au centre pour que le texte reste lisible sur les zones claires de la photo */}
+      <div
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.55)_0%,rgba(0,0,0,0.25)_45%,transparent_75%)]"
+        aria-hidden="true"
+      />
 
-      <div className="relative z-10 flex h-full flex-col items-center justify-center text-center text-white p-4">
-        
-        <div className="transition-all duration-500 opacity-100 scale-100">
-            <div className="mx-auto mb-6 h-32 w-32 flex items-center justify-center">
-                <div className="relative h-28 w-28 rounded-full overflow-hidden border-2 border-emerald-500/20 bg-transparent shadow-lg">
+      <div className="relative z-10 flex h-full flex-col items-center justify-center p-4 text-center text-white">
+        <div className="flex flex-col items-center animate-fade-in-up">
+            <div className="mb-5 flex h-32 w-32 items-center justify-center">
+                <div className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-emerald-500/60 bg-transparent shadow-lg ring-4 ring-emerald-500/15">
                     {logo ? (
                         <Image
-  src="https://i.ibb.co/v4p7NtMh/dd.png"
-  alt="Logo"
-  fill
-  className="object-cover rounded-full"
-/>
+                          src="https://i.ibb.co/v4p7NtMh/dd.png"
+                          alt="Logo"
+                          fill
+                          sizes="112px"
+                          priority
+                          className="object-cover rounded-full"
+                        />
                     ) : null}
+                    {/* Reflet métallique qui traverse l'emblème (comme sur la page de connexion) */}
+                    <span className="emblem-shine" aria-hidden="true" />
                 </div>
             </div>
-            <h1 className="text-5xl font-bold tracking-tight text-shadow-lg sm:text-6xl md:text-7xl" style={{fontFamily: 'Montserrat, sans-serif', textShadow: '2px 2px 8px rgba(0,0,0,0.7)'}}>
+            <h1 className="text-5xl font-bold tracking-tight sm:text-6xl md:text-7xl" style={{fontFamily: 'Montserrat, sans-serif', textShadow: '2px 2px 8px rgba(0,0,0,0.7)'}}>
                 <span className="text-primary">s</span>BSSI
             </h1>
-            <p className="mt-4 max-w-2xl text-lg text-primary-foreground/80" style={{textShadow: '1px 1px 4px rgba(0,0,0,0.5)'}}>
+            {/* Liseré vert (emblème) → orange (application), repris de la page de connexion */}
+            <span className="mt-4 h-1 w-24 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-500/70 to-primary" aria-hidden="true" />
+            <p className="mt-4 max-w-2xl text-base font-medium text-white/95 sm:text-lg" style={{textShadow: '0 1px 6px rgba(0,0,0,0.8)'}}>
                 Système de Brigade Spéciale de Surveillance et d'Intervention
             </p>
-            <button 
-              onClick={handleEnterClick} 
-              className="btn-effect mt-10 inline-block cursor-pointer rounded-full bg-primary px-8 py-3 text-center text-base font-semibold uppercase text-primary-foreground no-underline"
+            <button
+              type="button"
+              onClick={handleEnterClick}
+              className="mt-8 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full bg-primary px-10 py-3 text-base font-semibold uppercase tracking-wide text-primary-foreground shadow-lg shadow-black/30 ring-2 ring-emerald-500/60 ring-offset-2 ring-offset-black/40 transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 active:translate-y-0"
             >
               Entrer
             </button>
         </div>
-
       </div>
     </div>
   );

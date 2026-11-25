@@ -286,6 +286,8 @@ function LoginContent() {
                               src="https://i.ibb.co/v4p7NtMh/dd.png"
                               alt="Logo"
                               fill
+                              sizes="96px"
+                              priority
                               className="object-cover rounded-full"
                             />
                             {/* Reflet métallique qui traverse l'emblème */}

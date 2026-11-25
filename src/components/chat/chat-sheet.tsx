@@ -14,10 +14,32 @@ import {
   Check,
   ChevronDown,
   Loader2,
+  MoreVertical,
+  ListChecks,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit, Timestamp, doc, where } from 'firebase/firestore';
-import { addDoc } from '@/lib/firestore-fast';
+import { collection, query, orderBy, limit, Timestamp, doc, where, getDocs } from 'firebase/firestore';
+import { addDoc, writeBatch } from '@/lib/firestore-fast';
+import { useToast } from '@/hooks/use-toast';
+import { logActivity } from '@/lib/activity-logger';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { useRole } from '@/hooks/use-role';
@@ -64,8 +86,10 @@ function colorFor(key: string) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
-/** Ordre signé archivé (scan enregistré ou importé) : clé = id de mission, et nom en secours. */
-export interface SignedIndex { byMissionId: Map<string, Date | null>; byName: Map<string, Date | null> }
+/** Suivi de l'ordre de mission dans « Ordres signés » : impression puis scan signé archivé. */
+export interface OrderProgress { printedAt: Date | null; printed: boolean; archivedAt: Date | null; archived: boolean }
+/** Clé = id de mission, et nom de mission en secours (anciens messages). */
+export interface SignedIndex { byMissionId: Map<string, OrderProgress>; byName: Map<string, OrderProgress> }
 
 const normName = (s?: string) => (s || '').trim().toLowerCase();
 
@@ -92,11 +116,12 @@ function MissionChecklistCard({ text, createdAt, signed }: { text: string; creat
   const { missionId, name, location, startDate, endDate, startTime, endTime, agents = [] } = missionData;
 
   // Les anciens messages n'ont pas l'identifiant de la mission : on se rabat sur son nom
-  const signedKey = missionId && signed.byMissionId.has(missionId)
-    ? { found: true, at: signed.byMissionId.get(missionId) ?? null }
-    : !missionId && signed.byName.has(normName(name))
-      ? { found: true, at: signed.byName.get(normName(name)) ?? null }
-      : { found: false, at: null };
+  const progress: OrderProgress | undefined = missionId
+    ? signed.byMissionId.get(missionId)
+    : signed.byName.get(normName(name));
+  const archived = !!progress?.archived;
+  // Un ordre signé archivé a forcément été imprimé (l'agent ne voit pas toujours la date d'impression)
+  const printed = archived || !!progress?.printed;
 
   const fmt = (d: Date | null) =>
     d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' à ' + timeOf(d) : null;
@@ -104,10 +129,18 @@ function MissionChecklistCard({ text, createdAt, signed }: { text: string; creat
   const steps = [
     { id: 'created', label: 'Création de la mission', done: true, detail: fmt(createdAt) },
     {
+      id: 'printed',
+      label: 'Imprimer',
+      done: printed,
+      detail: printed
+        ? (fmt(progress?.printedAt ?? null) ? `Ordre non signé imprimé le ${fmt(progress?.printedAt ?? null)}` : 'Ordre non signé imprimé')
+        : "Ordre de mission non signé pas encore imprimé (Ordres signés)",
+    },
+    {
       id: 'signed',
-      label: "Ordre de mission signé enregistré",
-      done: signedKey.found,
-      detail: signedKey.found ? (fmt(signedKey.at) ?? 'Enregistré') : 'En attente du scan signé (Ordres signés)',
+      label: 'Ordre de mission signé enregistré',
+      done: archived,
+      detail: archived ? (fmt(progress?.archivedAt ?? null) ?? 'Enregistré') : 'En attente du scan signé (Ordres signés)',
     },
   ];
   const total = steps.length;
@@ -234,20 +267,28 @@ export function ChatSheet() {
   // Ordres signés archivés : l'admin les voit tous, un agent seulement ceux de ses missions
   const signedQuery = useMemoFirebase(() => {
     if (!firestore || !isOpen) return null;
-    if (role === 'admin') return query(collection(firestore, 'signed_orders'), where('status', '==', 'archive'));
+    if (role === 'admin') return collection(firestore, 'signed_orders');
     const keys = [agentId, idc].filter((k): k is string => !!k);
     if (keys.length === 0) return null;
     return query(collection(firestore, 'signed_orders'), where('agentIds', 'array-contains-any', keys));
   }, [firestore, isOpen, role, agentId, idc]);
-  const { data: signedOrders } = useCollection<{ status?: string; missionId?: string | null; missionName?: string; archivedAt?: unknown }>(signedQuery);
+  const { data: signedOrders } = useCollection<{
+    status?: string; missionId?: string | null; missionName?: string; archivedAt?: unknown; printedAt?: unknown; printCount?: number;
+  }>(signedQuery);
   const signed: SignedIndex = useMemo(() => {
-    const byMissionId = new Map<string, Date | null>();
-    const byName = new Map<string, Date | null>();
+    const byMissionId = new Map<string, OrderProgress>();
+    const byName = new Map<string, OrderProgress>();
     (signedOrders || []).forEach((o) => {
-      if (o.status !== 'archive') return;
-      const at = safeToDate(o.archivedAt) ?? null;
-      if (o.missionId) byMissionId.set(o.missionId, at);
-      if (o.missionName) byName.set(normName(o.missionName), at);
+      const printedAt = safeToDate(o.printedAt) ?? null;
+      const archived = o.status === 'archive';
+      const entry: OrderProgress = {
+        printedAt,
+        printed: !!printedAt || (o.printCount ?? 0) > 0 || o.status === 'a_signer' || archived,
+        archivedAt: archived ? (safeToDate(o.archivedAt) ?? null) : null,
+        archived,
+      };
+      if (o.missionId) byMissionId.set(o.missionId, entry);
+      if (o.missionName) byName.set(normName(o.missionName), entry);
     });
     return { byMissionId, byName };
   }, [signedOrders]);
@@ -266,6 +307,57 @@ export function ChatSheet() {
   );
   const { data: rawMessages, isLoading } = useCollection<ChatMessage>(messagesQuery);
   const messages = useMemo(() => (rawMessages ? [...rawMessages].reverse() : null), [rawMessages]);
+
+  // --- Suppression : chacun ses messages, l'admin tous (et peut vider la messagerie) ---
+  const isAdmin = role === 'admin';
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<null | 'selection' | 'all'>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
+
+  const canDelete = (msg: ChatMessage) => isAdmin || (!!user && msg.senderId === user.uid);
+  const toggleSelected = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+  useEffect(() => { if (!isOpen) exitSelect(); }, [isOpen]);
+
+  const deleteIds = async (ids: string[]) => {
+    if (!firestore) return;
+    for (let i = 0; i < ids.length; i += 450) {
+      const batch = writeBatch(firestore);
+      ids.slice(i, i + 450).forEach((id) => batch.delete(doc(firestore, 'messages', id)));
+      await batch.commit();
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!firestore || !confirm) return;
+    setIsDeleting(true);
+    try {
+      if (confirm === 'all') {
+        // Toute la collection, pas seulement les messages chargés
+        const snap = await getDocs(collection(firestore, 'messages'));
+        await deleteIds(snap.docs.map((d) => d.id));
+        toast({ title: 'Messagerie vidée', description: `${snap.size} message(s) supprimé(s).` });
+        logActivity(firestore, `Messagerie vidée (${snap.size} message(s)).`, 'Général', '/dashboard');
+      } else {
+        const ids = Array.from(selected);
+        await deleteIds(ids);
+        toast({ title: 'Messages supprimés', description: `${ids.length} message(s) supprimé(s).` });
+      }
+      exitSelect();
+      setConfirm(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'Suppression impossible', description: 'Réessayez dans un instant.' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const senderName = useMemo(() => {
     if (me?.fullName) return me.fullName;
@@ -363,18 +455,49 @@ export function ChatSheet() {
       </SheetTrigger>
       <SheetContent className="flex h-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md sm:p-0">
         {/* En-tête */}
-        <SheetHeader className="space-y-0 border-b px-4 py-3.5 pr-12 text-left sm:px-5">
+        <SheetHeader className="space-y-0 border-b px-4 py-3.5 pr-14 text-left sm:px-5 sm:pr-16">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <MessageSquare className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <SheetTitle className="text-base leading-tight">Messagerie des agents</SheetTitle>
               <SheetDescription className="flex items-center gap-1.5 text-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                Canal commun · {messages?.length ?? 0} message{(messages?.length ?? 0) > 1 ? 's' : ''}
+                {selectMode
+                  ? `${selected.size} sélectionné${selected.size > 1 ? 's' : ''}`
+                  : `Canal commun · ${messages?.length ?? 0} message${(messages?.length ?? 0) > 1 ? 's' : ''}`}
               </SheetDescription>
             </div>
+            {!selectMode && (messages?.length ?? 0) > 0 && (
+              // Menu modal : dans le panneau, un menu non modal se refermerait aussitôt (piège du focus)
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full" aria-label="Options de la messagerie">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onSelect={() => setSelectMode(true)}>
+                    <ListChecks className="mr-2 h-4 w-4" />
+                    {isAdmin ? 'Sélectionner des messages' : 'Supprimer mes messages'}
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        // Ouverture après la fermeture du menu, pour ne pas bloquer la page ensuite
+                        onSelect={() => setTimeout(() => setConfirm('all'), 0)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Vider la messagerie
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </SheetHeader>
 
@@ -404,11 +527,49 @@ export function ChatSheet() {
                     </div>
                   );
                 }
+                const selectable = selectMode && canDelete(item.msg);
+                const isSelected = selected.has(item.msg.id);
+                const selectBox = selectable ? (
+                  <span
+                    className={cn(
+                      'flex h-5 w-5 shrink-0 items-center justify-center self-center rounded-full border-2 transition-colors',
+                      isSelected ? 'border-destructive bg-destructive text-white' : 'border-muted-foreground/40 bg-background'
+                    )}
+                    aria-hidden="true"
+                  >
+                    {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                  </span>
+                ) : null;
+                // En mode sélection, un clic sur la ligne coche/décoche le message
+                const selectProps = selectable
+                  ? {
+                      role: 'checkbox' as const,
+                      'aria-checked': isSelected,
+                      tabIndex: 0,
+                      onClick: () => toggleSelected(item.msg.id),
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSelected(item.msg.id); }
+                      },
+                    }
+                  : {};
+
                 if (item.kind === 'mission') {
                   return (
-                    <div key={item.key} className="my-2">
-                      <MissionChecklistCard text={item.msg.text} createdAt={safeToDate(item.msg.timestamp)} signed={signed} />
-                      <p className="mt-1 text-center text-[10px] text-muted-foreground">Message système · {item.time}</p>
+                    <div
+                      key={item.key}
+                      {...selectProps}
+                      className={cn(
+                        'my-2 flex items-start gap-2 rounded-xl transition-colors',
+                        selectable && 'cursor-pointer',
+                        isSelected && 'bg-destructive/5 ring-2 ring-destructive/40',
+                        selectMode && !selectable && 'opacity-50'
+                      )}
+                    >
+                      {selectBox}
+                      <div className={cn('min-w-0 flex-1', selectMode && 'pointer-events-none')}>
+                        <MissionChecklistCard text={item.msg.text} createdAt={safeToDate(item.msg.timestamp)} signed={signed} />
+                        <p className="mt-1 text-center text-[10px] text-muted-foreground">Message système · {item.time}</p>
+                      </div>
                     </div>
                   );
                 }
@@ -416,8 +577,17 @@ export function ChatSheet() {
                 return (
                   <div
                     key={item.key}
-                    className={cn('flex items-end gap-2', isMe ? 'justify-end' : 'justify-start', first ? 'mt-3' : 'mt-0.5')}
+                    {...selectProps}
+                    className={cn(
+                      'flex items-end gap-2 rounded-xl transition-colors',
+                      isMe ? 'justify-end' : 'justify-start',
+                      first ? 'mt-3' : 'mt-0.5',
+                      selectable && 'cursor-pointer',
+                      isSelected && 'bg-destructive/5',
+                      selectMode && !selectable && 'opacity-50'
+                    )}
                   >
+                    {selectBox}
                     {!isMe && (
                       <div className="w-7 shrink-0">
                         {last && (
@@ -464,7 +634,24 @@ export function ChatSheet() {
           )}
         </div>
 
-        {/* Zone de saisie */}
+        {/* Barre de sélection (remplace la saisie) */}
+        {selectMode ? (
+          <div className="flex items-center gap-2 border-t bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-4">
+            <Button variant="outline" className="gap-1.5" onClick={exitSelect}>
+              <X className="h-4 w-4" />
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 gap-1.5"
+              disabled={selected.size === 0}
+              onClick={() => setConfirm('selection')}
+            >
+              <Trash2 className="h-4 w-4" />
+              Supprimer{selected.size > 0 ? ` (${selected.size})` : ''}
+            </Button>
+          </div>
+        ) : (
         <form
           onSubmit={(e) => { e.preventDefault(); send(); }}
           className="flex items-end gap-2 border-t bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-4"
@@ -495,6 +682,28 @@ export function ChatSheet() {
             <Send className="h-4 w-4" />
           </Button>
         </form>
+        )}
+
+        <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && !isDeleting && setConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {confirm === 'all' ? 'Vider toute la messagerie ?' : `Supprimer ${selected.size} message${selected.size > 1 ? 's' : ''} ?`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirm === 'all'
+                  ? 'Tous les messages, y compris les cartes de mission, seront définitivement supprimés pour tout le monde. Cette action est irréversible.'
+                  : 'Les messages sélectionnés seront définitivement supprimés pour tout le monde. Cette action est irréversible.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Retour</AlertDialogCancel>
+              <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+                {isDeleting ? 'Suppression…' : confirm === 'all' ? 'Vider la messagerie' : 'Supprimer'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

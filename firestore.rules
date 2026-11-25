@@ -128,6 +128,8 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.senderId == request.auth.uid;
       // Cocher la check-list d'un ordre de mission
       allow update: if signedIn() && onlyChanges(['text']);
+      // Chacun peut supprimer ses propres messages (l'admin : tous, via la règle générale)
+      allow delete: if signedIn() && resource.data.senderId == request.auth.uid;
     }
 
     // --- Position des appareils --------------------------------------------

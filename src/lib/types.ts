@@ -97,7 +97,6 @@ export type VehicleAnomaly = {
   date: Timestamp;
   isResolved: boolean;
   reportedBy: string;
-  financeStatus?: 'En attente' | 'Validé' | 'Refusé';
 };
 
 export type Gathering = {
@@ -114,7 +113,15 @@ export type Visitor = {
   firstName: string;
   lastName: string;
   contact: string;
-  occupation: string;
+  /** Ancien champ « Fonction », plus demandé dans le formulaire */
+  occupation?: string;
+  /** N° de la pièce d'identité présentée */
+  idNumber?: string;
+  /** Motif de la visite */
+  visitReason?: string;
+  /** Immatriculation et marque du véhicule, s'il y en a un */
+  vehiclePlate?: string;
+  vehicleBrand?: string;
   entryTime: Timestamp;
   exitTime: Timestamp | null;
 }
@@ -158,28 +165,6 @@ export type ActivityLog = {
     link?: string;
 }
 
-export type ExpenseCategory = 'Opérationnel' | 'Matériel' | 'Transport' | 'Logistique' | 'Autre';
-export type ExpenseStatus = 'Validé' | 'En attente' | 'Refusé';
-
-export type Expense = {
-  id: string;
-  description: string;
-  amount: number;
-  category: ExpenseCategory;
-  date: Timestamp;
-  status: ExpenseStatus;
-  missionId?: string | null;
-  anomalyId?: string | null;
-};
-
-export type Allocation = {
-  id: string;
-  agentId: string;
-  amount: number;
-  purpose: string;
-  date: Timestamp;
-};
-
 export type ChatMessage = {
   id: string;
   senderId: string;
@@ -201,6 +186,11 @@ export type Demande = {
   createdAt: Timestamp;
   notified: boolean;
   vu_par_agent: boolean;
+  /**
+   * Pièce jointe (justificatif) : seules les métadonnées sont ici ;
+   * le fichier est dans `demandes/{id}/files/piece_jointe` (chargé à la demande).
+   */
+  attachment?: { name: string; mimeType: string } | null;
 };
 
 export type Explication = {
@@ -218,4 +208,52 @@ export type Explication = {
   notifiedAgent: boolean;
   notifiedAdmin: boolean;
   notifiedAgentSanction?: boolean;
+};
+
+// --- Volet Information (renseignement) ---
+
+export type InformationPriority = 'basse' | 'moyenne' | 'haute' | 'urgente';
+
+export type Information = {
+  id: string;
+  /** Provenance de l'information (informateur, service, appel, patrouille…) */
+  source: string;
+  /** Objet : ce que rapporte l'information */
+  objet: string;
+  /** Degré de priorité */
+  priority: InformationPriority;
+  createdAt: Timestamp;
+  /** IDC de la personne qui a enregistré l'information */
+  createdBy: string;
+};
+
+// --- Volet Renseignement : enquête menée sur une information, puis compte rendu ---
+
+export type RenseignementStatus = 'en_cours' | 'termine';
+
+/** Résultat du renseignement, indiqué dans le compte rendu */
+export type RenseignementConclusion = 'confirmee' | 'partielle' | 'infirmee' | 'indeterminee';
+
+export type Renseignement = {
+  id: string;
+  /** Information à l'origine du renseignement */
+  informationId: string;
+  /** Copie de l'information au moment de l'ouverture (lisible même si elle est supprimée) */
+  informationSource: string;
+  informationObjet: string;
+  informationPriority: InformationPriority;
+  /** Agents chargés du renseignement (documents « agents ») */
+  assignedAgentIds?: string[];
+  /** Noms des agents chargés, au moment de l'ouverture */
+  assignedTo: string;
+  /** Consignes / axes de recherche */
+  instructions?: string;
+  status: RenseignementStatus;
+  startedAt: Timestamp;
+  createdBy: string;
+  /** Compte rendu, rédigé à la fin du renseignement */
+  compteRendu?: string;
+  conclusion?: RenseignementConclusion;
+  compteRenduAt?: Timestamp | null;
+  compteRenduBy?: string;
 };

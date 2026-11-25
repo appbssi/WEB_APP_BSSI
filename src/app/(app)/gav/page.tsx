@@ -169,13 +169,15 @@ function GAVContent() {
                   <TableCell>{detainee.birthDate.toDate().toLocaleDateString('fr-FR')}</TableCell>
                   <TableCell>{detainee.entryTime.toDate().toLocaleString('fr-FR')}</TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
+                    {/* modal={false} : le menu ne bloque pas la page ; il se referme proprement avant l'ouverture des détails */}
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label="Actions">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      {/* Empêche les clics du menu de remonter jusqu'à la ligne du tableau */}
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onSelect={() => setSelectedDetainee(detainee)}>
                           Voir les détails

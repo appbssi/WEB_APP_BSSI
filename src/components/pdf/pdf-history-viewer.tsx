@@ -52,6 +52,8 @@ export type PdfDocumentItem = {
   type: 'ordre_de_mission' | 'autorisation_absence' | 'fiche_agent';
   createdAt: any;
   agentIds: string[];
+  /** Ordre de mission : agents de la mission (agentIds reste vide tant que l'ordre n'est pas signé) */
+  assignedAgentIds?: string[];
   agentNames?: string[];
   leaderId?: string | null;
   leaderName?: string | null;

@@ -289,7 +289,7 @@ export function RegisterAgentForm({ onAgentRegistered }: RegisterAgentFormProps)
                       <SelectItem value="Non assigné">NON ASSIGNÉ</SelectItem>
                       <SelectItem value="Armurerie">ARMURERIE</SelectItem>
                       <SelectItem value="Administration">ADMINISTRATION</SelectItem>
-                      <SelectItem value="FAUNE">FAUNE</SelectItem>
+                      <SelectItem value="FAUNE">SERVICE FAUNE</SelectItem>
                       <SelectItem value="CONDUCTEUR">CONDUCTEUR</SelectItem>
                       <SelectItem value="SECTION FEMININE">SECTION FEMININE</SelectItem>
                       <SelectItem value="DETACHEMENT NOE">DETACHEMENT NOE</SelectItem>

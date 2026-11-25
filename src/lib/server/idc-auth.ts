@@ -108,3 +108,44 @@ export async function recordFailure(ip: string): Promise<void> {
 export async function clearFailures(ip: string): Promise<void> {
   await rateLimitRef(ip).delete().catch(() => {});
 }
+
+// --- Identifiants des agents (mot de passe) ----------------------------------
+//
+// Collection « _agent_credentials » : réservée au serveur. Les règles Firestore
+// refusent tout accès navigateur aux collections dont le nom commence par « _ »,
+// y compris aux administrateurs.
+
+function credentialRef(agentId: string) {
+  return adminDb().collection('_agent_credentials').doc(agentId);
+}
+
+/** Empreinte du mot de passe de l'agent, ou null s'il n'en a pas encore créé. */
+export async function getAgentPasswordHash(agentId: string): Promise<string | null> {
+  const snap = await credentialRef(agentId).get();
+  const hash = snap.exists ? snap.get('passwordHash') : null;
+  return typeof hash === 'string' && hash ? hash : null;
+}
+
+/**
+ * Enregistre le premier mot de passe de l'agent.
+ * Renvoie false si un mot de passe existe déjà (création concurrente ou rejouée).
+ */
+export async function createAgentPassword(agentId: string, passwordHash: string): Promise<boolean> {
+  try {
+    await credentialRef(agentId).create({
+      passwordHash,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (err) {
+    // ALREADY_EXISTS (code gRPC 6)
+    if ((err as { code?: number }).code === 6) return false;
+    throw err;
+  }
+}
+
+/** Supprime le mot de passe : l'agent en créera un nouveau à sa prochaine connexion. */
+export async function resetAgentPassword(agentId: string): Promise<void> {
+  await credentialRef(agentId).delete();
+}

@@ -96,7 +96,7 @@ function MissionChecklistCard({ msgId, text, timestamp, firestore }: MissionChec
           </div>
           <div>
             <h4 className="font-semibold text-sm tracking-tight leading-tight">{name}</h4>
-            <p className="text-[9px] text-muted-foreground font-mono mt-0.5">ORDRE DE MISSION CRÉÉ</p>
+            <p className="text-[9px] text-muted-foreground font-mono mt-0.5">MISSION CRÉÉE</p>
           </div>
         </div>
         <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium">
@@ -247,8 +247,8 @@ export function ChatSheet() {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative p-2 bg-card text-primary align-middle rounded-full hover:text-white hover:bg-primary focus:outline-none">
-          <MessageSquare className="h-6 w-6" />
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+          <MessageSquare className="h-[18px] w-[18px]" />
           <span className="sr-only">Messagerie</span>
         </Button>
       </SheetTrigger>

@@ -197,13 +197,13 @@ export function EditSaisieDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-zinc-900 text-white border-zinc-800">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-white">
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <PackageCheck className="h-5 w-5 text-amber-400" />
             Modifier / Mettre à jour la Saisie
           </DialogTitle>
-          <DialogDescription className="text-zinc-400 text-xs">
+          <DialogDescription className="text-muted-foreground text-xs">
             Modifiez la désignation, les quantités ou mettez à jour le statut du scellé (ex: Transféré au Parquet).
           </DialogDescription>
         </DialogHeader>
@@ -211,9 +211,9 @@ export function EditSaisieDialog({
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
           {/* Designation */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">Désignation de la Saisie</Label>
+            <Label className="text-xs font-semibold">Désignation de la Saisie</Label>
             <Input
-              className="bg-zinc-950 border-zinc-800 text-white focus:border-amber-500"
+              className="focus:border-amber-500"
               {...form.register('designation')}
             />
           </div>
@@ -221,25 +221,25 @@ export function EditSaisieDialog({
           {/* Quantité & Unité */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">Nombre / Quantité</Label>
+              <Label className="text-xs font-semibold">Nombre / Quantité</Label>
               <Input
                 type="number"
                 min={1}
-                className="bg-zinc-950 border-zinc-800 text-white focus:border-amber-500"
+                className="focus:border-amber-500"
                 {...form.register('quantity')}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">Unité</Label>
+              <Label className="text-xs font-semibold">Unité</Label>
               <Select
                 value={form.watch('unit')}
                 onValueChange={(val) => form.setValue('unit', val)}
               >
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                <SelectContent>
                   {UNITS.map((u) => (
                     <SelectItem key={u} value={u}>
                       {u}
@@ -252,15 +252,15 @@ export function EditSaisieDialog({
 
           {/* Statut du Scellé */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">Statut du Scellé</Label>
+            <Label className="text-xs font-semibold">Statut du Scellé</Label>
             <Select
               value={form.watch('status')}
               onValueChange={(val) => form.setValue('status', val)}
             >
-              <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white font-semibold">
+              <SelectTrigger className="font-semibold">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+              <SelectContent>
                 {STATUSES.map((st) => (
                   <SelectItem key={st} value={st}>
                     {st}
@@ -272,37 +272,37 @@ export function EditSaisieDialog({
 
           {/* Date de Saisie */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">Date de Saisie</Label>
+            <Label className="text-xs font-semibold">Date de Saisie</Label>
             <Input
               type="date"
-              className="bg-zinc-950 border-zinc-800 text-white focus:border-amber-500"
+              className="focus:border-amber-500"
               {...form.register('dateSaisie')}
             />
           </div>
 
           {/* Remarques */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">Remarques / Observations</Label>
+            <Label className="text-xs font-semibold">Remarques / Observations</Label>
             <Textarea
               rows={2}
-              className="bg-zinc-950 border-zinc-800 text-white focus:border-amber-500 text-xs"
+              className="focus:border-amber-500 text-xs"
               {...form.register('notes')}
             />
           </div>
 
-          <DialogFooter className="pt-3 border-t border-zinc-800 flex justify-end gap-2">
+          <DialogFooter className="pt-3 border-t flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700 text-xs"
+              className="text-muted-foreground hover: text-xs"
             >
               Annuler
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-amber-600 text-white hover:bg-amber-500 font-semibold text-xs gap-2"
+              className="bg-amber-600 hover:bg-amber-500 font-semibold text-xs gap-2"
             >
               {isSubmitting ? (
                 <>

@@ -13,6 +13,7 @@ export const RESTRICTED_ADMIN_ALLOWED_PATHS = [
   '/cartographie',
   '/agents',
   '/missions',
+  '/ordres-signes',
   '/logistique',
   '/gav',
   '/saisies',

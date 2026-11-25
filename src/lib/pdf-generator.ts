@@ -5,6 +5,9 @@ import autoTable from 'jspdf-autotable';
 // Direct link for the PDF header banner image (can be changed to any direct image URL)
 export const PDF_HEADER_IMAGE_URL = 'https://i.ibb.co/FL7ZKgSp/ent-te.png';
 
+// En-tête propre à l'ordre de mission
+export const ORDRE_MISSION_HEADER_IMAGE_URL = 'https://i.ibb.co/239NPVqw/ent-te.png';
+
 // Direct link for the signature stamp image
 export const PDF_STAMP_IMAGE_URL = 'https://i.ibb.co/5X97N1HF/signature.jpg';
 
@@ -201,7 +204,7 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
     format: 'a4',
   });
 
-  const generatePDF = (headerImg: HTMLImageElement | null, stampImg: HTMLImageElement | null) => {
+  const generatePDF = (headerImg: HTMLImageElement | null) => {
     // Header
     drawHeader(doc, headerImg);
 
@@ -328,17 +331,20 @@ export function generateOrdreDeMissionPDF(mission: any, agents: any[], vehiclePl
     const lines = doc.splitTextToSize(noticeText, 180);
     doc.text(lines, 15, finalY);
 
-    // Signatures
-    drawSignatureBlock(doc, 'LE CHEF DE DETACHEMENT', finalY + lines.length * 3.5, stampImg || undefined);
+    // Pas de signature ni de cachet sur l'ordre de mission : seulement le lieu et la date
+    doc.setFont('Helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Tengréla le ${new Date().toLocaleDateString('fr-FR')}`, 135, finalY + lines.length * 3.5 + 12);
 
     // Save the PDF file
     doc.save(`Ordre_de_Mission_${mission.name.replace(/\s+/g, '_')}.pdf`);
   };
 
   preloadImages(
-    [PDF_HEADER_IMAGE_URL, PDF_STAMP_IMAGE_URL],
-    ([headerImg, stampImg]) => {
-      generatePDF(headerImg, stampImg);
+    [ORDRE_MISSION_HEADER_IMAGE_URL],
+    ([headerImg]) => {
+      generatePDF(headerImg);
     }
   );
 }

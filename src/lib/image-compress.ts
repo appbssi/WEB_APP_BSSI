@@ -12,7 +12,11 @@ const MAX_OUTPUT_CHARS = 200_000; // ~150 Ko en base64 : garde-fou largement sou
 
 export async function compressImageToDataUrl(
   file: File,
-  { maxSize = 320, quality = 0.8 }: { maxSize?: number; quality?: number } = {}
+  {
+    maxSize = 320,
+    quality = 0.8,
+    maxOutputChars = MAX_OUTPUT_CHARS,
+  }: { maxSize?: number; quality?: number; maxOutputChars?: number } = {}
 ): Promise<string> {
   if (!file.type.startsWith('image/')) {
     throw new Error("Le fichier choisi n'est pas une image.");
@@ -45,11 +49,11 @@ export async function compressImageToDataUrl(
 
   let q = quality;
   let dataUrl = canvas.toDataURL('image/jpeg', q);
-  while (dataUrl.length > MAX_OUTPUT_CHARS && q > 0.4) {
+  while (dataUrl.length > maxOutputChars && q > 0.4) {
     q -= 0.1;
     dataUrl = canvas.toDataURL('image/jpeg', q);
   }
-  if (dataUrl.length > MAX_OUTPUT_CHARS) {
+  if (dataUrl.length > maxOutputChars) {
     throw new Error('Photo trop lourde même après compression.');
   }
   return dataUrl;

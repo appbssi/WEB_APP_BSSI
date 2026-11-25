@@ -9,12 +9,14 @@ import {
   CalendarClock,
   Loader2,
   BookUser,
-  Banknote,
   Lock,
   Sword,
   Truck,
   Map,
   PackageCheck,
+  Radar,
+  ScanSearch,
+  FileSignature,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -47,12 +49,14 @@ const navItems: NavItem[] = [
   { href: '/cartographie', label: 'Cartographie', icon: Map },
   { href: '/agents', label: 'Agents', icon: Users },
   { href: '/missions', label: 'Missions', icon: Rocket },
+  { href: '/ordres-signes', label: 'Ordres signés', icon: FileSignature },
   { href: '/gatherings', label: 'Rassemblements', icon: CalendarClock },
   { href: '/armurerie', label: 'Armurerie', icon: Sword },
   { href: '/logistique', label: 'Logistique', icon: Truck },
   { href: '/gav', label: 'GAV', icon: Lock },
   { href: '/saisies', label: 'Saisies', icon: PackageCheck },
-  { href: '/finance', label: 'Finances', icon: Banknote },
+  { href: '/informations', label: 'Informations', icon: Radar },
+  { href: '/renseignements', label: 'Renseignements', icon: ScanSearch },
   { href: '/secretariat', label: 'Secrétariat', icon: BookUser },
 ];
 

@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import type { Agent, Mission, MissionStatus } from '@/lib/types';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import type { Agent, Mission } from '@/lib/types';
 import type { MissionWithDisplayStatus } from '@/lib/missions';
-import { getDisplayStatus } from '@/lib/missions';
+import { checkAgentMissionConflict, getDisplayStatus } from '@/lib/missions';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card';
+  type DeadlineUrgency,
+  classifyDeadline,
+  computeExtendedEndDate,
+  getMissionEndDateTime,
+  isDeadlineTracked,
+} from '@/lib/mission-deadlines';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -35,17 +34,19 @@ import {
   ChevronDown,
   ChevronUp,
   ShieldAlert,
-  RotateCcw,
-  Sparkles,
 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
+import { doc, increment, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity } from '@/lib/activity-logger';
 import Link from 'next/link';
+import { addDays, startOfDay } from 'date-fns';
 
 export interface ExpiringMissionsAlertProps {
+  /** Missions affichées (filtrées par détachement) */
   missions: Mission[];
+  /** Toutes les missions, pour vérifier les conflits d'agents lors d'une prolongation */
+  allMissions?: Mission[];
   agents: Agent[];
   onViewMissionDetails?: (mission: MissionWithDisplayStatus) => void;
 }
@@ -54,43 +55,44 @@ export interface ExpiringMissionItem {
   mission: Mission;
   endDateTime: Date;
   diffMs: number;
-  diffHours: number;
-  urgency: 'overdue' | 'critical' | 'warning' | 'notice';
+  urgency: DeadlineUrgency;
   timeLabel: string;
   assignedAgents: Agent[];
 }
 
-function parseMissionEndDateTime(mission: Mission): Date | null {
-  if (!mission || !mission.endDate) return null;
-  const rawEnd = mission.endDate;
-  let date: Date | null = null;
-  if (typeof (rawEnd as any).toDate === 'function') {
-    date = (rawEnd as any).toDate();
-  } else if (rawEnd instanceof Date) {
-    date = new Date(rawEnd.getTime());
-  } else if (typeof rawEnd === 'string' || typeof rawEnd === 'number') {
-    date = new Date(rawEnd);
-  } else if (typeof rawEnd === 'object' && (rawEnd as any).seconds !== undefined) {
-    date = new Date((rawEnd as any).seconds * 1000);
-  }
+/** Durée d'affichage de l'annonce avant le repli automatique */
+const AUTO_COLLAPSE_MS = 8000;
 
-  if (!date || isNaN(date.getTime())) return null;
+const TONES = {
+  overdue: {
+    border: 'border-l-red-500',
+    iconBg: 'bg-red-500/10 text-red-600 dark:text-red-400',
+    bar: 'bg-red-500',
+    dot: 'bg-red-500',
+    text: 'text-red-600 dark:text-red-400',
+  },
+  critical: {
+    border: 'border-l-amber-500',
+    iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    bar: 'bg-amber-500',
+    dot: 'bg-amber-500',
+    text: 'text-amber-700 dark:text-amber-400',
+  },
+  notice: {
+    border: 'border-l-sky-500',
+    iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+    bar: 'bg-sky-500',
+    dot: 'bg-sky-500',
+    text: 'text-sky-700 dark:text-sky-400',
+  },
+} as const;
 
-  if (mission.endTime && typeof mission.endTime === 'string') {
-    const parts = mission.endTime.split(':').map(Number);
-    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      date.setHours(parts[0], parts[1], 0, 0);
-      return date;
-    }
-  }
-
-  // Fin par défaut à 23h59:59 du jour de fin
-  date.setHours(23, 59, 59, 999);
-  return date;
-}
+const fmtDateTime = (d: Date) =>
+  `${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
 
 export function ExpiringMissionsAlert({
   missions,
+  allMissions,
   agents,
   onViewMissionDetails,
 }: ExpiringMissionsAlertProps) {
@@ -99,9 +101,18 @@ export function ExpiringMissionsAlert({
 
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
-  const [filterType, setFilterType] = useState<'all' | 'critical' | 'overdue'>('all');
+  // Repli automatique : l'alerte s'annonce dépliée puis se replie seule (pause au survol)
+  const [autoCollapseActive, setAutoCollapseActive] = useState<boolean>(true);
+  const [autoCollapseKey, setAutoCollapseKey] = useState<number>(0);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const announcedIds = useRef<Set<string>>(new Set());
+
+  const toggleExpanded = () => {
+    setAutoCollapseActive(false); // choix de l'utilisateur : plus de repli automatique
+    setIsExpanded((prev) => !prev);
+  };
+  const [filterType, setFilterType] = useState<'all' | 'soon' | 'overdue'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [dismissedIds, setDismissedIds] = useState<Record<string, boolean>>({});
 
   // Dialog de clôture rapide
   const [closingMission, setClosingMission] = useState<Mission | null>(null);
@@ -128,102 +139,65 @@ export function ExpiringMissionsAlert({
     }, {} as Record<string, Agent>);
   }, [agents]);
 
-  // Calcul des missions expirant dans moins de 48 heures
+  // Missions échues (tant qu'elles ne sont pas clôturées) ou expirant dans moins de 48 heures
   const expiringMissions = useMemo((): ExpiringMissionItem[] => {
     if (!missions || missions.length === 0) return [];
 
     const list: ExpiringMissionItem[] = [];
 
     for (const mission of missions) {
-      if (!mission) continue;
-      // Exclure les missions déjà annulées ou rejetées
-      if (
-        mission.status === 'Annulée' ||
-        mission.status === 'Rejetée' ||
-        mission.validationStatus === 'Rejetée'
-      ) {
-        continue;
-      }
+      // Ni close, ni annulée, ni rejetée, ni en attente de validation
+      if (!mission || !isDeadlineTracked(mission)) continue;
 
-      // Si la mission est marquée "Terminée", elle n'est plus à clôturer
-      if (mission.status === 'Terminée') {
-        continue;
-      }
-
-      const endDateTime = parseMissionEndDateTime(mission);
+      const endDateTime = getMissionEndDateTime(mission);
       if (!endDateTime) continue;
 
-      const diffMs = endDateTime.getTime() - currentTime.getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
+      const deadline = classifyDeadline(endDateTime, currentTime);
+      if (!deadline) continue;
 
-      // Critère : expire dans moins de 48 heures (diffHours <= 48).
-      // On inclut aussi les missions échues récemment (jusqu'à -72h) qui nécessitent une clôture administrative.
-      if (diffHours <= 48 && diffHours >= -72) {
-        let urgency: ExpiringMissionItem['urgency'] = 'notice';
-        let timeLabel = '';
-
-        if (diffHours < 0) {
-          urgency = 'overdue';
-          const overdueHours = Math.abs(diffHours);
-          if (overdueHours < 1) {
-            const mins = Math.max(1, Math.round(Math.abs(diffMs) / 60000));
-            timeLabel = `Échue depuis ${mins} min (clôture requise)`;
-          } else {
-            timeLabel = `Échue depuis ${Math.floor(overdueHours)}h (clôture requise)`;
-          }
-        } else if (diffHours < 12) {
-          urgency = 'critical';
-          if (diffHours < 1) {
-            const mins = Math.max(1, Math.round(diffMs / 60000));
-            timeLabel = `Expire dans ${mins} min !`;
-          } else {
-            const h = Math.floor(diffHours);
-            const m = Math.round((diffMs % 3600000) / 60000);
-            timeLabel = `Expire dans ${h}h ${m}m`;
-          }
-        } else if (diffHours < 24) {
-          urgency = 'warning';
-          const h = Math.round(diffHours);
-          timeLabel = `Expire dans ${h}h (aujourd'hui)`;
-        } else {
-          urgency = 'notice';
-          const h = Math.round(diffHours);
-          timeLabel = `Expire dans ${h}h (demain)`;
-        }
-
-        const assigned = (mission.assignedAgentIds || [])
-          .map((id) => agentsById[id])
-          .filter(Boolean);
-
-        list.push({
-          mission,
-          endDateTime,
-          diffMs,
-          diffHours,
-          urgency,
-          timeLabel,
-          assignedAgents: assigned,
-        });
-      }
+      list.push({
+        mission,
+        endDateTime,
+        diffMs: endDateTime.getTime() - currentTime.getTime(),
+        urgency: deadline.urgency,
+        timeLabel: deadline.label,
+        assignedAgents: (mission.assignedAgentIds || []).map((id) => agentsById[id]).filter(Boolean),
+      });
     }
 
     // Tri : missions échues en premier, puis de la plus urgente à la moins urgente
     return list.sort((a, b) => a.diffMs - b.diffMs);
   }, [missions, currentTime, agentsById]);
 
+  // Nouvelle mission à échéance (ou passée en « échue ») : on ré-annonce l'alerte dépliée
+  const announceKey = expiringMissions.map((m) => `${m.mission.id}:${m.urgency === 'overdue' ? 'o' : 'u'}`).join('|');
+  useEffect(() => {
+    const keys = announceKey ? announceKey.split('|') : [];
+    const fresh = keys.some((k) => !announcedIds.current.has(k));
+    announcedIds.current = new Set(keys);
+    if (fresh) {
+      setIsExpanded(true);
+      setAutoCollapseActive(true);
+      setAutoCollapseKey((k) => k + 1);
+    }
+  }, [announceKey]);
+
+  // Repli après AUTO_COLLAPSE_MS ; le survol met en pause et relance le délai complet
+  useEffect(() => {
+    if (!isExpanded || !autoCollapseActive || isHovered) return;
+    const timer = setTimeout(() => {
+      setIsExpanded(false);
+      setAutoCollapseActive(false);
+    }, AUTO_COLLAPSE_MS);
+    return () => clearTimeout(timer);
+  }, [isExpanded, autoCollapseActive, isHovered, autoCollapseKey]);
+
   // Filtrage selon onglets / recherche
   const filteredList = useMemo(() => {
     return expiringMissions.filter((item) => {
-      if (dismissedIds[item.mission.id]) return false;
-
       if (filterType === 'overdue' && item.urgency !== 'overdue') return false;
-      if (
-        filterType === 'critical' &&
-        item.urgency !== 'critical' &&
-        item.urgency !== 'overdue'
-      ) {
-        return false;
-      }
+      // « Moins de 24h » : échues + moins de 12 h + entre 12 et 24 h
+      if (filterType === 'soon' && item.urgency === 'notice') return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -237,7 +211,7 @@ export function ExpiringMissionsAlert({
 
       return true;
     });
-  }, [expiringMissions, dismissedIds, filterType, searchQuery]);
+  }, [expiringMissions, filterType, searchQuery]);
 
   const overdueCount = useMemo(
     () => expiringMissions.filter((m) => m.urgency === 'overdue').length,
@@ -247,6 +221,30 @@ export function ExpiringMissionsAlert({
     () => expiringMissions.filter((m) => m.urgency === 'critical').length,
     [expiringMissions]
   );
+  /** Échues ou expirant dans moins de 24 h */
+  const soonCount = useMemo(
+    () => expiringMissions.filter((m) => m.urgency !== 'notice').length,
+    [expiringMissions]
+  );
+
+  // Prolongation : nouvelle fin et agents indisponibles sur la période prolongée
+  const extension = useMemo(() => {
+    if (!extendingMission) return null;
+    const newEndDate = computeExtendedEndDate(extendingMission, extensionDays, currentTime);
+    const newEnd = getMissionEndDateTime({ ...extendingMission, endDate: Timestamp.fromDate(newEndDate) });
+    // Seuls les jours ajoutés sont vérifiés : du lendemain de la fin prévue (ou d'aujourd'hui si elle est échue)
+    const currentEnd = getMissionEndDateTime(extendingMission) ?? currentTime;
+    const start = currentEnd < currentTime ? startOfDay(currentTime) : startOfDay(addDays(currentEnd, 1));
+    const conflicts = (extendingMission.assignedAgentIds || [])
+      .map((id) => agentsById[id])
+      .filter(Boolean)
+      .map((agent) => ({
+        agent,
+        info: checkAgentMissionConflict(agent, allMissions ?? missions, start, newEndDate, null, null, extendingMission.id),
+      }))
+      .filter((c) => c.info.hasConflict);
+    return { newEndDate, newEnd, conflicts };
+  }, [extendingMission, extensionDays, currentTime, agentsById, allMissions, missions]);
 
   // Clôture rapide d'une mission
   const handleConfirmClose = async () => {
@@ -257,12 +255,11 @@ export function ExpiringMissionsAlert({
       const missionRef = doc(firestore, 'missions', closingMission.id);
       batch.update(missionRef, { status: 'Terminée' });
 
-      // Incrémentation des compteurs des agents assignés
+      // +1 au compteur de chaque agent encore enregistré. increment() évite les doubles
+      // comptages ; un agent supprimé est ignoré (sa mise à jour ferait échouer toute la clôture).
       for (const agentId of closingMission.assignedAgentIds || []) {
-        const agent = agentsById[agentId];
-        const currentCount = agent?.missionCount || 0;
-        const agentRef = doc(firestore, 'agents', agentId);
-        batch.update(agentRef, { missionCount: currentCount + 1 });
+        if (!agentsById[agentId]) continue;
+        batch.update(doc(firestore, 'agents', agentId), { missionCount: increment(1) });
       }
 
       await batch.commit();
@@ -294,22 +291,19 @@ export function ExpiringMissionsAlert({
 
   // Prolongation rapide d'une mission
   const handleConfirmExtend = async () => {
-    if (!firestore || !extendingMission) return;
+    if (!firestore || !extendingMission || !extension || extension.conflicts.length > 0) return;
     setIsExtending(true);
     try {
-      const currentEnd = parseMissionEndDateTime(extendingMission) || new Date();
-      const newEnd = new Date(currentEnd.getTime() + extensionDays * 24 * 60 * 60 * 1000);
-
       const missionRef = doc(firestore, 'missions', extendingMission.id);
       await updateDoc(missionRef, {
-        endDate: Timestamp.fromDate(newEnd),
+        endDate: Timestamp.fromDate(extension.newEndDate),
       });
 
       toast({
         title: 'Mission prolongée',
-        description: `La mission "${extendingMission.name}" a été prolongée jusqu'au ${newEnd.toLocaleDateString(
-          'fr-FR'
-        )} à ${newEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.`,
+        description: `La mission "${extendingMission.name}" a été prolongée jusqu'au ${
+          extension.newEnd ? fmtDateTime(extension.newEnd) : extension.newEndDate.toLocaleDateString('fr-FR')
+        }.`,
       });
 
       logActivity(
@@ -337,268 +331,205 @@ export function ExpiringMissionsAlert({
     return null;
   }
 
+  const tone = overdueCount > 0 ? TONES.overdue : criticalCount > 0 ? TONES.critical : TONES.notice;
+  const first = expiringMissions[0];
+  const summary =
+    expiringMissions.length === 1
+      ? `${first.mission.name} — ${first.timeLabel}`
+      : [
+          `${expiringMissions.length} missions à échéance`,
+          overdueCount > 0 ? `${overdueCount} échue${overdueCount > 1 ? 's' : ''}` : null,
+          soonCount - overdueCount > 0 ? `${soonCount - overdueCount} dans moins de 24 h` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
   return (
-    <div id="expiring-missions" className="space-y-3">
-      <Card
-        className={`rounded-2xl transition-all shadow-sm overflow-hidden border ${
-          overdueCount > 0
-            ? 'border-red-500/40 bg-gradient-to-r from-red-500/10 via-background to-orange-500/5'
-            : criticalCount > 0
-            ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-background to-background'
-            : 'border-blue-500/30 bg-gradient-to-r from-blue-500/5 via-background to-background'
-        }`}
+    <div
+      id="expiring-missions"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div
+        role="status"
+        aria-live="polite"
+        className={`overflow-hidden rounded-xl border border-l-4 bg-card shadow-sm transition-colors ${tone.border}`}
       >
-        <CardHeader className="p-4 sm:p-5 pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div
-                className={`p-2.5 rounded-xl shrink-0 ${
-                  overdueCount > 0
-                    ? 'bg-red-500/15 text-red-600 dark:text-red-400'
-                    : criticalCount > 0
-                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                    : 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
-                }`}
-              >
-                <ShieldAlert className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-base sm:text-lg font-bold tracking-tight text-foreground">
-                    Alertes d'échéance : Missions à terme (&lt; 48 heures)
-                  </CardTitle>
-                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/20">
-                    {expiringMissions.length} mission{expiringMissions.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-                <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                  Vérification opérationnelle : clôturez les missions terminées ou prolongez les opérations en cours.
-                </CardDescription>
-              </div>
-            </div>
+        {/* Bandeau : une ligne, toujours visible */}
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          aria-expanded={isExpanded}
+          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+        >
+          <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone.iconBg}`}>
+            <ShieldAlert className="h-4 w-4" />
+            {overdueCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">Échéances de missions</span>
+            <span className="block truncate text-xs text-muted-foreground">{summary}</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground">
+            <span className="hidden sm:inline">{isExpanded ? 'Masquer' : 'Voir'}</span>
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
 
-            <div className="flex items-center gap-2 self-end sm:self-center">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs font-semibold gap-1.5"
-                onClick={() => setIsExpanded((prev) => !prev)}
-                title={isExpanded ? 'Réduire la liste' : 'Déplier la liste'}
-              >
-                {isExpanded ? (
-                  <>
-                    <span>Réduire</span>
-                    <ChevronUp className="h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    <span>Afficher ({filteredList.length})</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </div>
+        {/* Barre de progression du repli automatique */}
+        {isExpanded && autoCollapseActive && !isHovered && (
+          <div className="h-0.5 w-full bg-muted">
+            <div
+              key={autoCollapseKey}
+              className={`h-full ${tone.bar}`}
+              style={{ animation: `expiring-alert-countdown ${AUTO_COLLAPSE_MS}ms linear forwards` }}
+            />
           </div>
-
-          {/* Filtres et recherche (uniquement si déplié) */}
-          {isExpanded && expiringMissions.length > 1 && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-3 border-t border-border/60 mt-3">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                <Button
-                  size="sm"
-                  variant={filterType === 'all' ? 'default' : 'ghost'}
-                  onClick={() => setFilterType('all')}
-                  className="h-7 text-xs px-2.5 rounded-lg"
-                >
-                  Toutes ({expiringMissions.length})
-                </Button>
-                {criticalCount > 0 && (
-                  <Button
-                    size="sm"
-                    variant={filterType === 'critical' ? 'default' : 'ghost'}
-                    onClick={() => setFilterType('critical')}
-                    className="h-7 text-xs px-2.5 rounded-lg text-amber-600 dark:text-amber-400 font-semibold"
-                  >
-                    Moins de 24h ({criticalCount + overdueCount})
-                  </Button>
-                )}
-                {overdueCount > 0 && (
-                  <Button
-                    size="sm"
-                    variant={filterType === 'overdue' ? 'destructive' : 'ghost'}
-                    onClick={() => setFilterType('overdue')}
-                    className="h-7 text-xs px-2.5 rounded-lg font-semibold"
-                  >
-                    Échues ({overdueCount})
-                  </Button>
-                )}
-              </div>
-
-              <div className="relative w-full sm:w-60">
-                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Filtrer mission ou agent..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-7.5 pl-8 text-xs rounded-lg bg-background/80"
-                />
-              </div>
-            </div>
-          )}
-        </CardHeader>
+        )}
 
         {isExpanded && (
-          <CardContent className="p-4 sm:p-5 pt-0">
-            <div className="space-y-2.5">
+          <div className="border-t">
+            {expiringMissions.length > 3 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 border-b bg-muted/20">
+                <div className="flex items-center gap-1 overflow-x-auto">
+                  {([
+                    ['all', `Toutes (${expiringMissions.length})`],
+                    ...(soonCount > overdueCount ? [['soon', `< 24 h (${soonCount})`]] : []),
+                    ...(overdueCount > 0 ? [['overdue', `Échues (${overdueCount})`]] : []),
+                  ] as [typeof filterType, string][]).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      size="sm"
+                      variant={filterType === value ? 'secondary' : 'ghost'}
+                      onClick={() => setFilterType(value)}
+                      className="h-7 rounded-md px-2.5 text-xs"
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="relative w-full sm:w-52">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Mission ou agent…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 pl-8 text-xs"
+                  />
+                </div>
+              </div>
+            )}
+
+            <ul className="divide-y">
               {filteredList.map((item) => {
                 const mission = item.mission;
-                const isOverdue = item.urgency === 'overdue';
-                const isCritical = item.urgency === 'critical';
-
-                const displayStatus = getDisplayStatus(mission, currentTime);
+                const t = TONES[item.urgency === 'warning' ? 'critical' : item.urgency];
                 const missionWithStatus: MissionWithDisplayStatus = {
                   ...mission,
-                  displayStatus,
+                  displayStatus: getDisplayStatus(mission, currentTime),
                 };
 
                 return (
-                  <div
-                    key={mission.id}
-                    className={`p-3.5 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3.5 ${
-                      isOverdue
-                        ? 'bg-red-50/70 dark:bg-red-950/20 border-red-500/30'
-                        : isCritical
-                        ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-500/30'
-                        : 'bg-card/70 border-border/70 hover:border-primary/40'
-                    }`}
-                  >
-                    {/* Bloc informations */}
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-foreground hover:underline cursor-pointer"
-                          onClick={() => onViewMissionDetails?.(missionWithStatus)}
-                        >
-                          {mission.name}
-                        </span>
-
-                        {/* Compte à rebours textuel épuré (règle zero-pill : texte sobre et informatif) */}
-                        <span
-                          className={`font-mono text-xs font-bold inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${
-                            isOverdue
-                              ? 'bg-red-500 text-white animate-pulse'
-                              : isCritical
-                              ? 'bg-amber-500 text-white'
-                              : 'bg-muted text-foreground'
-                          }`}
-                        >
-                          <Clock className="h-3 w-3" />
-                          {item.timeLabel}
-                        </span>
-
-                        {mission.detachement && (
-                          <span className="text-[11px] text-muted-foreground font-medium">
-                            · {mission.detachement}
+                  <li key={mission.id} className="flex flex-col gap-2.5 px-4 py-3 md:flex-row md:items-center">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.dot}`} aria-hidden="true" />
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <button
+                            type="button"
+                            className="text-sm font-semibold text-foreground hover:underline"
+                            onClick={() => onViewMissionDetails?.(missionWithStatus)}
+                          >
+                            {mission.name}
+                          </button>
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium ${t.text}`}>
+                            <Clock className="h-3 w-3" />
+                            {item.timeLabel}
                           </span>
-                        )}
-                      </div>
-
-                      {/* Métadonnées sans pilules superflues */}
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 text-foreground/80">
-                          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                          {mission.location || 'Lieu non spécifié'}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5 shrink-0" />
-                          Fin prévue : {item.endDateTime.toLocaleDateString('fr-FR')} à{' '}
-                          {item.endDateTime.toLocaleTimeString('fr-FR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5 shrink-0" />
-                          <span className="font-semibold text-foreground">
-                            {item.assignedAgents.length}
-                          </span>{' '}
-                          agent{item.assignedAgents.length > 1 ? 's' : ''}{' '}
-                          {item.assignedAgents.length > 0 && (
-                            <span className="text-[11px] italic">
-                              ({item.assignedAgents.map((a) => a.fullName).slice(0, 2).join(', ')}
-                              {item.assignedAgents.length > 2
-                                ? ` +${item.assignedAgents.length - 2}`
-                                : ''})
-                            </span>
-                          )}
-                        </span>
+                        </div>
+                        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {mission.location || 'Lieu non spécifié'}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {fmtDateTime(item.endDateTime)}
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={item.assignedAgents.map((a) => a.fullName).join(', ')}
+                          >
+                            <Users className="h-3 w-3" />
+                            {item.assignedAgents.length} agent{item.assignedAgents.length > 1 ? 's' : ''}
+                          </span>
+                          {mission.detachement && <span>{mission.detachement}</span>}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Bloc actions rapides de l'administrateur */}
-                    <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                    <div className="flex shrink-0 items-center gap-1 self-end md:self-center">
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="h-8 text-xs font-medium gap-1 px-2.5"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
                         onClick={() => onViewMissionDetails?.(missionWithStatus)}
-                        title="Voir les détails complets de la mission"
+                        title="Voir les détails de la mission"
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-3.5 w-3.5 sm:mr-1" />
                         <span className="hidden sm:inline">Détails</span>
                       </Button>
-
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="h-8 text-xs font-semibold gap-1 px-2.5 border-blue-500/30 text-blue-600 hover:bg-blue-500/10 hover:text-blue-700"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
                         onClick={() => {
                           setExtendingMission(mission);
                           setExtensionDays(1);
                         }}
-                        title="Prolonger la durée de la mission"
+                        title="Prolonger la mission"
                       >
-                        <CalendarPlus className="h-3.5 w-3.5" />
-                        <span>Prolonger</span>
+                        <CalendarPlus className="h-3.5 w-3.5 sm:mr-1" />
+                        <span className="hidden sm:inline">Prolonger</span>
                       </Button>
-
                       <Button
                         size="sm"
-                        className="h-8 text-xs font-bold gap-1 px-3 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs font-semibold text-emerald-700 border-emerald-600/40 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
                         onClick={() => setClosingMission(mission)}
-                        title="Clôturer et libérer les agents"
+                        title="Clôturer la mission"
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Clôturer</span>
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                        Clôturer
                       </Button>
                     </div>
-                  </div>
+                  </li>
                 );
               })}
 
               {filteredList.length === 0 && (
-                <div className="p-4 text-center text-xs text-muted-foreground">
-                  Aucune mission ne correspond aux critères de recherche actuels.
-                </div>
+                <li className="px-4 py-4 text-center text-xs text-muted-foreground">
+                  Aucune mission ne correspond à la recherche.
+                </li>
               )}
-            </div>
+            </ul>
 
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-3 border-t border-border/50 mt-3">
-              <span>
-                💡 Les missions clôturées incrémentent automatiquement le compteur d'activités des agents affectés.
-              </span>
-              <Link
-                href="/missions"
-                className="text-primary hover:underline font-semibold whitespace-nowrap ml-2"
-              >
-                Gérer toutes les missions &rarr;
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
+              <span>Une mission échue est clôturée automatiquement 1 h après sa fin prévue.</span>
+              <Link href="/missions" className="font-semibold text-primary hover:underline whitespace-nowrap">
+                Toutes les missions &rarr;
               </Link>
             </div>
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </div>
+      <style>{`@keyframes expiring-alert-countdown { from { width: 100%; } to { width: 0%; } }`}</style>
 
       {/* Modal de confirmation de clôture rapide */}
       {closingMission && (
@@ -668,13 +599,20 @@ export function ExpiringMissionsAlert({
                 <p className="text-muted-foreground">
                   Échéance actuelle :{' '}
                   <strong className="text-foreground">
-                    {parseMissionEndDateTime(extendingMission)?.toLocaleDateString('fr-FR')} à{' '}
-                    {parseMissionEndDateTime(extendingMission)?.toLocaleTimeString('fr-FR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {(() => {
+                      const end = getMissionEndDateTime(extendingMission);
+                      return end ? fmtDateTime(end) : '—';
+                    })()}
                   </strong>
                 </p>
+                {(() => {
+                  const end = getMissionEndDateTime(extendingMission);
+                  return end && end < currentTime ? (
+                    <p className="text-muted-foreground">
+                      La mission est déjà échue : la prolongation part d'aujourd'hui.
+                    </p>
+                  ) : null;
+                })()}
               </div>
 
               <div className="space-y-2">
@@ -689,7 +627,7 @@ export function ExpiringMissionsAlert({
                     className="text-xs font-semibold"
                     onClick={() => setExtensionDays(1)}
                   >
-                    + 24 heures (1j)
+                    + 1 jour
                   </Button>
                   <Button
                     type="button"
@@ -698,7 +636,7 @@ export function ExpiringMissionsAlert({
                     className="text-xs font-semibold"
                     onClick={() => setExtensionDays(2)}
                   >
-                    + 48 heures (2j)
+                    + 2 jours
                   </Button>
                   <Button
                     type="button"
@@ -707,25 +645,34 @@ export function ExpiringMissionsAlert({
                     className="text-xs font-semibold"
                     onClick={() => setExtensionDays(7)}
                   >
-                    + 1 semaine (7j)
+                    + 1 semaine
                   </Button>
                 </div>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Nouvelle date d'échéance calculée :{' '}
+                Nouvelle échéance :{' '}
                 <strong className="text-foreground">
-                  {new Date(
-                    (parseMissionEndDateTime(extendingMission)?.getTime() || Date.now()) +
-                      extensionDays * 24 * 60 * 60 * 1000
-                  ).toLocaleDateString('fr-FR')}{' '}
-                  à{' '}
-                  {new Date(
-                    (parseMissionEndDateTime(extendingMission)?.getTime() || Date.now()) +
-                      extensionDays * 24 * 60 * 60 * 1000
-                  ).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  {extension?.newEnd ? fmtDateTime(extension.newEnd) : '—'}
                 </strong>
               </p>
+
+              {extension && extension.conflicts.length > 0 && (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-1">
+                  <p className="flex items-center gap-1.5 font-semibold text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Prolongation impossible : agent(s) indisponible(s) sur les jours ajoutés
+                  </p>
+                  <ul className="list-disc pl-5 text-foreground/80">
+                    {extension.conflicts.map(({ agent, info }) => (
+                      <li key={agent.id}>
+                        <span className="font-medium">{agent.fullName}</span> — {info.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-muted-foreground">Choisissez une durée plus courte ou modifiez l'affectation depuis la page Missions.</p>
+                </div>
+              )}
             </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
@@ -737,7 +684,7 @@ export function ExpiringMissionsAlert({
                 Annuler
               </Button>
               <Button
-                disabled={isExtending}
+                disabled={isExtending || !extension || extension.conflicts.length > 0}
                 onClick={handleConfirmExtend}
                 className="bg-blue-600 hover:bg-blue-500 text-white font-bold"
               >

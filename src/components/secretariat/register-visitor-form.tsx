@@ -20,12 +20,13 @@ import { useFirestore, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Loader2 } from 'lucide-react';
 import { logActivity } from '@/lib/activity-logger';
+import { VisitorExtraFields, normalizeVisitorExtra, visitorExtraSchema } from '@/components/secretariat/visitor-extra-fields';
 
 const visitorSchema = z.object({
-  lastName: z.string().min(2, 'Le nom est requis.'),
-  firstName: z.string().min(2, 'Le prénom est requis.'),
-  contact: z.string().min(8, 'Le contact est requis.'),
-  occupation: z.string().min(2, 'La fonction est requise.'),
+  lastName: z.string().trim().min(2, 'Le nom est requis.'),
+  firstName: z.string().trim().min(2, 'Le prénom est requis.'),
+  contact: z.string().trim().min(8, 'Le contact est requis (8 caractères minimum).'),
+  ...visitorExtraSchema,
 });
 
 type VisitorFormValues = z.infer<typeof visitorSchema>;
@@ -44,7 +45,10 @@ export function RegisterVisitorForm({ onVisitorRegistered }: RegisterVisitorForm
       firstName: '',
       lastName: '',
       contact: '',
-      occupation: '',
+      idNumber: '',
+      visitReason: '',
+      vehiclePlate: '',
+      vehicleBrand: '',
     },
   });
 
@@ -53,6 +57,7 @@ export function RegisterVisitorForm({ onVisitorRegistered }: RegisterVisitorForm
 
     const visitorData = {
         ...data,
+        ...normalizeVisitorExtra(data),
         entryTime: Timestamp.now(),
         exitTime: null,
     };
@@ -89,7 +94,7 @@ export function RegisterVisitorForm({ onVisitorRegistered }: RegisterVisitorForm
                         name="lastName"
                         render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Nom</FormLabel>
+                            <FormLabel>Nom <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                             <Input {...field} />
                             </FormControl>
@@ -102,7 +107,7 @@ export function RegisterVisitorForm({ onVisitorRegistered }: RegisterVisitorForm
                         name="firstName"
                         render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Prénom(s)</FormLabel>
+                            <FormLabel>Prénom(s) <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
                             <Input {...field} />
                             </FormControl>
@@ -116,7 +121,7 @@ export function RegisterVisitorForm({ onVisitorRegistered }: RegisterVisitorForm
                 name="contact"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Contact</FormLabel>
+                    <FormLabel>Contact <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                         <Input {...field} />
                     </FormControl>
@@ -124,19 +129,7 @@ export function RegisterVisitorForm({ onVisitorRegistered }: RegisterVisitorForm
                     </FormItem>
                 )}
                 />
-                <FormField
-                control={form.control}
-                name="occupation"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Fonction</FormLabel>
-                    <FormControl>
-                        <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+                <VisitorExtraFields control={form.control} />
                 <div className="flex justify-end pt-4">
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

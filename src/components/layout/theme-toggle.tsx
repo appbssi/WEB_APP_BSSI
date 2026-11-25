@@ -13,16 +13,16 @@ export function ThemeToggle() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={toggleTheme}
-            className="h-8 w-8 rounded-lg border-border hover:bg-accent transition-all text-foreground"
+            className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
             title={isDark ? 'Passer au mode clair' : 'Passer au mode sombre'}
           >
             {isDark ? (
-              <Sun className="h-4 w-4 text-amber-400 transition-transform hover:rotate-45" />
+              <Sun className="h-[18px] w-[18px] text-amber-400 transition-transform hover:rotate-45" />
             ) : (
-              <Moon className="h-4 w-4 text-slate-700 dark:text-slate-200 transition-transform hover:-rotate-12" />
+              <Moon className="h-[18px] w-[18px] transition-transform hover:-rotate-12" />
             )}
             <span className="sr-only">Changer le thème</span>
           </Button>

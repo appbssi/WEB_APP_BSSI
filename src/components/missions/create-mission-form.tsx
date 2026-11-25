@@ -281,7 +281,10 @@ export function CreateMissionForm({
             title: `Ordre de Mission - ${data.name}`,
             type: 'ordre_de_mission',
             createdAt: Timestamp.now(),
-            agentIds: data.assignedAgentIds,
+            // Ordre non signé : aucun agent n'y a accès (agentIds vide). Les agents de la mission
+            // reçoivent seulement la version signée, via le volet « Ordres signés ».
+            agentIds: [],
+            assignedAgentIds: data.assignedAgentIds,
             agentNames: assignedAgents.map(a => a.fullName),
             leaderId: selectedLeaderId || null,
             leaderName: leaderAgent?.fullName || 'Non désigné',
@@ -577,7 +580,7 @@ export function CreateMissionForm({
                       <SelectItem value="all">TOUTES LES SECTIONS</SelectItem>
                       <SelectItem value="Armurerie">ARMURERIE</SelectItem>
                       <SelectItem value="Administration">ADMINISTRATION</SelectItem>
-                      <SelectItem value="FAUNE">FAUNE</SelectItem>
+                      <SelectItem value="FAUNE">SERVICE FAUNE</SelectItem>
                       <SelectItem value="CONDUCTEUR">CONDUCTEUR</SelectItem>
                       <SelectItem value="SECTION FEMININE">SECTION FEMININE</SelectItem>
                       <SelectItem value="DETACHEMENT NOE">DETACHEMENT NOE</SelectItem>

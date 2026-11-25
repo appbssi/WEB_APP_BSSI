@@ -29,10 +29,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToDataUrl } from '@/lib/image-compress';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { useFirestore, errorEmitter } from '@/firebase';
+import { useFirestore, useAuth, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Availability } from '@/lib/types';
-import { Loader2, User, X } from 'lucide-react';
+import { KeyRound, Loader2, User, X } from 'lucide-react';
 import { logActivity } from '@/lib/activity-logger';
 import Image from 'next/image';
 
@@ -58,6 +58,37 @@ export function EditAgentSheet({ agent, onAgentEdited, availability }: EditAgent
   const firestore = useFirestore();
   const [photo, setPhoto] = useState<string | null>(agent.photo || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const auth = useAuth();
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!window.confirm(`Réinitialiser le mot de passe de ${agent.fullName} ? Il devra en créer un nouveau à sa prochaine connexion.`)) {
+      return;
+    }
+    setIsResettingPassword(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken ?? ''}` },
+        body: JSON.stringify({ agentId: agent.id }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(payload.error || 'Réinitialisation impossible.');
+      toast({
+        title: 'Mot de passe réinitialisé',
+        description: `${agent.fullName} créera un nouveau mot de passe à sa prochaine connexion.`,
+      });
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: err instanceof Error ? err.message : 'Réinitialisation impossible.',
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
@@ -288,7 +319,7 @@ export function EditAgentSheet({ agent, onAgentEdited, availability }: EditAgent
                       <SelectItem value="Non assigné">NON ASSIGNÉ</SelectItem>
                       <SelectItem value="Armurerie">ARMURERIE</SelectItem>
                       <SelectItem value="Administration">ADMINISTRATION</SelectItem>
-                      <SelectItem value="FAUNE">FAUNE</SelectItem>
+                      <SelectItem value="FAUNE">SERVICE FAUNE</SelectItem>
                       <SelectItem value="CONDUCTEUR">CONDUCTEUR</SelectItem>
                       <SelectItem value="SECTION FEMININE">SECTION FEMININE</SelectItem>
                       <SelectItem value="DETACHEMENT NOE">DETACHEMENT NOE</SelectItem>
@@ -308,6 +339,24 @@ export function EditAgentSheet({ agent, onAgentEdited, availability }: EditAgent
           </div>
         </form>
       </Form>
+
+      <div className="mt-6 rounded-lg border border-dashed p-3">
+        <p className="text-sm font-semibold">Mot de passe de connexion</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          En cas d&apos;oubli : l&apos;agent créera un nouveau mot de passe à sa prochaine connexion avec son IDC.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full gap-1.5"
+          disabled={isResettingPassword}
+          onClick={handleResetPassword}
+        >
+          {isResettingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          Réinitialiser le mot de passe
+        </Button>
+      </div>
     </>
   );
 }

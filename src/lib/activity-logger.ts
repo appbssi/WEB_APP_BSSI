@@ -4,7 +4,7 @@ import { addDoc, collection, Timestamp, Firestore } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
-type ActivityType = 'Agent' | 'Mission' | 'Rassemblement' | 'Visiteur' | 'Général' | 'GAV' | 'Armurerie' | 'Logistique';
+type ActivityType = 'Agent' | 'Mission' | 'Rassemblement' | 'Visiteur' | 'Général' | 'GAV' | 'Armurerie' | 'Logistique' | 'Information' | 'Renseignement';
 
 /**
  * Logs an activity to the Firestore 'activities' collection.

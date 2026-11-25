@@ -46,7 +46,7 @@ import { CreateMissionForm } from '@/components/missions/create-mission-form';
 import { AgentMissionCountersDialog } from '@/components/missions/agent-mission-counters-dialog';
 import { CheckCircle2 } from 'lucide-react';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, deleteDoc, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, increment, updateDoc, writeBatch } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Mission, MissionStatus } from '@/lib/types';
@@ -190,7 +190,7 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                     <DropdownMenu>
+                     <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                             <button className="button-13"><FileDown className="mr-2 h-4 w-4" /> Exporter</button>
                         </DropdownMenuTrigger>
@@ -413,11 +413,11 @@ function MissionsContent() {
       const batch = writeBatch(firestore);
       batch.update(missionRef, updateData);
 
+      // +1 par agent encore enregistré : increment() évite les doubles comptages,
+      // et un agent supprimé ferait échouer toute la clôture.
       for (const agentId of missionToComplete.assignedAgentIds || []) {
-        const agentRef = doc(firestore, 'agents', agentId);
-        const agentObj = agentsById[agentId];
-        const currentCount = agentObj?.missionCount || 0;
-        batch.update(agentRef, { missionCount: currentCount + 1 });
+        if (!agentsById[agentId]) continue;
+        batch.update(doc(firestore, 'agents', agentId), { missionCount: increment(1) });
       }
 
       await batch.commit();
@@ -479,12 +479,18 @@ function MissionsContent() {
           )}
         </div>
         {!isObserver && (
-          <div className="flex flex-wrap items-center gap-2">
+          // Secondaires à gauche, action principale « Créer une mission » à droite ; en mobile, pleine largeur
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-2 w-full sm:w-auto">
+            <Button variant="outline" className="gap-2" onClick={() => setAgentStatsOpen(true)}>
+              <Users className="h-4 w-4" />
+              Compteurs d'agents
+            </Button>
+
             <Dialog open={isRecordCompletedOpen} onOpenChange={setRecordCompletedOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 shadow-sm font-medium">
-                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
-                  Enregistrer mission effectuée
+                <Button variant="outline" className="gap-2 border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Mission effectuée
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -504,16 +510,12 @@ function MissionsContent() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" className="gap-2" onClick={() => setAgentStatsOpen(true)}>
-              <Users className="h-4 w-4" />
-              Compteurs d'agents
-            </Button>
-
             <Dialog open={isCreateMissionOpen} onOpenChange={setCreateMissionOpen}>
               <DialogTrigger asChild>
-                 <button className="button-13 flex items-center justify-center !w-auto px-4">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Créer une mission
-                </button>
+                <Button className="col-span-2 gap-2 font-semibold">
+                  <PlusCircle className="h-4 w-4" />
+                  Créer une mission
+                </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
@@ -547,8 +549,8 @@ function MissionsContent() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4">
-            <div className="relative w-full max-w-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 className="pl-10"
@@ -557,9 +559,9 @@ function MissionsContent() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-             <div className="flex items-center gap-2 flex-wrap">
+             <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MissionStatus | 'all')}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[220px]">
                     <SelectValue placeholder="Filtrer par statut" />
                   </SelectTrigger>
                   <SelectContent>

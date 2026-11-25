@@ -20,6 +20,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 import { useRole } from '@/hooks/use-role';
 
+// Libellé affiché pour certaines valeurs (la valeur reste la section des agents)
+const DETACHEMENT_LABELS: Record<string, string> = {
+  FAUNE: 'SERVICE FAUNE',
+};
+const labelOf = (value: string) => DETACHEMENT_LABELS[value] ?? value;
+
 export function DetachementSelector() {
   const { selectedDetachement, setSelectedDetachement } = useDetachement();
   const firestore = useFirestore();
@@ -34,6 +40,7 @@ export function DetachementSelector() {
       'DETACHEMENT NOE',
       'DETACHEMENT TINGRELA',
       'DETACHEMENT MORONDO',
+      'FAUNE',
     ];
 
     if (agents) {
@@ -54,17 +61,17 @@ export function DetachementSelector() {
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild disabled={!isAdmin}>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 disabled={!isAdmin}
-                className={`h-8 w-8 relative rounded-lg bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary transition-all ${
-                  isAdmin ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'
-                }`}
+                className={`h-8 w-8 relative rounded-full hover:bg-muted ${
+                  selectedDetachement !== 'ALL' ? 'text-primary hover:text-primary' : 'text-muted-foreground hover:text-foreground'
+                } ${isAdmin ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'}`}
                 aria-label="Sélectionner le détachement"
               >
-                <Shield className="h-4 w-4" />
+                <Shield className="h-[18px] w-[18px]" />
                 {selectedDetachement !== 'ALL' && (
-                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="absolute top-0.5 right-0.5 flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
                   </span>
@@ -73,7 +80,7 @@ export function DetachementSelector() {
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs font-semibold">
-            Détachement : {selectedDetachement === 'ALL' ? 'Tous les détachements' : selectedDetachement}
+            Détachement : {selectedDetachement === 'ALL' ? 'Tous les détachements' : labelOf(selectedDetachement)}
             {!isAdmin && " (Modification réservée aux administrateurs)"}
           </TooltipContent>
         </Tooltip>
@@ -102,7 +109,7 @@ export function DetachementSelector() {
               selectedDetachement === opt ? 'bg-primary/10 text-primary font-bold' : ''
             }`}
           >
-            <span>{opt}</span>
+            <span>{labelOf(opt)}</span>
             {selectedDetachement === opt && <Shield className="h-3.5 w-3.5 text-primary" />}
           </DropdownMenuItem>
         ))}

@@ -27,12 +27,13 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import type { Visitor } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { logActivity } from '@/lib/activity-logger';
+import { VisitorExtraFields, normalizeVisitorExtra, visitorExtraEditSchema } from '@/components/secretariat/visitor-extra-fields';
 
 const visitorSchema = z.object({
-  lastName: z.string().min(2, 'Le nom est requis.'),
-  firstName: z.string().min(2, 'Le prénom est requis.'),
-  contact: z.string().min(8, 'Le contact est requis.'),
-  occupation: z.string().min(2, 'La fonction est requise.'),
+  lastName: z.string().trim().min(2, 'Le nom est requis.'),
+  firstName: z.string().trim().min(2, 'Le prénom est requis.'),
+  contact: z.string().trim().min(8, 'Le contact est requis (8 caractères minimum).'),
+  ...visitorExtraEditSchema,
 });
 
 type VisitorFormValues = z.infer<typeof visitorSchema>;
@@ -53,7 +54,10 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
       firstName: visitor.firstName,
       lastName: visitor.lastName,
       contact: visitor.contact,
-      occupation: visitor.occupation,
+      idNumber: visitor.idNumber ?? '',
+      visitReason: visitor.visitReason ?? '',
+      vehiclePlate: visitor.vehiclePlate ?? '',
+      vehicleBrand: visitor.vehicleBrand ?? '',
     },
   });
 
@@ -61,7 +65,7 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
     if (!firestore) return;
     
     const visitorRef = doc(firestore, 'visitors', visitor.id);
-    const updateData = { ...data };
+    const updateData = { ...data, ...normalizeVisitorExtra(data) };
 
     updateDoc(visitorRef, updateData).then(() => {
         toast({
@@ -98,7 +102,7 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
               name="lastName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nom</FormLabel>
+                  <FormLabel>Nom <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -111,7 +115,7 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
               name="firstName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prénom(s)</FormLabel>
+                  <FormLabel>Prénom(s) <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -124,7 +128,7 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
               name="contact"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Contact</FormLabel>
+                  <FormLabel>Contact <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -132,19 +136,7 @@ export function EditVisitorSheet({ visitor, isOpen, onOpenChange }: EditVisitorS
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="occupation"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fonction</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <VisitorExtraFields control={form.control} required={false} />
             <div className="flex justify-end pt-4">
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

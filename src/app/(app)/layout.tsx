@@ -11,6 +11,9 @@ import { DeviceTracker } from '@/components/layout/device-tracker';
 import { NavigationWatcher } from '@/components/layout/navigation-watcher';
 import { OfflineBanner } from '@/components/layout/offline-banner';
 import { ServiceWorkerRegister } from '@/components/layout/service-worker-register';
+import { MissionAutoCloser } from '@/components/layout/mission-auto-closer';
+import { UnsignedOrdersGuard } from '@/components/layout/unsigned-orders-guard';
+import { AgentWelcome } from '@/components/layout/agent-welcome';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +21,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <ServiceWorkerRegister />
       <DeviceTracker />
       <NavigationWatcher />
+      <MissionAutoCloser />
+      <UnsignedOrdersGuard />
+      <AgentWelcome />
       <SidebarProvider>
         <Sidebar>
           <SidebarNav />

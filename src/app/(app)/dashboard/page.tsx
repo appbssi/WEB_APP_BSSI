@@ -32,6 +32,8 @@ import {
   PackageCheck,
   Database,
   WifiOff,
+  Briefcase,
+  ChevronRight,
 } from 'lucide-react';
 import {
   saveDashboardOfflineCache,
@@ -84,6 +86,7 @@ import { Badge } from '@/components/ui/badge';
 import { RecentActivities } from '@/components/dashboard/recent-activities';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { DemandeAttachmentButton } from '@/components/demandes/demande-attachment';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { ClientOnly } from '@/components/layout/client-only';
 import { useRole } from '@/hooks/use-role';
@@ -93,6 +96,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExpiringMissionsAlert } from '@/components/dashboard/expiring-missions-alert';
+import { PasswordResetRequests } from '@/components/dashboard/password-reset-requests';
 
 
 export default function DashboardPage() {
@@ -599,10 +603,14 @@ function DashboardContent() {
         )}
       </div>
 
+      {/* Codes « mot de passe oublié » à transmettre aux agents */}
+      <PasswordResetRequests />
+
       {/* Notifications pour les missions expirant dans moins de 48 heures */}
       {role === 'admin' && (
         <ExpiringMissionsAlert
           missions={filteredMissions || []}
+          allMissions={rawMissions || []}
           agents={agents || []}
           onViewMissionDetails={(m) => setSelectedMission(m)}
         />
@@ -761,79 +769,111 @@ function DashboardContent() {
         </div>
       )}
 
-      <div className={cn("grid gap-8", role === 'admin' ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1")}>
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Missions en cours ({ongoingMissions.length})</CardTitle>
+      <div className={cn("grid gap-6 items-stretch", role === 'admin' ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1")}>
+        <Card className="rounded-2xl flex flex-col">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1.5">
+                <CardTitle className="flex items-center gap-2 whitespace-nowrap text-lg">
+                  <Briefcase className="h-5 w-5 shrink-0 text-primary" />
+                  Missions en cours
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                    {ongoingMissions.length}
+                  </span>
+                </CardTitle>
+                <CardDescription>Missions actives et planifiées du détachement.</CardDescription>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs" title="Toutes les missions">
+                <Link href="/missions">
+                  <span className="hidden xl:inline">Tout voir</span>
+                  <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1">
             {ongoingMissions.length > 0 ? (
                 <ScrollArea className="h-72">
-                  <div className="space-y-4">
+                  <ul className="divide-y rounded-lg border pr-0">
                     {ongoingMissions.map((mission) => (
-                      <div key={mission.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setSelectedMission(mission)}>
-                        <div className="flex justify-between items-start gap-3">
-                           <div>
-                              <p className="font-semibold">{mission.name}</p>
-                              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                                <MapPin className="h-4 w-4" /> {mission.location}
-                              </p>
-                           </div>
-                           <Badge
-                             variant="default"
-                             className={cn(
-                               'shrink-0',
-                               mission.displayStatus === 'En cours' && 'gap-1.5 animate-soft-pulse'
-                             )}
-                           >
-                             {mission.displayStatus === 'En cours' && (
-                               <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/80 opacity-75" />
-                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                               </span>
-                             )}
-                             <span>{mission.displayStatus}</span>
-                           </Badge>
-                        </div>
-                        <div className="flex items-center text-sm text-muted-foreground mt-2 gap-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>{formatDateSafe(mission.startDate)} - {formatDateSafe(mission.endDate)}</span>
-                        </div>
-                      </div>
+                      <li key={mission.id}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50"
+                          onClick={() => setSelectedMission(mission)}
+                        >
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="truncate text-sm font-semibold text-foreground">{mission.name}</p>
+                            <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="h-3 w-3" /> {mission.location || 'Lieu non spécifié'}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDateSafe(mission.startDate)} – {formatDateSafe(mission.endDate)}
+                              </span>
+                            </p>
+                          </div>
+                          <Badge
+                            variant="default"
+                            className={cn(
+                              'shrink-0',
+                              mission.displayStatus === 'En cours' && 'gap-1.5 animate-soft-pulse'
+                            )}
+                          >
+                            {mission.displayStatus === 'En cours' && (
+                              <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/80 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                              </span>
+                            )}
+                            <span>{mission.displayStatus}</span>
+                          </Badge>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </ScrollArea>
               ) : (
-                <div className="flex items-center justify-center h-72 text-muted-foreground">
-                  <p>Aucune mission en cours pour le moment.</p>
+                <div className="flex h-72 flex-col items-center justify-center text-center text-muted-foreground">
+                  <Briefcase className="mb-2 h-8 w-8 opacity-40" />
+                  <p className="text-sm font-semibold text-foreground">Aucune mission en cours</p>
+                  <p className="mt-0.5 text-xs">Les nouvelles missions apparaîtront ici.</p>
                 </div>
               )}
           </CardContent>
         </Card>
 
         {role === 'admin' ? (
-          <Card className="rounded-2xl">
+          <Card className="rounded-2xl flex flex-col">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                Gestion des Permis
-              </CardTitle>
-              <CardDescription>
-                Traiter les demandes en attente ou consulter l'historique des décisions.
-              </CardDescription>
+              <div className="min-w-0 space-y-1.5">
+                <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
+                  <Calendar className="h-5 w-5 shrink-0 text-primary" />
+                  Gestion des permis
+                  {pendingDemandes.length > 0 && (
+                    <span className="rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-semibold text-orange-600">
+                      {pendingDemandes.length} en attente
+                    </span>
+                  )}
+                </CardTitle>
+                <CardDescription>Demandes d'absence à traiter et décisions rendues.</CardDescription>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               <Tabs defaultValue="en_attente" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-4">
-                  <TabsTrigger value="en_attente" className="text-xs font-semibold">
-                    En attente ({pendingDemandes.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="historique" className="text-xs font-semibold">
-                    Historique ({processedDemandes.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="autorisations" className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    Autorisations PDF ({processedDemandes.filter(d => d.status === 'acceptee').length})
-                  </TabsTrigger>
+                <TabsList className="mb-3 grid h-auto w-full grid-cols-3">
+                  {([
+                    ['en_attente', 'À traiter', pendingDemandes.length],
+                    ['historique', 'Traitées', processedDemandes.length],
+                    ['autorisations', 'PDF', processedDemandes.filter(d => d.status === 'acceptee').length],
+                  ] as const).map(([value, label, count]) => (
+                    <TabsTrigger key={value} value={value} className="gap-1.5 px-1.5 py-1.5 text-xs font-semibold">
+                      <span className="truncate">{label}</span>
+                      <span className="rounded-full bg-muted-foreground/10 px-1.5 text-[10px] tabular-nums">{count}</span>
+                    </TabsTrigger>
+                  ))}
                 </TabsList>
 
                 <TabsContent value="en_attente" className="mt-0">
@@ -867,6 +907,11 @@ function DashboardContent() {
                                 <p className="italic bg-black/10 dark:bg-white/5 p-2 rounded mt-1 border border-border">
                                   « {dem.reason} »
                                 </p>
+                              )}
+                              {dem.attachment && (
+                                <div className="pt-1">
+                                  <DemandeAttachmentButton demandeId={dem.id} name={dem.attachment.name} />
+                                </div>
                               )}
                             </div>
 
@@ -940,6 +985,11 @@ function DashboardContent() {
                                 <p className="italic bg-black/10 dark:bg-white/5 p-2 rounded mt-1 border border-border">
                                   « {dem.reason} »
                                 </p>
+                              )}
+                              {dem.attachment && (
+                                <div className="pt-1">
+                                  <DemandeAttachmentButton demandeId={dem.id} name={dem.attachment.name} />
+                                </div>
                               )}
                               {dem.status === 'refusee' && dem.comment && (
                                 <p className="text-xs bg-destructive/5 dark:bg-destructive/10 p-2 rounded mt-1 border border-destructive/20 text-destructive dark:text-red-400">

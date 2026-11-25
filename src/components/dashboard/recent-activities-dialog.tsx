@@ -9,8 +9,8 @@ export function RecentActivitiesDialog() {
   return (
      <Sheet>
         <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative p-2 bg-card text-primary align-middle rounded-full hover:text-white hover:bg-primary focus:outline-none">
-                <Bell className="h-6 w-6" />
+            <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+                <Bell className="h-[18px] w-[18px]" />
                 <span className="sr-only">Notifications</span>
             </Button>
         </SheetTrigger>

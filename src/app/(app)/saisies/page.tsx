@@ -11,7 +11,7 @@ import { fr } from 'date-fns/locale';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -37,7 +37,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   PackageCheck,
@@ -256,214 +255,163 @@ export default function SaisiesPage() {
     toast({ title: 'Export PDF réussi', description: 'Le registre des saisies a été généré au format PDF.' });
   };
 
-  // Helper badge color per status
-  const getStatusBadge = (status: SaisieStatus) => {
-    switch (status) {
-      case 'En Dépôt / Scellé':
-      case 'En Dépôt Coffre-Fort':
-        return <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">{status}</Badge>;
-      case 'Transféré au Parquet':
-        return <Badge className="bg-sky-500/15 text-sky-400 border border-sky-500/30">{status}</Badge>;
-      case 'Restitué':
-        return <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">{status}</Badge>;
-      case 'Détruit':
-        return <Badge className="bg-rose-500/15 text-rose-400 border border-rose-500/30">{status}</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+  // Pastille de statut (point coloré + libellé)
+  const STATUS_TONES: Record<string, string> = {
+    'En Dépôt / Scellé': 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400',
+    'En Dépôt Coffre-Fort': 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400',
+    'Transféré au Parquet': 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-500/10 dark:text-indigo-400',
+    'Restitué': 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400',
+    'Détruit': 'bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-400',
   };
+
+  const getStatusBadge = (status: SaisieStatus) => (
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+        STATUS_TONES[status] ?? 'bg-muted text-muted-foreground ring-border'
+      }`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      {status}
+    </span>
+  );
+
+  const kpis = [
+    { label: 'Actes de saisie', value: stats.total, hint: 'Saisies enregistrées', icon: Archive, tone: 'text-primary bg-primary/10' },
+    { label: 'Objets / articles', value: stats.totalItems, hint: 'Unités saisies au total', icon: Boxes, tone: 'text-sky-600 bg-sky-500/10' },
+    { label: 'Sous scellés / en dépôt', value: stats.scelleCount, hint: 'Au coffre ou au magasin', icon: ShieldCheck, tone: 'text-amber-600 bg-amber-500/10' },
+    { label: 'Transférés au parquet', value: stats.parquetCount, hint: 'Remis aux autorités judiciaires', icon: Scale, tone: 'text-indigo-600 bg-indigo-500/10' },
+  ];
+
+  const hasFilters = !!searchQuery || selectedCategory !== 'Toutes les catégories' || selectedStatus !== 'all';
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <PackageCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white font-mono">
-                Registre des Saisies & Scellés
-              </h1>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Enregistrement, classification et suivi opérationnel de toutes les marchandises et objets saisis.
-              </p>
-            </div>
+      {/* En-tête */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+            <PackageCheck className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Registre des saisies &amp; scellés</h1>
+            <p className="text-sm text-muted-foreground">
+              Enregistrement et suivi des marchandises et objets saisis.
+            </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            onClick={exportToExcel}
-            variant="outline"
-            size="sm"
-            className="bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs gap-1.5"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+          <Button onClick={exportToExcel} variant="outline" size="sm" className="gap-1.5">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             Excel
           </Button>
-
-          <Button
-            onClick={exportToPDF}
-            variant="outline"
-            size="sm"
-            className="bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs gap-1.5"
-          >
-            <FileText className="h-4 w-4 text-rose-400" />
+          <Button onClick={exportToPDF} variant="outline" size="sm" className="gap-1.5">
+            <FileText className="h-4 w-4 text-rose-600" />
             PDF
           </Button>
-
-          <Button
-            onClick={() => setIsCreateOpen(true)}
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs gap-1.5 shadow-md shadow-emerald-950/40"
-          >
+          <Button onClick={() => setIsCreateOpen(true)} size="sm" className="gap-1.5 font-semibold">
             <Plus className="h-4 w-4" />
-            Enregistrer une Saisie
+            Enregistrer une saisie
           </Button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-zinc-900/90 border-zinc-800/80">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Actes de Saisie
-            </CardTitle>
-            <Archive className="h-4 w-4 text-emerald-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white font-mono">{stats.total}</div>
-            <p className="text-[11px] text-zinc-500 mt-1">Saisies enregistrées au total</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900/90 border-zinc-800/80">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Quantité Objets / Articles
-            </CardTitle>
-            <Boxes className="h-4 w-4 text-sky-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-sky-400 font-mono">{stats.totalItems}</div>
-            <p className="text-[11px] text-zinc-500 mt-1">Cumul global des unités saisis</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900/90 border-zinc-800/80">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Sous Scellés / En Dépôt
-            </CardTitle>
-            <ShieldCheck className="h-4 w-4 text-amber-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-400 font-mono">{stats.scelleCount}</div>
-            <p className="text-[11px] text-zinc-500 mt-1">Conservés au coffre ou magasin</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900/90 border-zinc-800/80">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Transférés Parquet
-            </CardTitle>
-            <Scale className="h-4 w-4 text-indigo-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-indigo-400 font-mono">{stats.parquetCount}</div>
-            <p className="text-[11px] text-zinc-500 mt-1">Transmis aux autorités judiciaires</p>
-          </CardContent>
-        </Card>
+      {/* Indicateurs */}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {kpis.map(({ label, value, hint, icon: Icon, tone }) => (
+          <Card key={label} className="rounded-2xl">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={`shrink-0 rounded-xl p-2.5 ${tone}`}>
+                <Icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+                <p className="text-2xl font-bold leading-tight tabular-nums">{value}</p>
+                <p className="hidden truncate text-[11px] text-muted-foreground sm:block">{hint}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Search & Filters */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-zinc-900 p-3.5 rounded-xl border border-zinc-800">
-        {/* Search */}
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-          <Input
-            placeholder="Désignation, PV, agent, lieu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-zinc-950 border-zinc-800 text-xs text-white placeholder-zinc-500 focus:border-emerald-500"
-          />
+      {/* Registre */}
+      <Card className="overflow-hidden rounded-2xl">
+        {/* Recherche et filtres */}
+        <div className="flex flex-col gap-2.5 border-b p-3 md:flex-row md:items-center">
+          <div className="relative w-full md:max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Désignation, PV, agent, lieu…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9 pl-9 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-9 text-xs md:w-48">
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="h-9 text-xs md:w-48">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="En Dépôt / Scellé">En Dépôt / Scellé</SelectItem>
+                <SelectItem value="Transféré au Parquet">Transféré au Parquet</SelectItem>
+                <SelectItem value="Restitué">Restitué</SelectItem>
+                <SelectItem value="Détruit">Détruit</SelectItem>
+                <SelectItem value="En Dépôt Coffre-Fort">En Dépôt Coffre-Fort</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Category & Status Selectors */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full md:w-52 bg-zinc-950 border-zinc-800 text-xs text-white">
-              <SelectValue placeholder="Catégorie" />
-            </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
-              {CATEGORIES.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {cat}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="w-full md:w-48 bg-zinc-950 border-zinc-800 text-xs text-white">
-              <SelectValue placeholder="Statut" />
-            </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
-              <SelectItem value="all">Tous les statuts</SelectItem>
-              <SelectItem value="En Dépôt / Scellé">En Dépôt / Scellé</SelectItem>
-              <SelectItem value="Transféré au Parquet">Transféré au Parquet</SelectItem>
-              <SelectItem value="Restitué">Restitué</SelectItem>
-              <SelectItem value="Détruit">Détruit</SelectItem>
-              <SelectItem value="En Dépôt Coffre-Fort">En Dépôt Coffre-Fort</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Main Table */}
-      <Card className="bg-zinc-900 border-zinc-800 overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-12 text-center text-zinc-500 flex flex-col items-center justify-center gap-2">
-              <RefreshCw className="h-6 w-6 animate-spin text-emerald-400" />
-              <p className="text-xs">Chargement du registre des saisies...</p>
+            <div className="flex flex-col items-center justify-center gap-2 p-12 text-center text-muted-foreground">
+              <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-xs">Chargement du registre des saisies…</p>
             </div>
           ) : filteredSaisies.length === 0 ? (
-            <div className="p-12 text-center text-zinc-500 flex flex-col items-center justify-center gap-3">
-              <PackageCheck className="h-10 w-10 text-zinc-600" />
+            <div className="flex flex-col items-center justify-center gap-3 p-12 text-center text-muted-foreground">
+              <PackageCheck className="h-10 w-10 opacity-40" />
               <div>
-                <p className="text-sm font-semibold text-zinc-300">Aucune saisie trouvée</p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  {searchQuery || selectedCategory !== 'Toutes les catégories' || selectedStatus !== 'all'
+                <p className="text-sm font-semibold text-foreground">Aucune saisie trouvée</p>
+                <p className="mt-1 text-xs">
+                  {hasFilters
                     ? 'Aucun résultat ne correspond à vos filtres de recherche.'
-                    : 'Aucun acte de saisie n\'a encore été enregistré.'}
+                    : "Aucun acte de saisie n'a encore été enregistré."}
                 </p>
               </div>
-              <Button
-                onClick={() => setIsCreateOpen(true)}
-                size="sm"
-                className="mt-2 bg-emerald-600 text-white text-xs"
-              >
-                + Nouvelle Saisie
-              </Button>
+              {!hasFilters && (
+                <Button onClick={() => setIsCreateOpen(true)} size="sm" className="mt-1 gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  Nouvelle saisie
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-zinc-950/80 border-b border-zinc-800">
-                  <TableRow className="hover:bg-transparent border-zinc-800">
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Désignation</TableHead>
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Quantité</TableHead>
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Catégorie</TableHead>
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Date & Lieu</TableHead>
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Agent Saisissant</TableHead>
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Scellé / PV</TableHead>
-                    <TableHead className="text-zinc-400 text-xs font-semibold">Statut</TableHead>
-                    <TableHead className="text-right text-zinc-400 text-xs font-semibold">Actions</TableHead>
+                <TableHeader className="bg-muted/40">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs font-semibold">Désignation</TableHead>
+                    <TableHead className="text-xs font-semibold">Quantité</TableHead>
+                    <TableHead className="text-xs font-semibold">Date &amp; lieu</TableHead>
+                    <TableHead className="text-xs font-semibold">Agent saisissant</TableHead>
+                    <TableHead className="text-xs font-semibold">Scellé / PV</TableHead>
+                    <TableHead className="text-xs font-semibold">Statut</TableHead>
+                    <TableHead className="w-20 text-right text-xs font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -473,70 +421,65 @@ export default function SaisiesPage() {
                       : 'Date non spécifiée';
 
                     return (
-                      <TableRow key={saisie.id} className="border-b border-zinc-800/60 hover:bg-zinc-850/50 transition-colors">
-                        <TableCell className="font-medium text-white text-xs">
-                          <div>{saisie.designation}</div>
-                          {saisie.detaineeName && (
-                            <div className="text-[11px] text-zinc-400 font-normal">
-                              Mis en cause: <span className="text-zinc-200">{saisie.detaineeName}</span>
-                            </div>
-                          )}
+                      <TableRow key={saisie.id} className="group">
+                        <TableCell className="py-3">
+                          <p className="text-sm font-semibold text-foreground">{saisie.designation}</p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                            <span className="rounded bg-muted px-1.5 py-px">{saisie.category}</span>
+                            {saisie.detaineeName && <span>Mis en cause : {saisie.detaineeName}</span>}
+                          </p>
                         </TableCell>
 
-                        <TableCell className="text-xs font-bold text-emerald-400 font-mono">
-                          {saisie.quantity} <span className="text-[11px] font-normal text-zinc-400">{saisie.unit || 'Unité(s)'}</span>
+                        <TableCell className="whitespace-nowrap text-sm">
+                          <span className="font-bold tabular-nums">{saisie.quantity}</span>{' '}
+                          <span className="text-xs text-muted-foreground">{saisie.unit || 'unité(s)'}</span>
                         </TableCell>
 
-                        <TableCell className="text-xs text-zinc-300">
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700">
-                            {saisie.category}
-                          </span>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          <p className="text-foreground">{formattedDate}</p>
+                          <p className="text-muted-foreground">{saisie.location || 'Lieu non spécifié'}</p>
                         </TableCell>
 
-                        <TableCell className="text-xs text-zinc-300">
-                          <div>{formattedDate}</div>
-                          <div className="text-[11px] text-zinc-500">{saisie.location || 'Poste de Saisie'}</div>
-                        </TableCell>
-
-                        <TableCell className="text-xs text-zinc-300 font-medium">
-                          {saisie.agentName || 'Non renseigné'}
-                        </TableCell>
-
-                        <TableCell className="text-xs font-mono text-zinc-300">
-                          {saisie.pvNumber ? (
-                            <span className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 text-[11px]">
-                              {saisie.pvNumber}
-                            </span>
+                        <TableCell className="text-xs">
+                          {saisie.agentName && saisie.agentName !== 'Agent Non Spécifié' ? (
+                            <span className="font-medium text-foreground">{saisie.agentName}</span>
                           ) : (
-                            <span className="text-zinc-500 text-[11px] italic">Non scellé</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
 
                         <TableCell className="text-xs">
-                          {getStatusBadge(saisie.status)}
+                          {saisie.pvNumber ? (
+                            <span className="rounded-md bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] text-amber-800 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300">
+                              {saisie.pvNumber}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Non scellé</span>
+                          )}
                         </TableCell>
 
+                        <TableCell>{getStatusBadge(saisie.status)}</TableCell>
+
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-0.5">
                             <Button
                               variant="ghost"
                               size="icon"
                               onClick={() => setEditingSaisie(saisie)}
-                              className="h-7 w-7 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 rounded-md"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
                               title="Modifier la saisie"
                             >
-                              <Edit className="h-3.5 w-3.5" />
+                              <Edit className="h-4 w-4" />
                             </Button>
-
                             {(role === 'admin' || role === 'secretariat') && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => setDeletingSaisie(saisie)}
-                                className="h-7 w-7 text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 rounded-md"
+                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                 title="Supprimer la saisie"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             )}
                           </div>
@@ -549,6 +492,13 @@ export default function SaisiesPage() {
             </div>
           )}
         </CardContent>
+
+        {!isLoading && filteredSaisies.length > 0 && (
+          <div className="border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
+            {filteredSaisies.length} saisie{filteredSaisies.length > 1 ? 's' : ''} affichée{filteredSaisies.length > 1 ? 's' : ''}
+            {hasFilters && saisies ? ` sur ${saisies.length}` : ''}
+          </div>
+        )}
       </Card>
 
       {/* Dialogs */}
@@ -565,30 +515,28 @@ export default function SaisiesPage() {
         agents={agents || []}
       />
 
-      {/* Delete Confirmation Alert */}
+      {/* Confirmation de suppression */}
       <AlertDialog open={!!deletingSaisie} onOpenChange={(open) => !open && setDeletingSaisie(null)}>
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-white">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-rose-400 flex items-center gap-2">
-              <Trash2 className="h-5 w-5" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
               Confirmer la suppression
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-300 text-xs">
-              Êtes-vous sûr de vouloir supprimer définitivement l'enregistrement de saisie{' '}
-              <span className="font-bold text-white">"{deletingSaisie?.designation}"</span> (Quantité : {deletingSaisie?.quantity}) ?
-              Cette action est irréversible.
+            <AlertDialogDescription>
+              Supprimer définitivement la saisie{' '}
+              <span className="font-semibold text-foreground">« {deletingSaisie?.designation} »</span> (quantité :{' '}
+              {deletingSaisie?.quantity}) ? Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="border-t border-zinc-800 pt-3">
-            <AlertDialogCancel className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700 text-xs">
-              Annuler
-            </AlertDialogCancel>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               disabled={isDeleting}
-              className="bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? 'Suppression...' : 'Supprimer Définitivement'}
+              {isDeleting ? 'Suppression…' : 'Supprimer définitivement'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

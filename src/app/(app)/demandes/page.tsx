@@ -16,6 +16,7 @@ import {
   deleteDoc,
   serverTimestamp,
   Timestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useDoc } from '@/firebase/firestore/use-doc';
@@ -76,6 +77,9 @@ import {
   Bell,
   FileSignature,
   CheckCheck,
+  Paperclip,
+  Camera,
+  X,
 } from 'lucide-react';
 import type {
   Demande,
@@ -95,9 +99,14 @@ import {
 import { generateAgentQRCodeDataURL } from '@/lib/agent-qrcode';
 import { AgentQRBadgeDialog } from '@/components/agents/agent-qr-badge-dialog';
 import type { PdfDocumentItem, PdfTypeFilter } from '@/components/pdf/pdf-history-viewer';
+import { AgentSignedOrders } from '@/components/ordres-signes/agent-signed-orders';
+import type { SignedOrder } from '@/lib/signed-orders';
 import { getAgentAvailability, safeToDate } from '@/lib/agents';
 import { getDisplayStatus } from '@/lib/missions';
 import { cn } from '@/lib/utils';
+import { prepareScanFile } from '@/lib/signed-orders';
+import { compressImageToDataUrl } from '@/lib/image-compress';
+import { DemandeAttachmentButton, DEMANDE_ATTACHMENT_DOC_ID } from '@/components/demandes/demande-attachment';
 
 // Lazy-load heavy PDF documents module only when user switches to the Documents tab
 const LazyPdfHistoryViewer = dynamic(
@@ -236,7 +245,12 @@ function DemandesContent() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [reason, setReason] = useState<string>('');
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // Photo de profil
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
 
   // Explanation reply & confirmation delay states
   const [replies, setReplies] = useState<Record<string, string>>({});
@@ -711,6 +725,7 @@ function DemandesContent() {
     if (!firestore) return;
     if (!window.confirm('Voulez-vous vraiment supprimer cette autorisation de votre historique ?')) return;
     try {
+      await deleteDoc(doc(firestore, 'demandes', id, 'files', DEMANDE_ATTACHMENT_DOC_ID)).catch(() => {});
       await deleteDoc(doc(firestore, 'demandes', id));
       toast({ title: 'Autorisation supprimée' });
     } catch {
@@ -724,6 +739,7 @@ function DemandesContent() {
     if (!window.confirm("Voulez-vous vraiment vider tout l'historique de vos autorisations d'absence ?")) return;
     try {
       for (const dem of acceptedList) {
+        await deleteDoc(doc(firestore, 'demandes', dem.id, 'files', DEMANDE_ATTACHMENT_DOC_ID)).catch(() => {});
         await deleteDoc(doc(firestore, 'demandes', dem.id));
       }
       toast({ title: "Historique des autorisations d'absence vidé" });
@@ -754,6 +770,30 @@ function DemandesContent() {
   }, [signedAgentId, userIdc]);
 
   const agentKeysString = useMemo(() => agentKeys.join('|'), [agentKeys]);
+
+  // Ordres de mission SIGNÉS reçus : seuls ceux des missions où l'agent est désigné, après signature
+  const signedOrdersQuery = useMemoFirebase(() => {
+    const keys = agentKeysString.split('|').filter(Boolean);
+    return firestore && keys.length
+      ? query(collection(firestore, 'signed_orders'), where('agentIds', 'array-contains-any', keys.slice(0, 30)))
+      : null;
+  }, [firestore, agentKeysString]);
+  const { data: rawSignedOrders, isLoading: signedOrdersLoading } = useCollection<SignedOrder>(signedOrdersQuery);
+  const signedOrders = useMemo(() => (rawSignedOrders ?? []).filter((o) => o.status === 'archive'), [rawSignedOrders]);
+
+  // Alerte à l'arrivée d'un nouvel ordre signé (pas au premier chargement)
+  const seenSignedOrderIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (signedOrdersLoading) return;
+    const ids = new Set(signedOrders.map((o) => o.id));
+    if (seenSignedOrderIds.current) {
+      const fresh = signedOrders.filter((o) => !seenSignedOrderIds.current!.has(o.id));
+      fresh.forEach((o) =>
+        toast({ title: 'Ordre de mission signé reçu', description: `${o.missionName} — disponible dans vos documents.` }),
+      );
+    }
+    seenSignedOrderIds.current = ids;
+  }, [signedOrders, signedOrdersLoading, toast]);
 
   // Real-time Firebase onSnapshot(): détecte instantanément lorsqu'une demande est approuvée ou rejetée
   useEffect(() => {
@@ -966,7 +1006,7 @@ function DemandesContent() {
               docItem.type === 'autorisation_absence'
                 ? 'Autorisation signée disponible'
                 : docItem.type === 'ordre_de_mission'
-                ? 'Ordre de mission signé'
+                ? 'Ordre de mission disponible'
                 : 'Document officiel signé';
 
             liveSignedAlerts.push({
@@ -1062,15 +1102,20 @@ function DemandesContent() {
 
   const handleDownloadPdfFromNotification = (docItem: PdfDocumentItem) => {
     if (docItem.type === 'ordre_de_mission' && docItem.missionData) {
-      const matchedAgents = (docItem.agentIds || []).map((id, i) => ({
-        id,
-        fullName: docItem.agentNames?.[i] || 'Agent',
-      }));
+      // Fiches complètes des agents enregistrées avec l'ordre (grade, matricule, contact) ;
+      // à défaut, seulement les noms.
+      const matchedAgents = docItem.missionData.agents?.length
+        ? docItem.missionData.agents
+        : (docItem.agentIds || []).map((id, i) => ({
+            id,
+            fullName: docItem.agentNames?.[i] || 'Agent',
+          }));
+      // Ordre des paramètres : mission, agents, immatriculation du véhicule, identifiant du chef de mission
       generateOrdreDeMissionPDF(
         docItem.missionData,
         matchedAgents as any,
-        docItem.leaderName || undefined,
-        docItem.vehiclePlate
+        docItem.vehiclePlate || undefined,
+        docItem.leaderId || docItem.missionData.leaderId || undefined
       );
       return;
     }
@@ -1080,6 +1125,28 @@ function DemandesContent() {
     }
     if (docItem.type === 'fiche_agent' && docItem.agentData) {
       generateFicheAgentPDF(docItem.agentData, [], []);
+    }
+  };
+
+  // L'agent change sa propre photo : compressée (~20-30 Ko) puis enregistrée sur sa fiche
+  const handleProfilePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !firestore || !signedAgentId) return;
+    setIsUploadingPhoto(true);
+    try {
+      const dataUrl = await compressImageToDataUrl(file);
+      await setDoc(doc(firestore, 'agents', signedAgentId), { photo: dataUrl }, { merge: true });
+      toast({ title: 'Photo mise à jour', description: 'Votre nouvelle photo de profil est enregistrée.' });
+    } catch (err) {
+      console.error('Profile photo update failed:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Photo non enregistrée',
+        description: err instanceof Error && !/permission/i.test(err.message) ? err.message : 'Impossible de mettre à jour la photo.',
+      });
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -1118,8 +1185,28 @@ function DemandesContent() {
     }
 
     setIsSubmitting(true);
+
+    // Pièce jointe : image compressée ou PDF (700 Ko max), préparée avant tout envoi
+    let preparedAttachment: Awaited<ReturnType<typeof prepareScanFile>> | null = null;
+    if (attachmentFile) {
+      try {
+        preparedAttachment = await prepareScanFile(attachmentFile);
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Pièce jointe refusée',
+          description: err instanceof Error ? err.message : 'Fichier illisible.',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     try {
-      await addDoc(collection(firestore, 'demandes'), {
+      // La demande et son fichier sont écrits ensemble : jamais de demande sans son justificatif
+      const demandeRef = doc(collection(firestore, 'demandes'));
+      const batch = writeBatch(firestore);
+      batch.set(demandeRef, {
         agentId: userIdc,
         agentName: agentDisplayName,
         type: permissionType,
@@ -1131,17 +1218,32 @@ function DemandesContent() {
         createdAt: serverTimestamp(),
         notified: true,
         vu_par_agent: true,
+        attachment: preparedAttachment
+          ? { name: preparedAttachment.name, mimeType: preparedAttachment.mimeType }
+          : null,
       });
+      if (preparedAttachment) {
+        batch.set(doc(demandeRef, 'files', DEMANDE_ATTACHMENT_DOC_ID), {
+          ...preparedAttachment,
+          agentId: userIdc,
+          createdAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
 
       toast({
         title: 'Demande envoyée',
-        description: 'Votre demande de permission a bien été transmise à la hiérarchie.',
+        description: preparedAttachment
+          ? 'Votre demande et sa pièce jointe ont bien été transmises à la hiérarchie.'
+          : 'Votre demande de permission a bien été transmise à la hiérarchie.',
       });
 
       setPermissionType('Permission exceptionnelle');
       setStartDate('');
       setEndDate('');
       setReason('');
+      setAttachmentFile(null);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = '';
     } catch (error) {
       console.error('Error adding request:', error);
       toast({
@@ -1200,8 +1302,9 @@ function DemandesContent() {
       (mission) => getDisplayStatus(mission, now) === 'En cours'
     ).length;
 
-    const documentsAvailable = livePdfDocs.length;
-    const missionOrderDocs = livePdfDocs.filter((d) => d.type === 'ordre_de_mission').length;
+    // Ordres de mission : seulement les versions signées reçues
+    const missionOrderDocs = signedOrders.length;
+    const documentsAvailable = livePdfDocs.filter((d) => d.type !== 'ordre_de_mission').length + missionOrderDocs;
     const signedAuthDocs = livePdfDocs.filter((d) => d.type === 'autorisation_absence').length;
 
     const unreadRealtimeCount = realtimeNotifications.filter((n) => n.unread).length;
@@ -1226,6 +1329,7 @@ function DemandesContent() {
     demandes,
     currentAgentMissions,
     livePdfDocs,
+    signedOrders,
     realtimeNotifications,
     pendingExplications.length,
     unnotifiedSanctions.length,
@@ -1299,21 +1403,44 @@ function DemandesContent() {
         <Card className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
           <div className="p-5 sm:p-6 flex flex-col lg:flex-row items-center lg:items-stretch justify-between gap-6">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-5 text-center md:text-left flex-1 min-w-0">
-              {currentAgent.photo ? (
-                <div className="relative w-24 h-28 rounded-xl overflow-hidden border border-border bg-muted shrink-0 shadow-sm">
-                  <Image
-                    src={currentAgent.photo}
-                    alt={currentAgent.fullName}
-                    fill
-                    className="object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              ) : (
-                <div className="relative w-24 h-28 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-2xl font-bold shrink-0 shadow-sm">
-                  {currentAgent.fullName.substring(0, 2).toUpperCase()}
-                </div>
-              )}
+              <div className="group relative shrink-0">
+                {currentAgent.photo ? (
+                  <div className="relative w-24 h-28 rounded-xl overflow-hidden border border-border bg-muted shadow-sm">
+                    <Image
+                      src={currentAgent.photo}
+                      alt={currentAgent.fullName}
+                      fill
+                      className="object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : (
+                  <div className="relative w-24 h-28 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-2xl font-bold shadow-sm">
+                    {currentAgent.fullName.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                {signedAgentId && currentAgent.id === signedAgentId && (
+                  <>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={handleProfilePhotoChange}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                      className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-card bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 disabled:opacity-70"
+                      title="Changer ma photo de profil"
+                      aria-label="Changer ma photo de profil"
+                    >
+                      {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    </button>
+                  </>
+                )}
+              </div>
 
               <div className="space-y-3 min-w-0 flex-1 w-full">
                 <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
@@ -1496,7 +1623,7 @@ function DemandesContent() {
         <button
           type="button"
           onClick={() => {
-            setDocInitialFilter('ordre_de_mission');
+            setDocInitialFilter('all');
             setActiveTab('documents');
           }}
           className="text-left p-4 rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors shadow-sm cursor-pointer flex items-start gap-3.5"
@@ -2056,6 +2183,52 @@ function DemandesContent() {
                   />
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label htmlFor="demande-attachment">
+                    Pièce jointe <span className="font-normal text-muted-foreground">(facultatif)</span>
+                  </Label>
+                  <input
+                    ref={attachmentInputRef}
+                    id="demande-attachment"
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="sr-only"
+                    onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
+                  />
+                  {attachmentFile ? (
+                    <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1 truncate font-medium" title={attachmentFile.name}>
+                        {attachmentFile.name}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {Math.max(1, Math.round(attachmentFile.size / 1024))} Ko
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttachmentFile(null);
+                          if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+                        }}
+                        className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                        aria-label="Retirer la pièce jointe"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                    >
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Joindre un justificatif (image ou PDF)
+                    </button>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">Certificat médical, convocation… PDF de 700 Ko maximum.</p>
+                </div>
+
                 <Button
                   type="submit"
                   className="w-full rounded-xl flex items-center justify-center gap-2 font-semibold text-white cursor-pointer"
@@ -2192,6 +2365,11 @@ function DemandesContent() {
                               ) : (
                                 <span className="text-muted-foreground italic">Aucun motif</span>
                               )}
+                              {dem.attachment && (
+                                <div className="mt-1">
+                                  <DemandeAttachmentButton demandeId={dem.id} name={dem.attachment.name} />
+                                </div>
+                              )}
                               {dem.status === 'refusee' && dem.comment && (
                                 <div className="text-xs text-destructive mt-1 bg-destructive/10 p-1 rounded border border-destructive/20 font-sans">
                                   <strong>Refus :</strong> {dem.comment}
@@ -2270,13 +2448,16 @@ function DemandesContent() {
 
       {/* TAB 2: Documents PDF & Ordres de mission (Lazy Loaded) */}
       {activeTab === 'documents' && (
-        <LazyPdfHistoryViewer
-          currentAgentId={currentAgent?.id}
-          currentAgentRegistrationNumber={currentAgent?.registrationNumber}
-          title="Mon Espace Documents PDF & Ordres de Mission"
-          description="Recherchez, filtrez par date, type ou mission et téléchargez vos documents officiels."
-          initialTypeFilter={docInitialFilter}
-        />
+        <div className="space-y-4">
+          <AgentSignedOrders orders={signedOrders} isLoading={signedOrdersLoading} />
+          <LazyPdfHistoryViewer
+            currentAgentId={currentAgent?.id}
+            currentAgentRegistrationNumber={currentAgent?.registrationNumber}
+            title="Mes autres documents PDF"
+            description="Recherchez, filtrez par date ou type et téléchargez vos documents officiels."
+            initialTypeFilter={docInitialFilter}
+          />
+        </div>
       )}
 
       {/* TAB 3: Autorisations PDF signées */}

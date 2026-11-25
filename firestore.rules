@@ -35,12 +35,22 @@ service cloud.firestore {
     }
 
     // --- Administrateurs : accès complet à toutes les rubriques -------------
-    match /{document=**} {
-      allow read, write: if isAdmin();
+    // Les collections dont le nom commence par « _ » (mots de passe des agents, limitation
+    // des connexions) sont réservées au serveur : aucun navigateur n'y accède, même admin.
+    match /{collectionId}/{document=**} {
+      allow read, write: if isAdmin() && !collectionId.matches('_.*');
     }
 
     // --- Données de référence lisibles par tout utilisateur connecté -------
-    match /agents/{id}      { allow read: if signedIn(); }
+    match /agents/{id} {
+      allow read: if signedIn();
+      // L'agent peut changer SA photo de profil, et rien d'autre sur sa fiche (~150 Ko max)
+      allow update: if signedIn()
+        && myAgentId() == id
+        && onlyChanges(['photo'])
+        && request.resource.data.photo is string
+        && request.resource.data.photo.size() < 200000;
+    }
     match /missions/{id}    { allow read: if signedIn(); }
     match /weapons/{id}     { allow read: if signedIn(); }
     match /settings/{id}    { allow read: if signedIn(); }
@@ -61,6 +71,16 @@ service cloud.firestore {
         && resource.data.agentId == myIdc()
         && onlyChanges(['notified', 'vu_par_agent']);
       allow delete: if signedIn() && resource.data.agentId == myIdc();
+
+      // Pièce jointe (justificatif) : écrite avec la demande, lue par son auteur
+      match /files/{fileId} {
+        allow read, delete: if signedIn()
+          && get(/databases/$(database)/documents/demandes/$(id)).data.agentId == myIdc();
+        allow create: if signedIn()
+          && getAfter(/databases/$(database)/documents/demandes/$(id)).data.agentId == myIdc()
+          && request.resource.data.dataUrl is string
+          && request.resource.data.dataUrl.size() < 1000000;
+      }
     }
 
     // --- Demandes d'explication / sanctions --------------------------------
@@ -74,8 +94,21 @@ service cloud.firestore {
     }
 
     // --- Documents PDF : chaque agent lit ceux qui le concernent ------------
+    // Les ordres de mission NON signés ont agentIds vide : aucun agent ne les reçoit.
     match /pdf_documents/{id} {
       allow read: if signedIn() && resource.data.agentIds.hasAny([myAgentId(), myIdc()]);
+    }
+
+    // --- Ordres de mission signés (scan archivé) ----------------------------
+    // agentIds n'est rempli qu'à l'archivage du scan signé, avec les seuls agents de la mission.
+    match /signed_orders/{id} {
+      allow read: if signedIn() && resource.data.agentIds.hasAny([myAgentId(), myIdc()]);
+
+      match /files/{fileId} {
+        allow read: if signedIn()
+          && get(/databases/$(database)/documents/signed_orders/$(id)).data.status == 'archive'
+          && get(/databases/$(database)/documents/signed_orders/$(id)).data.agentIds.hasAny([myAgentId(), myIdc()]);
+      }
     }
 
     // --- Secrétariat : rubriques Secrétariat, Rassemblements, GAV, Saisies --
@@ -105,7 +138,7 @@ service cloud.firestore {
         && request.resource.data.role == request.auth.token.role;
     }
 
-    // Toute autre collection (finances, armurerie, logistique, journal d'activité,
+    // Toute autre collection (informations, renseignements, finances, armurerie, logistique, journal d'activité,
     // limitation des connexions…) : administrateurs uniquement.
   }
 }

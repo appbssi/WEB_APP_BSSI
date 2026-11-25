@@ -183,13 +183,13 @@ export function CreateSaisieDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-zinc-900 text-white border-zinc-800">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-white">
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <PackageCheck className="h-5 w-5 text-emerald-400" />
             Enregistrer une Saisie / Scellé
           </DialogTitle>
-          <DialogDescription className="text-zinc-400 text-xs">
+          <DialogDescription className="text-muted-foreground text-xs">
             Renseignez les détails de la marchandise, matériel ou objet saisi lors d'une opération ou fouille.
           </DialogDescription>
         </DialogHeader>
@@ -197,12 +197,12 @@ export function CreateSaisieDialog({
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
           {/* Designation */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">
+            <Label className="text-xs font-semibold">
               Désignation de la Saisie <span className="text-rose-400">*</span>
             </Label>
             <Input
               placeholder="Ex: Sacs de cannabis, Arme blanche, Billets de banque d'origine suspecte..."
-              className="bg-zinc-950 border-zinc-800 text-white placeholder-zinc-500 focus:border-emerald-500"
+              className="focus:border-emerald-500"
               {...form.register('designation')}
             />
             {form.formState.errors.designation && (
@@ -215,13 +215,13 @@ export function CreateSaisieDialog({
           {/* Quantité & Unité */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">
+              <Label className="text-xs font-semibold">
                 Nombre / Quantité Saisie <span className="text-rose-400">*</span>
               </Label>
               <Input
                 type="number"
                 min={1}
-                className="bg-zinc-950 border-zinc-800 text-white focus:border-emerald-500"
+                className="focus:border-emerald-500"
                 {...form.register('quantity')}
               />
               {form.formState.errors.quantity && (
@@ -232,15 +232,15 @@ export function CreateSaisieDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">Unité de mesure</Label>
+              <Label className="text-xs font-semibold">Unité de mesure</Label>
               <Select
                 value={form.watch('unit')}
                 onValueChange={(val) => form.setValue('unit', val)}
               >
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white">
+                <SelectTrigger>
                   <SelectValue placeholder="Sélectionner l'unité" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                <SelectContent>
                   {UNITS.map((u) => (
                     <SelectItem key={u} value={u}>
                       {u}
@@ -253,15 +253,15 @@ export function CreateSaisieDialog({
 
           {/* Statut du Scellé */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">Statut du Scellé</Label>
+            <Label className="text-xs font-semibold">Statut du Scellé</Label>
             <Select
               value={form.watch('status')}
               onValueChange={(val) => form.setValue('status', val)}
             >
-              <SelectTrigger className="bg-zinc-950 border-zinc-800 text-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Statut actuel" />
               </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+              <SelectContent>
                 {STATUSES.map((st) => (
                   <SelectItem key={st} value={st}>
                     {st}
@@ -274,20 +274,20 @@ export function CreateSaisieDialog({
           {/* Date & Heure */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">
+              <Label className="text-xs font-semibold">
                 Date de Saisie <span className="text-rose-400">*</span>
               </Label>
               <Input
                 type="date"
-                className="bg-zinc-950 border-zinc-800 text-white focus:border-emerald-500"
+                className="focus:border-emerald-500"
                 {...form.register('dateSaisie')}
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-zinc-300">Heure de Saisie</Label>
+              <Label className="text-xs font-semibold">Heure de Saisie</Label>
               <Input
                 type="time"
-                className="bg-zinc-950 border-zinc-800 text-white focus:border-emerald-500"
+                className="focus:border-emerald-500"
                 {...form.register('timeSaisie')}
               />
             </div>
@@ -295,21 +295,21 @@ export function CreateSaisieDialog({
 
           {/* Remarques */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-zinc-300">Remarques / Observations</Label>
+            <Label className="text-xs font-semibold">Remarques / Observations</Label>
             <Textarea
               placeholder="Spécifications, état du matériel, numéro de conteneur, coffre de stockage..."
               rows={2}
-              className="bg-zinc-950 border-zinc-800 text-white placeholder-zinc-500 focus:border-emerald-500 text-xs"
+              className="focus:border-emerald-500 text-xs"
               {...form.register('notes')}
             />
           </div>
 
-          <DialogFooter className="pt-3 border-t border-zinc-800 flex justify-end gap-2">
+          <DialogFooter className="pt-3 border-t flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700 text-xs"
+              className="text-muted-foreground hover: text-xs"
             >
               Annuler
             </Button>

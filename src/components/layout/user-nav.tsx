@@ -47,7 +47,7 @@ export function UserNav() {
           <button
             onClick={handleLogout}
             title="Se déconnecter"
-            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/40 transition-all duration-200 shadow-sm active:scale-95 cursor-pointer"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors active:scale-95 cursor-pointer"
             aria-label="Se déconnecter"
           >
             <LogOut size={16} className="stroke-[2.2]" />

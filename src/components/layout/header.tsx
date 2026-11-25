@@ -164,9 +164,6 @@ export function Header() {
         </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        {displayRole && (
-            <span className="text-sm font-semibold text-foreground hidden sm:inline-block">{displayRole}</span>
-        )}
         {currentAgent && (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -189,11 +186,27 @@ export function Header() {
             </Tooltip>
           </TooltipProvider>
         )}
-        <ChatSheet />
-        <RecentActivitiesDialog />
-        <DetachementSelector />
-        <ThemeToggle />
-        <UserNav />
+        {/* Outils : messagerie, notifications, détachement, thème */}
+        <div className="flex items-center gap-0.5 rounded-full border bg-card p-1 shadow-sm">
+          <ChatSheet />
+          <RecentActivitiesDialog />
+          <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+          <DetachementSelector />
+          <ThemeToggle />
+        </div>
+
+        {/* Utilisateur connecté + déconnexion */}
+        <div className="flex items-center gap-1 rounded-full border bg-card p-1 shadow-sm sm:pl-1">
+          {displayRole && (
+            <span className="hidden items-center gap-2 pr-1 sm:inline-flex">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold uppercase text-primary">
+                {displayRole.charAt(0)}
+              </span>
+              <span className="max-w-[10rem] truncate text-sm font-semibold text-foreground">{displayRole}</span>
+            </span>
+          )}
+          <UserNav />
+        </div>
       </div>
       {currentAgent && (
         <AgentQRBadgeDialog

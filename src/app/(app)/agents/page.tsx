@@ -575,7 +575,7 @@ function AgentsContent() {
                 <SelectItem value="all">TOUTES LES SECTIONS</SelectItem>
                 <SelectItem value="Armurerie">ARMURERIE</SelectItem>
                 <SelectItem value="Administration">ADMINISTRATION</SelectItem>
-                <SelectItem value="FAUNE">FAUNE</SelectItem>
+                <SelectItem value="FAUNE">SERVICE FAUNE</SelectItem>
                 <SelectItem value="CONDUCTEUR">CONDUCTEUR</SelectItem>
                 <SelectItem value="SECTION FEMININE">SECTION FEMININE</SelectItem>
                 <SelectItem value="DETACHEMENT NOE">DETACHEMENT NOE</SelectItem>

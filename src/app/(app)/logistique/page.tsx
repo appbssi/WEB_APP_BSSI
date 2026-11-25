@@ -288,20 +288,11 @@ function LogistiqueContent() {
                           </div>
                           <p className="text-sm">{a.description}</p>
                           <p className="text-xs text-muted-foreground italic">Signalé par : {a.reportedBy}</p>
-                          {a.financeStatus && (
-                            <Badge variant={a.financeStatus === 'Validé' ? 'default' : a.financeStatus === 'Refusé' ? 'destructive' : 'secondary'} className="mt-1 text-[10px]">
-                              Validation Finance : {a.financeStatus}
-                            </Badge>
-                          )}
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleResolveAnomaly(a)}
-                          className={cn(
-                            a.financeStatus === 'Validé' && "bg-orange-500 text-white hover:bg-orange-600 border-orange-600",
-                            a.financeStatus === 'Refusé' && "bg-destructive text-white hover:bg-destructive/90 border-destructive"
-                          )}
                         >
                           <CheckCircle2 className="h-4 w-4 mr-2" /> Résoudre
                         </Button>

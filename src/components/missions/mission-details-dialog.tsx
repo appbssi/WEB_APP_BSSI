@@ -143,7 +143,10 @@ export function MissionDetailsDialog({
         title: `Ordre de Mission - ${mission.name}`,
         type: 'ordre_de_mission',
         createdAt: Timestamp.now(),
-        agentIds: mission.assignedAgentIds || [],
+        // Ordre non signé : aucun agent n'y a accès (agentIds vide). Les agents de la mission
+        // reçoivent seulement la version signée, via le volet « Ordres signés ».
+        agentIds: [],
+        assignedAgentIds: mission.assignedAgentIds || [],
         agentNames: agents.map(a => a.fullName),
         leaderId: mission.leaderId || null,
         leaderName: agents.find(a => a.id === mission.leaderId)?.fullName || 'Non désigné',

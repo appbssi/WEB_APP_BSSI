@@ -20,7 +20,6 @@ import {
   Mail,
   Phone,
   BookOpen,
-  Plus,
   Edit,
   User,
   ExternalLink
@@ -63,11 +62,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { RegisterVisitorForm } from '@/components/secretariat/register-visitor-form';
-import { CustomContactForm } from '@/components/secretariat/custom-contacts-form';
-import { BroadcastTab } from '@/components/secretariat/broadcast-tab';
 import { logActivity } from '@/lib/activity-logger';
 import { ClientOnly } from '@/components/layout/client-only';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
 export default function SecretariatPage() {
@@ -84,8 +80,6 @@ function SecretariatContent() {
   const { logo } = useLogo();
   const { toast } = useToast();
 
-  // State Tabs
-  const [activeTab, setActiveTab] = useState('visitors');
 
   // Visitor Tab States
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,21 +88,9 @@ function SecretariatContent() {
   const [visitorToDelete, setVisitorToDelete] = useState<Visitor | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Custom Contact Tab States
-  const [contactSearchQuery, setContactSearchQuery] = useState('');
-  const [contactCategoryFilter, setContactCategoryFilter] = useState('all');
-  const [isContactOpen, setContactOpen] = useState(false);
-  const [contactToEdit, setContactToEdit] = useState<any | null>(null);
-  const [contactToDelete, setContactToDelete] = useState<any | null>(null);
-  const [isDeletingContact, setIsDeletingContact] = useState(false);
-
   // Queries
   const visitorsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'visitors') : null), [firestore]);
   const { data: visitors, isLoading: visitorsLoading } = useCollection<Visitor>(visitorsQuery);
-
-  const contactsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'contacts') : null), [firestore]);
-  const { data: rawContacts, isLoading: contactsLoading } = useCollection<any>(contactsQuery);
-  const contacts = useMemo(() => rawContacts || [], [rawContacts]);
 
   // Sorted list of visitors
   const sortedVisitors = useMemo(() => {
@@ -120,20 +102,18 @@ function SecretariatContent() {
 
   const filteredVisitors = useMemo(() => {
     return sortedVisitors.filter(visitor => {
-      const searchString = `${visitor.firstName} ${visitor.lastName} ${visitor.occupation}`.toLowerCase();
+      const searchString = [
+        visitor.firstName,
+        visitor.lastName,
+        visitor.occupation,
+        visitor.idNumber,
+        visitor.visitReason,
+        visitor.vehiclePlate,
+        visitor.vehicleBrand,
+      ].filter(Boolean).join(' ').toLowerCase();
       return searchString.includes(searchQuery.toLowerCase());
     });
   }, [sortedVisitors, searchQuery]);
-
-  // Filtered lists of Custom Contacts
-  const filteredContacts = useMemo(() => {
-    return contacts.filter((contact: any) => {
-      const searchString = `${contact.firstName} ${contact.lastName} ${contact.email} ${contact.phone} ${contact.category}`.toLowerCase();
-      const matchesSearch = searchString.includes(contactSearchQuery.toLowerCase());
-      const matchesCategory = contactCategoryFilter === 'all' || contact.category === contactCategoryFilter;
-      return matchesSearch && matchesCategory;
-    });
-  }, [contacts, contactSearchQuery, contactCategoryFilter]);
 
   // Visitor Actions
   const handleDeleteVisitor = async () => {
@@ -181,30 +161,6 @@ function SecretariatContent() {
     });
   };
 
-  // Custom Contact Actions
-  const handleDeleteContact = async () => {
-    if (!firestore || !contactToDelete) return;
-    setIsDeletingContact(true);
-
-    const contactRef = doc(firestore, 'contacts', contactToDelete.id);
-    deleteDoc(contactRef).then(() => {
-        toast({
-          title: 'Contact supprimé',
-          description: `Le contact-annuaire ${contactToDelete.firstName} ${contactToDelete.lastName} a été supprimé de la base.`,
-        });
-        logActivity(firestore, `Le contact ${contactToDelete.firstName} ${contactToDelete.lastName} de l'annuaire de diffusion a été supprimé.`, 'Général', '/secretariat');
-        setContactToDelete(null);
-    }).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: contactRef.path,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    }).finally(() => {
-        setIsDeletingContact(false);
-    });
-  };
-
   // Export Documents Functions
   const handleExportXLSX = async () => {
     const XLSX = await import('xlsx');
@@ -215,7 +171,10 @@ function SecretariatContent() {
         'Prénom': visitor.firstName,
         'Nom': visitor.lastName,
         'Contact': visitor.contact,
-        'Fonction': visitor.occupation,
+        'N° de pièce': visitor.idNumber || '',
+        'Motif': visitor.visitReason || '',
+        'Immatriculation': visitor.vehiclePlate || '',
+        'Marque du véhicule': visitor.vehicleBrand || '',
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -257,18 +216,21 @@ function SecretariatContent() {
         currentY += 8;
 
         autoTable(doc, {
-            head: [['Date', 'Entrée', 'Sortie', 'Visiteur', 'Fonction', 'Contact']],
+            head: [['Date', 'Entrée', 'Sortie', 'Visiteur', 'N° pièce', 'Contact', 'Motif', 'Véhicule']],
             body: filteredVisitors.map(v => [
                 v.entryTime.toDate().toLocaleDateString('fr-FR'),
-                v.entryTime.toDate().toLocaleTimeString('fr-FR'),
-                v.exitTime ? v.exitTime.toDate().toLocaleTimeString('fr-FR') : 'N/A',
+                v.entryTime.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                v.exitTime ? v.exitTime.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
                 `${v.lastName.toUpperCase()} ${v.firstName}`,
-                v.occupation,
+                v.idNumber || '—',
                 v.contact,
+                v.visitReason || '—',
+                [v.vehicleBrand, v.vehiclePlate].filter(Boolean).join(' ') || '—',
             ]),
             startY: currentY,
             theme: 'striped',
             headStyles: { fillColor: [39, 55, 70] },
+            styles: { fontSize: 7.5, cellPadding: 1.5 },
         });
         doc.save('registre_visiteurs.pdf');
     };
@@ -292,39 +254,14 @@ function SecretariatContent() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Secrétariat Général</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Gestion administrative, registre d'accueil des visiteurs externes et modules de liaisons d'urgence simultanées.
+            Gestion administrative et registre d'accueil des visiteurs externes.
           </p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        
-        {/* Navigation tabs */}
-        <div className="border-b">
-          <TabsList className="bg-transparent h-12 p-0 space-x-6 border-b border-transparent">
-            <TabsTrigger 
-              value="visitors" 
-              className="relative rounded-none border-b-2 border-transparent px-2 pb-3 pt-2 text-sm font-semibold text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent hover:text-foreground hover:border-border transition-all"
-            >
-              Registre des Visiteurs
-            </TabsTrigger>
-            <TabsTrigger 
-              value="contacts"
-              className="relative rounded-none border-b-2 border-transparent px-2 pb-3 pt-2 text-sm font-semibold text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent hover:text-foreground hover:border-border transition-all"
-            >
-              Annuaire de Liaison ({contacts.length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="broadcast"
-              className="relative rounded-none border-b-2 border-transparent px-2 pb-3 pt-2 text-sm font-semibold text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent hover:text-foreground hover:border-border transition-all"
-            >
-              Messagerie & Diffusion Simultanée
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Tab 1: Visitors Registry */}
-        <TabsContent value="visitors" className="space-y-4 outline-none">
+      {/* Registre des visiteurs */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold tracking-tight">Registre des Visiteurs</h2>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="relative w-full max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -336,7 +273,7 @@ function SecretariatContent() {
                 />
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
-               <DropdownMenu>
+               <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <button 
                       className="button-13 flex items-center justify-center text-sm font-medium border-none text-white hover:opacity-90 transition-opacity"
@@ -377,7 +314,8 @@ function SecretariatContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Visiteur</TableHead>
-                  <TableHead>Fonction</TableHead>
+                  <TableHead>Motif</TableHead>
+                  <TableHead>Véhicule</TableHead>
                   <TableHead>Date d'entrée</TableHead>
                   <TableHead>Heure d'entrée</TableHead>
                   <TableHead>Heure de sortie</TableHead>
@@ -387,7 +325,7 @@ function SecretariatContent() {
               <TableBody>
                 {visitorsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Chargement des visiteurs...
@@ -400,8 +338,23 @@ function SecretariatContent() {
                         <TableCell>
                           <div className="font-semibold text-sm">{visitor.lastName.toUpperCase()} {visitor.firstName}</div>
                           <div className="text-xs text-muted-foreground font-mono mt-0.5">{visitor.contact}</div>
+                          {visitor.idNumber && (
+                            <div className="text-[11px] text-muted-foreground font-mono">Pièce : {visitor.idNumber}</div>
+                          )}
                         </TableCell>
-                        <TableCell className="text-sm font-medium text-foreground">{visitor.occupation}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[220px]">
+                          <span className="line-clamp-2">{visitor.visitReason || '—'}</span>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {visitor.vehiclePlate || visitor.vehicleBrand ? (
+                            <>
+                              <div className="font-mono font-semibold">{visitor.vehiclePlate || '—'}</div>
+                              {visitor.vehicleBrand && <div className="text-xs text-muted-foreground">{visitor.vehicleBrand}</div>}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{visitor.entryTime.toDate().toLocaleDateString('fr-FR')}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{visitor.entryTime.toDate().toLocaleTimeString('fr-FR')}</TableCell>
                         <TableCell className="text-sm">
@@ -417,7 +370,7 @@ function SecretariatContent() {
                         </TableCell>
                         {!isObserver && (
                           <TableCell>
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                               <DropdownMenuTrigger asChild>
                                 <Button aria-haspopup="true" size="icon" variant="ghost" className="h-8 w-8 hover:bg-muted rounded-full">
                                   <MoreHorizontal className="h-4 w-4" />
@@ -448,7 +401,7 @@ function SecretariatContent() {
                 )}
                 {!visitorsLoading && filteredVisitors.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-sm">
+                        <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
                             Aucun visiteur enregistré aujourd'hui.
                         </TableCell>
                     </TableRow>
@@ -456,147 +409,7 @@ function SecretariatContent() {
               </TableBody>
             </Table>
           </div>
-        </TabsContent>
-
-        {/* Tab 2: Directory / saved contacts */}
-        <TabsContent value="contacts" className="space-y-4 outline-none">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-2 w-full max-w-lg">
-              <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-10 text-sm"
-                    placeholder="Rechercher un contact dans l'annuaire..."
-                    value={contactSearchQuery}
-                    onChange={(e) => setContactSearchQuery(e.target.value)}
-                  />
-              </div>
-              <select
-                value={contactCategoryFilter}
-                onChange={(e) => setContactCategoryFilter(e.target.value)}
-                className="text-xs h-10 rounded-md border border-input bg-background px-3 py-1 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="all">Toutes Catégories</option>
-                <option value="Partenaire">Partenaire</option>
-                <option value="Ministère">Ministère / Hiérarchie</option>
-                <option value="Garde Civile">Garde Civile / Police</option>
-                <option value="Urgence">Urgence / Sécurité</option>
-                <option value="Autre">Autre Institution</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-2 justify-end">
-              {!isObserver && (
-                 <Dialog open={isContactOpen} onOpenChange={(open) => {
-                   setContactOpen(open);
-                   if (!open) setContactToEdit(null);
-                 }}>
-                    <DialogTrigger asChild>
-                        <button className="button-13 flex items-center justify-center !w-auto px-4 text-sm font-medium">
-                            <Plus className="mr-2 h-4 w-4" /> Enregistrer un Contact d'Urgence
-                        </button>
-                    </DialogTrigger>
-                    <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
-                        <DialogHeader>
-                            <DialogTitle>{contactToEdit ? 'Modifier le Contact' : 'Enregistrer dans l\'Annuaire'}</DialogTitle>
-                            <DialogDescription>
-                              Enregistrez des contacts diplomatiques ou officiels pour une liaison simultanée ultérieure.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <CustomContactForm 
-                          contactToEdit={contactToEdit} 
-                          onContactSaved={() => {
-                            setContactOpen(false);
-                            setContactToEdit(null);
-                          }} 
-                        />
-                    </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          </div>
-
-          <div className="border border-border/80 rounded-xl overflow-x-auto shadow-sm bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Officiel / Contact</TableHead>
-                  <TableHead>Institution</TableHead>
-                  <TableHead>Adresse E-mail</TableHead>
-                  <TableHead>N° Téléphone</TableHead>
-                  {!isObserver && <TableHead className="w-[80px]"><span className="sr-only">Actions</span></TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contactsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Chargement de l'annuaire...
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredContacts.map((contact) => (
-                      <TableRow key={contact.id} className="hover:bg-muted/30">
-                        <TableCell>
-                          <div className="font-semibold text-sm flex items-center gap-2">
-                            <span className="text-foreground">{contact.lastName.toUpperCase()} {contact.firstName}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-cyan-500/20 text-cyan-600 bg-cyan-500/5 font-semibold text-[11px] uppercase">
-                            {contact.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm font-mono text-muted-foreground">{contact.email || '—'}</TableCell>
-                        <TableCell className="text-sm font-mono text-muted-foreground">{contact.phone || '—'}</TableCell>
-                        {!isObserver && (
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-muted rounded-full">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onSelect={() => {
-                                  setContactToEdit(contact);
-                                  setContactOpen(true);
-                                }} className="cursor-pointer">
-                                  <Edit className="mr-2 h-4 w-4" /> Modifier la fiche
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => setContactToDelete(contact)} className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer">
-                                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer de l'annuaire
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))
-                )}
-                {!contactsLoading && filteredContacts.length === 0 && (
-                    <TableRow>
-                        <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-sm">
-                            Aucun contact trouvé dans l'annuaire de liaison. 
-                        </TableCell>
-                    </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
-
-        {/* Tab 3: Simultaneous Broadcast Component */}
-        <TabsContent value="broadcast" className="outline-none">
-          <BroadcastTab />
-        </TabsContent>
-
-      </Tabs>
+      </section>
 
       {/* Visitor Edit Dialog */}
       {editingVisitor && (
@@ -623,28 +436,6 @@ function SecretariatContent() {
               <AlertDialogAction onClick={handleDeleteVisitor} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
                  {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Supprimer de force
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {/* Contact Delete Alert Dialog */}
-      {contactToDelete && (
-        <AlertDialog open={!!contactToDelete} onOpenChange={(open) => !open && setContactToDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Supprimer le contact d'urgence ?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Vous êtes sur le point de retirer{' '}
-                <span className="font-semibold">{`${contactToDelete.firstName} ${contactToDelete.lastName}`}</span> de votre annuaire public d'envoi simultané. 
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setContactToDelete(null)}>Annuler</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteContact} className="bg-destructive hover:bg-destructive/90" disabled={isDeletingContact}>
-                 {isDeletingContact && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirmer la suppression
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

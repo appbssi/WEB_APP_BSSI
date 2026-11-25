@@ -31,7 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarInset className="min-w-0 overflow-x-hidden w-full max-w-full">
           <OfflineBanner />
           <Header />
-          <main className="p-3 sm:p-5 lg:p-8 min-w-0 w-full overflow-x-hidden">
+          <main className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5 lg:p-8 min-w-0 w-full overflow-x-hidden">
             {children}
           </main>
         </SidebarInset>

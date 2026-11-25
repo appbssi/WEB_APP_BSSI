@@ -1,4 +1,4 @@
-import type {Metadata} from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/layout/theme-provider';
@@ -18,6 +18,17 @@ export const metadata: Metadata = {
     title: 'BSSI Portal',
     description: "Système de Brigade Spéciale de Surveillance et d'Intervention",
   },
+};
+
+// Téléphones : occupe tout l'écran (encoches, barre de gestes Android) et colore la barre d'état
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fbf8f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#020817' },
+  ],
 };
 
 export default function RootLayout({

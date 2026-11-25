@@ -268,12 +268,12 @@ function ArmurerieContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Armurerie</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Armurerie</h1>
           <p className="text-muted-foreground">Gestion du matériel, des munitions et de la maintenance.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           <Button variant="outline" onClick={generateDailyReport}>
             <FileText className="mr-2 h-4 w-4" /> Rapport Quotidien
           </Button>

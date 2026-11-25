@@ -455,3 +455,75 @@ body {
 .animate-soft-pulse {
   animation: soft-badge-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ---------------------------------------------------------------------------
+ * Écrans tactiles (téléphones et tablettes Android)
+ * Cibles d'au moins 44 px, retour visuel au toucher, pas de zoom intempestif.
+ * Sans effet sur ordinateur (souris) : seule la règle « pointer: coarse » s'applique.
+ * ------------------------------------------------------------------------- */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  [role='tab'],
+  [role='combobox'],
+  [role='menuitem'],
+  [role='menuitemcheckbox'],
+  [role='menuitemradio'],
+  [role='option'],
+  a[class*='inline-flex'],
+  summary {
+    touch-action: manipulation;
+    min-height: 44px;
+  }
+
+  /* Boutons ne contenant qu'une icône : zone de toucher carrée de 44 px */
+  button:not(:has(> span:not(.sr-only), > div)):has(> svg),
+  [role='button']:not(:has(> span:not(.sr-only), > div)):has(> svg),
+  a[class*='inline-flex']:not(:has(> span:not(.sr-only), > div)):has(> svg) {
+    min-width: 44px;
+  }
+
+  /* Cases à cocher, interrupteurs et boutons radio gardent leur forme */
+  [role='checkbox'],
+  [role='switch'],
+  [role='radio'],
+  [role='slider'],
+  .no-touch-size {
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+
+  /* Champs : 16 px évite le zoom automatique du navigateur, 44 px de haut */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select {
+    min-height: 44px;
+  }
+
+  /* Retour visuel au toucher, comme sur Android */
+  button:not(:disabled):active,
+  [role='button']:active,
+  [role='tab']:active,
+  [role='menuitem']:active,
+  [role='option']:active,
+  a[class*='inline-flex']:active {
+    filter: brightness(0.92);
+    scale: 0.98;
+  }
+
+  /* Éléments de menu et de liste plus aérés */
+  [role='menuitem'],
+  [role='option'] {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+}

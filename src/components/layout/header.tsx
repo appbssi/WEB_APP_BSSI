@@ -152,7 +152,7 @@ export function Header() {
   }, [role, currentAgent, userIdc]);
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-10 flex h-[calc(4rem+env(safe-area-inset-top))] items-center justify-between gap-4 border-b border-border bg-background px-4 pt-[env(safe-area-inset-top)] sm:px-6 lg:px-8">
         <div className="flex items-center gap-4">
             <div className="md:hidden">
                 <SidebarTrigger />

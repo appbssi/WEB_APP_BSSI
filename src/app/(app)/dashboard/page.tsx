@@ -148,33 +148,33 @@ function DashboardContent() {
   }, [rawAgents, rawMissions, rawDetainees, rawDemandes, rawSaisies]);
 
   const agents = useMemo(() => {
-    if (rawAgents && rawAgents.length > 0) return rawAgents;
-    if (cachedData?.agents && cachedData.agents.length > 0) return cachedData.agents;
-    return rawAgents;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawAgents ?? cachedData?.agents ?? null;
   }, [rawAgents, cachedData]);
 
   const missions = useMemo(() => {
-    if (rawMissions && rawMissions.length > 0) return rawMissions;
-    if (cachedData?.missions && cachedData.missions.length > 0) return cachedData.missions;
-    return rawMissions;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawMissions ?? cachedData?.missions ?? null;
   }, [rawMissions, cachedData]);
 
   const detainees = useMemo(() => {
-    if (rawDetainees && rawDetainees.length > 0) return rawDetainees;
-    if (cachedData?.detainees && cachedData.detainees.length > 0) return cachedData.detainees;
-    return rawDetainees;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawDetainees ?? cachedData?.detainees ?? null;
   }, [rawDetainees, cachedData]);
 
   const demandes = useMemo(() => {
-    if (rawDemandes && rawDemandes.length > 0) return rawDemandes;
-    if (cachedData?.demandes && cachedData.demandes.length > 0) return cachedData.demandes;
-    return rawDemandes;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawDemandes ?? cachedData?.demandes ?? null;
   }, [rawDemandes, cachedData]);
 
   const saisies = useMemo(() => {
-    if (rawSaisies && rawSaisies.length > 0) return rawSaisies;
-    if (cachedData?.saisies && cachedData.saisies.length > 0) return cachedData.saisies;
-    return rawSaisies;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawSaisies ?? cachedData?.saisies ?? null;
   }, [rawSaisies, cachedData]);
 
   const isUsingOfflineCache = !isOnline || (!rawAgents && !!cachedData?.agents);

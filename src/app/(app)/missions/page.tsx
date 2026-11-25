@@ -10,7 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Users, Search, FileDown, CheckCircle, Database } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Users, Search, FileDown, CheckCircle, Database, Eye, Pencil, XCircle, Trash2, Eraser } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   saveMissionsOfflineCache,
   getMissionsOfflineCache,
@@ -46,7 +47,7 @@ import { CreateMissionForm } from '@/components/missions/create-mission-form';
 import { AgentMissionCountersDialog } from '@/components/missions/agent-mission-counters-dialog';
 import { CheckCircle2 } from 'lucide-react';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, deleteDoc, doc, increment, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, increment, updateDoc, writeBatch } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Mission, MissionStatus } from '@/lib/types';
@@ -254,6 +255,10 @@ function MissionsContent() {
   const [missionToComplete, setMissionToComplete] = useState<Mission | null>(null);
   const [missionToCancel, setMissionToCancel] = useState<Mission | null>(null);
   const [missionToDelete, setMissionToDelete] = useState<Mission | null>(null);
+  const [isPurgeOpen, setPurgeOpen] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
+  // Retirer les missions supprimées du compteur « missions effectuées » des agents
+  const [adjustCounters, setAdjustCounters] = useState(false);
   const [selectedMissionDetails, setSelectedMissionDetails] = useState<MissionWithDisplayStatus | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -302,15 +307,15 @@ function MissionsContent() {
   }, [rawMissions, rawAgents]);
 
   const missions = useMemo(() => {
-    if (rawMissions && rawMissions.length > 0) return rawMissions;
-    if (cachedData?.missions && cachedData.missions.length > 0) return cachedData.missions;
-    return rawMissions;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawMissions ?? cachedData?.missions ?? null;
   }, [rawMissions, cachedData]);
 
   const agents = useMemo(() => {
-    if (rawAgents && rawAgents.length > 0) return rawAgents;
-    if (cachedData?.agents && cachedData.agents.length > 0) return cachedData.agents;
-    return rawAgents;
+    // Données en direct dès qu'elles sont chargées, même vides (sinon un élément supprimé
+    // réapparaît depuis le cache) ; le cache hors ligne ne sert qu'avant le premier chargement.
+    return rawAgents ?? cachedData?.agents ?? null;
   }, [rawAgents, cachedData]);
 
   const isUsingOfflineCache = !isOnline || (!rawMissions && !!cachedData?.missions);
@@ -451,20 +456,84 @@ function MissionsContent() {
     setMissionToCancel(null);
   }
 
+  /**
+   * Supprime des missions par lots (500 écritures max par lot Firestore).
+   * Si `withCounters`, chaque mission clôturée (statut enregistré « Terminée », donc déjà
+   * comptée) est retirée du compteur de ses agents, sans jamais descendre sous 0.
+   */
+  const deleteMissions = async (toDelete: Mission[], withCounters: boolean) => {
+    if (!firestore || toDelete.length === 0) return;
+
+    const decrements: Record<string, number> = {};
+    if (withCounters) {
+      for (const m of toDelete) {
+        if (m.status !== 'Terminée') continue;
+        for (const agentId of m.assignedAgentIds || []) {
+          if (agentsById[agentId]) decrements[agentId] = (decrements[agentId] || 0) + 1;
+        }
+      }
+    }
+
+    const writes: Array<(b: ReturnType<typeof writeBatch>) => void> = [
+      ...toDelete.map((m) => (b: ReturnType<typeof writeBatch>) => b.delete(doc(firestore, 'missions', m.id))),
+      ...Object.entries(decrements).map(([agentId, n]) => (b: ReturnType<typeof writeBatch>) =>
+        b.update(doc(firestore, 'agents', agentId), {
+          missionCount: Math.max(0, (agentsById[agentId]?.missionCount || 0) - n),
+        })
+      ),
+    ];
+
+    for (let i = 0; i < writes.length; i += 450) {
+      const batch = writeBatch(firestore);
+      writes.slice(i, i + 450).forEach((w) => w(batch));
+      await batch.commit();
+    }
+  };
+
   const handleDeleteMission = async () => {
     if (!firestore || !missionToDelete) return;
-    const missionRef = doc(firestore, 'missions', missionToDelete.id);
-    
-    deleteDoc(missionRef).then(() => {
-        toast({ title: 'Mission supprimée', description: `La mission "${missionToDelete.name}" a été supprimée.` });
-        logActivity(firestore, `La mission "${missionToDelete.name}" a été supprimée.`, 'Mission', '/missions');
-    }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({ path: missionRef.path, operation: 'delete' });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
+    const target = missionToDelete;
     setMissionToDelete(null);
+    try {
+      await deleteMissions([target], adjustCounters);
+      toast({ title: 'Mission supprimée', description: `La mission "${target.name}" a été supprimée.` });
+      logActivity(firestore, `La mission "${target.name}" a été supprimée.`, 'Mission', '/missions');
+    } catch {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `missions/${target.id}`, operation: 'delete' }));
+    } finally {
+      setAdjustCounters(false);
+    }
   };
+
+  // Historique : missions closes (terminées, annulées, rejetées) parmi celles affichées
+  const closedMissions = useMemo(
+    () => filteredMissions.filter((m) => ['Terminée', 'Annulée', 'Rejetée'].includes(m.displayStatus)),
+    [filteredMissions]
+  );
+  const closedBreakdown = useMemo(() => {
+    const c = { 'Terminée': 0, 'Annulée': 0, 'Rejetée': 0 } as Record<string, number>;
+    closedMissions.forEach((m) => { c[m.displayStatus] = (c[m.displayStatus] || 0) + 1; });
+    return c;
+  }, [closedMissions]);
+
+  const handlePurgeHistory = async () => {
+    if (!firestore || closedMissions.length === 0) return;
+    setIsPurging(true);
+    const count = closedMissions.length;
+    try {
+      await deleteMissions(closedMissions, adjustCounters);
+      toast({ title: 'Historique nettoyé', description: `${count} mission(s) close(s) supprimée(s).` });
+      logActivity(firestore, `${count} mission(s) close(s) supprimée(s) de l'historique.`, 'Mission', '/missions');
+      setPurgeOpen(false);
+    } catch {
+      toast({ variant: 'destructive', title: 'Suppression interrompue', description: "Une partie des missions n'a pas pu être supprimée. Réessayez." });
+    } finally {
+      setIsPurging(false);
+      setAdjustCounters(false);
+    }
+  };
+
+  const isActiveMission = (s: MissionStatus) => s === 'En cours' || s === 'Planification' || s === 'En attente';
 
   return (
     <div className="space-y-4">
@@ -578,6 +647,16 @@ function MissionsContent() {
                 </Select>
             </div>
         </div>
+        {!isObserver && closedMissions.length > 0 && (
+          <Button
+            variant="outline"
+            className="w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 sm:w-auto"
+            onClick={() => { setAdjustCounters(false); setPurgeOpen(true); }}
+          >
+            <Eraser className="h-4 w-4" />
+            Nettoyer l&apos;historique ({closedMissions.length})
+          </Button>
+        )}
         </div>
 
       <div className="border rounded-lg overflow-x-auto">
@@ -589,11 +668,12 @@ function MissionsContent() {
               <TableHead>Période</TableHead>
               <TableHead>Agents Assignés</TableHead>
               <TableHead>Statut</TableHead>
+              {!isObserver && <TableHead className="w-12 text-right"><span className="sr-only">Actions</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {(missionsLoading || agentsLoading) && (!cachedData || !cachedData.missions || cachedData.missions.length === 0) ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Chargement des missions...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isObserver ? 5 : 6} className="text-center py-6 text-muted-foreground">Chargement des missions...</TableCell></TableRow>
             ) : filteredMissions.length > 0 ? (
             filteredMissions.map((mission) => {
               const assignedAgents = (mission.assignedAgentIds || []).map(id => agentsById[id]).filter(Boolean);
@@ -663,10 +743,48 @@ function MissionsContent() {
                     {mission.displayStatus}
                   </Badge>
                 </TableCell>
+                {!isObserver && (
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions pour la mission ${mission.name}`}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuLabel className="truncate">{mission.name}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setSelectedMissionDetails(mission)}>
+                          <Eye className="mr-2 h-4 w-4" /> Voir les détails
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setEditingMission(mission)}>
+                          <Pencil className="mr-2 h-4 w-4" /> Modifier / Prolonger
+                        </DropdownMenuItem>
+                        {(mission.displayStatus === 'En cours' || mission.displayStatus === 'Planification') && (
+                          <DropdownMenuItem onSelect={() => setMissionToComplete(mission)} className="text-emerald-700 focus:text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="mr-2 h-4 w-4" /> Terminer
+                          </DropdownMenuItem>
+                        )}
+                        {isActiveMission(mission.displayStatus) && (
+                          <DropdownMenuItem onSelect={() => setMissionToCancel(mission)} className="text-destructive focus:text-destructive">
+                            <XCircle className="mr-2 h-4 w-4" /> Annuler la mission
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={() => { setAdjustCounters(false); setMissionToDelete(mission); }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             )})
             ) : (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Aucune mission trouvée.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isObserver ? 5 : 6} className="text-center text-muted-foreground">Aucune mission trouvée.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -727,16 +845,54 @@ function MissionsContent() {
         <AlertDialog open={!!missionToDelete} onOpenChange={(open) => !open && setMissionToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Êtes-vous absolument sûr?</AlertDialogTitle>
-              <AlertDialogDescription>Cette action est irréversible. La mission <span className="font-semibold">{missionToDelete.name}</span> sera définitivement supprimée.</AlertDialogDescription>
+              <AlertDialogTitle>Supprimer cette mission ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                La mission <span className="font-semibold">{missionToDelete.name}</span> sera définitivement supprimée. Cette action est irréversible.
+                {isActiveMission(getDisplayStatus(missionToDelete, new Date()) || missionToDelete.status) && (
+                  <span className="mt-2 block text-amber-700 dark:text-amber-400">
+                    Cette mission n&apos;est pas terminée : pour garder une trace, préférez « Annuler la mission ».
+                  </span>
+                )}
+              </AlertDialogDescription>
             </AlertDialogHeader>
+            {missionToDelete.status === 'Terminée' && (
+              <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+                <Checkbox checked={adjustCounters} onCheckedChange={(v) => setAdjustCounters(v === true)} className="mt-0.5" />
+                <span>Retirer aussi cette mission du compteur « missions effectuées » des agents assignés</span>
+              </label>
+            )}
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setMissionToDelete(null)}>Annuler</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setMissionToDelete(null)}>Retour</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteMission} className="bg-destructive hover:bg-destructive/90">Supprimer</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      <AlertDialog open={isPurgeOpen} onOpenChange={(open) => !isPurging && setPurgeOpen(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Nettoyer l&apos;historique des missions ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {closedMissions.length} mission(s) close(s) parmi celles affichées seront définitivement supprimées :{' '}
+              {closedBreakdown['Terminée']} terminée(s), {closedBreakdown['Annulée']} annulée(s), {closedBreakdown['Rejetée']} rejetée(s).
+              Les missions en cours, planifiées ou en attente ne sont pas touchées. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {closedBreakdown['Terminée'] > 0 && (
+            <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+              <Checkbox checked={adjustCounters} onCheckedChange={(v) => setAdjustCounters(v === true)} className="mt-0.5" disabled={isPurging} />
+              <span>Retirer aussi les missions terminées du compteur « missions effectuées » des agents</span>
+            </label>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPurging}>Retour</AlertDialogCancel>
+            <Button variant="destructive" onClick={handlePurgeHistory} disabled={isPurging}>
+              {isPurging ? 'Suppression…' : `Supprimer ${closedMissions.length} mission(s)`}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AgentMissionCountersDialog
         agents={agents || []}

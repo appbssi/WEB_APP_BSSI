@@ -112,6 +112,17 @@ body {
     border-color: hsl(var(--error-color) / 0.8);
     animation: blink-error 1.2s infinite ease-in-out;
   }
+  /* Champs de connexion : visibles sur la carte sombre */
+  .neon-orange-input {
+    border-color: rgb(255 255 255 / 0.22);
+    background-color: rgb(255 255 255 / 0.06);
+  }
+  .neon-orange-input::placeholder {
+    color: rgb(203 213 225 / 0.7);
+  }
+  .neon-orange-input:hover {
+    border-color: rgb(255 255 255 / 0.35);
+  }
   .neon-orange-input:focus-visible {
     box-shadow: 0 0 5px hsl(var(--primary)), 
                 0 0 8px hsl(var(--primary));

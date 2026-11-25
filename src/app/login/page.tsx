@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useLogo } from '@/context/logo-context';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, IdCard, Loader2, ShieldCheck } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
@@ -273,13 +273,15 @@ function LoginContent() {
           priority
         />
       ))}
-      <div className="absolute inset-0 bg-black/60" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/80 to-black/90 backdrop-blur-[3px]" />
       <div className="relative z-10 flex h-full w-full flex-col items-center justify-center p-4">
         <div className="w-full max-w-sm animate-fade-in-up">
-            <Card className={cn("dark text-left text-card-foreground w-full max-w-sm bg-background/80 backdrop-blur-md shadow-2xl border-2 border-transparent rounded-xl subtle-float", hasError ? "neon-error-box" : "neon-orange-box")}>
+            <Card className={cn("dark text-left text-card-foreground w-full max-w-sm overflow-hidden bg-background/85 backdrop-blur-md shadow-2xl border-2 border-transparent rounded-xl subtle-float", hasError ? "neon-error-box" : "neon-orange-box")}>
+                {/* Liseré vert (emblème) → orange (application) */}
+                <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-emerald-500/70 to-primary" aria-hidden="true" />
                 <CardHeader className="text-center">
                     <div className="mx-auto mb-4 h-28 w-28 flex items-center justify-center">
-                        <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-emerald-500/20 bg-transparent shadow-lg">
+                        <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-emerald-500/60 bg-transparent shadow-lg ring-4 ring-emerald-500/15">
                             <Image
                               src="https://i.ibb.co/v4p7NtMh/dd.png"
                               alt="Logo"
@@ -289,7 +291,7 @@ function LoginContent() {
                         </div>
                     </div>
                     <CardTitle><span className="text-primary">s</span>BSSI</CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-slate-300">
                       {step === 'idc' && 'Saisissez votre Identifiant (IDC) pour vous connecter'}
                       {step === 'password' && 'Saisissez votre mot de passe'}
                       {step === 'create_password' &&
@@ -318,17 +320,23 @@ function LoginContent() {
                                 </button>
                               )}
                             </div>
-                            <FormControl>
-                            <Input
-                                type="text"
-                                placeholder="Votre identifiant"
-                                autoComplete="username"
-                                readOnly={step !== 'idc'}
-                                {...field}
-                                onChange={(e) => handleInputChange(field, e.target.value)}
-                                className={cn("rounded-full neon-orange-input", step !== 'idc' && "opacity-70")}
-                            />
-                            </FormControl>
+                            <div className="relative">
+                              <IdCard
+                                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                                aria-hidden="true"
+                              />
+                              <FormControl>
+                              <Input
+                                  type="text"
+                                  placeholder="Votre identifiant"
+                                  autoComplete="username"
+                                  readOnly={step !== 'idc'}
+                                  {...field}
+                                  onChange={(e) => handleInputChange(field, e.target.value)}
+                                  className={cn("rounded-full neon-orange-input pl-10", step !== 'idc' && "opacity-70")}
+                              />
+                              </FormControl>
+                            </div>
                             <FormMessage />
                         </FormItem>
                         )}
@@ -349,7 +357,7 @@ function LoginContent() {
                           placeholder="Votre matricule"
                           className="rounded-full neon-orange-input"
                         />
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-slate-300">
                           Si l&apos;IDC et le matricule correspondent, un code vous sera transmis sur le contact
                           enregistré sur votre fiche.
                         </p>
@@ -426,7 +434,7 @@ function LoginContent() {
                               placeholder="Retapez le mot de passe"
                               className="rounded-full neon-orange-input"
                             />
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-xs text-slate-300">
                               Au moins 8 caractères, dont une lettre et un chiffre.
                             </p>
                           </>
@@ -471,6 +479,10 @@ function LoginContent() {
                     </form>
                 </Form>
                 </CardContent>
+                <div className="flex items-center justify-center gap-1.5 border-t border-white/10 px-6 py-3 text-[11px] font-medium text-slate-300">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+                  Accès réservé au personnel autorisé
+                </div>
             </Card>
         </div>
       </div>

@@ -16,8 +16,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit, Timestamp, doc, type Firestore } from 'firebase/firestore';
-import { addDoc, updateDoc } from '@/lib/firestore-fast';
+import { collection, query, orderBy, limit, Timestamp, doc, where } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { useRole } from '@/hooks/use-role';
@@ -64,14 +64,23 @@ function colorFor(key: string) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
-interface ChecklistItem { id: string; label: string; checked: boolean }
+/** Ordre signé archivé (scan enregistré ou importé) : clé = id de mission, et nom en secours. */
+export interface SignedIndex { byMissionId: Map<string, Date | null>; byName: Map<string, Date | null> }
 
-function MissionChecklistCard({ msgId, text, firestore }: { msgId: string; text: string; firestore: Firestore | null }) {
+const normName = (s?: string) => (s || '').trim().toLowerCase();
+
+/**
+ * Liste de préparation, calculée en direct (plus de cases à cocher à la main) :
+ * 1. Création de la mission : faite dès que le message existe.
+ * 2. Ordre de mission signé enregistré ou importé : fait dès que son scan est archivé
+ *    dans « Ordres signés ». Cette étape termine la liste.
+ */
+function MissionChecklistCard({ text, createdAt, signed }: { text: string; createdAt: Date | null; signed: SignedIndex }) {
   const [expanded, setExpanded] = useState(false);
 
   let missionData: {
-    name?: string; location?: string; startDate?: string; endDate?: string;
-    startTime?: string; endTime?: string; checklist?: ChecklistItem[]; agents?: string[];
+    missionId?: string; name?: string; location?: string; startDate?: string; endDate?: string;
+    startTime?: string; endTime?: string; agents?: string[];
   } | null = null;
   try {
     missionData = JSON.parse(text);
@@ -80,19 +89,31 @@ function MissionChecklistCard({ msgId, text, firestore }: { msgId: string; text:
   }
   if (!missionData) return null;
 
-  const { name, location, startDate, endDate, startTime, endTime, checklist = [], agents = [] } = missionData;
-  const total = checklist.length;
-  const done = checklist.filter((i) => i.checked).length;
-  const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
+  const { missionId, name, location, startDate, endDate, startTime, endTime, agents = [] } = missionData;
 
-  const handleToggle = (itemId: string) => {
-    if (!firestore) return;
-    const updatedChecklist = checklist.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i));
-    // Écriture rapide : la case se met à jour aussitôt
-    updateDoc(doc(firestore, 'messages', msgId), {
-      text: JSON.stringify({ ...missionData, checklist: updatedChecklist }),
-    }).catch((err) => console.error('Erreur de mise à jour de la checklist:', err));
-  };
+  // Les anciens messages n'ont pas l'identifiant de la mission : on se rabat sur son nom
+  const signedKey = missionId && signed.byMissionId.has(missionId)
+    ? { found: true, at: signed.byMissionId.get(missionId) ?? null }
+    : !missionId && signed.byName.has(normName(name))
+      ? { found: true, at: signed.byName.get(normName(name)) ?? null }
+      : { found: false, at: null };
+
+  const fmt = (d: Date | null) =>
+    d ? d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' à ' + timeOf(d) : null;
+
+  const steps = [
+    { id: 'created', label: 'Création de la mission', done: true, detail: fmt(createdAt) },
+    {
+      id: 'signed',
+      label: "Ordre de mission signé enregistré",
+      done: signedKey.found,
+      detail: signedKey.found ? (fmt(signedKey.at) ?? 'Enregistré') : 'En attente du scan signé (Ordres signés)',
+    },
+  ];
+  const total = steps.length;
+  const done = steps.filter((s) => s.done).length;
+  const percentage = Math.round((done / total) * 100);
+  const complete = done === total;
 
   const period = (() => {
     try {
@@ -150,53 +171,52 @@ function MissionChecklistCard({ msgId, text, firestore }: { msgId: string; text:
           </div>
         )}
 
-        {total > 0 && (
-          <div className="space-y-2 rounded-lg bg-muted/40 p-2.5">
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="flex w-full items-center justify-between gap-2 text-xs font-semibold"
-              aria-expanded={expanded}
-            >
-              <span>Liste de préparation · {done}/{total}</span>
-              <span className="flex items-center gap-1.5 text-primary">
-                {percentage}%
-                <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} />
-              </span>
-            </button>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-background">
-              <div
-                className={cn('h-full rounded-full transition-all duration-300', percentage === 100 ? 'bg-emerald-500' : 'bg-primary')}
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-            {expanded && (
-              <div className="space-y-1 pt-1">
-                {checklist.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleToggle(item.id)}
+        <div className="space-y-2 rounded-lg bg-muted/40 p-2.5">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 text-xs font-semibold"
+            aria-expanded={expanded}
+          >
+            <span>{complete ? 'Préparation terminée' : 'Liste de préparation'} · {done}/{total}</span>
+            <span className={cn('flex items-center gap-1.5', complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary')}>
+              {percentage}%
+              <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} />
+            </span>
+          </button>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-background">
+            <div
+              className={cn('h-full rounded-full transition-all duration-500', complete ? 'bg-emerald-500' : 'bg-primary')}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+          {expanded && (
+            <ol className="relative space-y-3 pl-1 pt-1">
+              {steps.map((step, i) => (
+                <li key={step.id} className="relative flex gap-2.5">
+                  {i < steps.length - 1 && (
+                    <span
+                      className={cn('absolute left-[9px] top-5 h-[calc(100%-4px)] w-px', step.done ? 'bg-emerald-500/50' : 'bg-border')}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-background',
-                      item.checked && 'text-muted-foreground'
+                      'relative z-10 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border text-[10px] font-bold',
+                      step.done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-muted-foreground/40 bg-background text-muted-foreground'
                     )}
                   >
-                    <span
-                      className={cn(
-                        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-                        item.checked ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40 bg-background'
-                      )}
-                    >
-                      {item.checked && <Check className="h-3 w-3 stroke-[3]" />}
-                    </span>
-                    <span className={cn(item.checked && 'line-through')}>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                    {step.done ? <Check className="h-3 w-3 stroke-[3]" /> : i + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={cn('block text-xs font-medium', !step.done && 'text-muted-foreground')}>{step.label}</span>
+                    {step.detail && <span className="block text-[11px] text-muted-foreground">{step.detail}</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -209,7 +229,28 @@ export function ChatSheet() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const firestore = useFirestore();
   const { user } = useUser();
-  const { role, agentId } = useRole();
+  const { role, agentId, idc } = useRole();
+
+  // Ordres signés archivés : l'admin les voit tous, un agent seulement ceux de ses missions
+  const signedQuery = useMemoFirebase(() => {
+    if (!firestore || !isOpen) return null;
+    if (role === 'admin') return query(collection(firestore, 'signed_orders'), where('status', '==', 'archive'));
+    const keys = [agentId, idc].filter((k): k is string => !!k);
+    if (keys.length === 0) return null;
+    return query(collection(firestore, 'signed_orders'), where('agentIds', 'array-contains-any', keys));
+  }, [firestore, isOpen, role, agentId, idc]);
+  const { data: signedOrders } = useCollection<{ status?: string; missionId?: string | null; missionName?: string; archivedAt?: unknown }>(signedQuery);
+  const signed: SignedIndex = useMemo(() => {
+    const byMissionId = new Map<string, Date | null>();
+    const byName = new Map<string, Date | null>();
+    (signedOrders || []).forEach((o) => {
+      if (o.status !== 'archive') return;
+      const at = safeToDate(o.archivedAt) ?? null;
+      if (o.missionId) byMissionId.set(o.missionId, at);
+      if (o.missionName) byName.set(normName(o.missionName), at);
+    });
+    return { byMissionId, byName };
+  }, [signedOrders]);
 
   // Fiche de l'agent connecté : son nom apparaît sur ses messages
   const agentRef = useMemoFirebase(
@@ -366,7 +407,7 @@ export function ChatSheet() {
                 if (item.kind === 'mission') {
                   return (
                     <div key={item.key} className="my-2">
-                      <MissionChecklistCard msgId={item.msg.id} text={item.msg.text} firestore={firestore} />
+                      <MissionChecklistCard text={item.msg.text} createdAt={safeToDate(item.msg.timestamp)} signed={signed} />
                       <p className="mt-1 text-center text-[10px] text-muted-foreground">Message système · {item.time}</p>
                     </div>
                   );

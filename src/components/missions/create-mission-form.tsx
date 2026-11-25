@@ -318,6 +318,7 @@ export function CreateMissionForm({
         // Publier un message système de création de mission dans le chat
         const missionMessageText = JSON.stringify({
           type: 'mission_created',
+          missionId: newMissionRef.id,
           name: data.name,
           location: data.location,
           startDate: newMissionData.startDate.toDate().toISOString(),
@@ -326,12 +327,7 @@ export function CreateMissionForm({
           endTime: newMissionData.endTime || null,
           status: targetStatus,
           validationStatus: targetValidationStatus,
-          checklist: [
-            { id: 'briefing', label: "Briefing d'équipe & tactique", checked: false },
-            { id: 'equipment', label: "Vérification et chargement du matériel", checked: false },
-            { id: 'vehicle', label: "Attribution/préparation du véhicule de service", checked: false },
-            { id: 'validation', label: "Validation finale de l'ordre de mission", checked: shouldValidate }
-          ],
+          // Les étapes (création, ordre signé) sont calculées en direct par la messagerie
           agents: agentNames,
         });
 

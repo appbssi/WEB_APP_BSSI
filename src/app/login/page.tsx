@@ -288,6 +288,8 @@ function LoginContent() {
                               fill
                               className="object-cover rounded-full"
                             />
+                            {/* Reflet métallique qui traverse l'emblème */}
+                            <span className="emblem-shine" aria-hidden="true" />
                         </div>
                     </div>
                     <CardTitle><span className="text-primary">s</span>BSSI</CardTitle>

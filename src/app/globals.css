@@ -112,6 +112,32 @@ body {
     border-color: hsl(var(--error-color) / 0.8);
     animation: blink-error 1.2s infinite ease-in-out;
   }
+  /* Emblème de la page de connexion : éclat lumineux qui le traverse en diagonale */
+  .emblem-shine {
+    position: absolute;
+    inset: -50%;
+    pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      transparent 36%,
+      rgb(255 255 255 / 0.25) 44%,
+      rgb(255 255 255 / 0.75) 50%,
+      rgb(255 255 255 / 0.25) 56%,
+      transparent 64%
+    );
+    mix-blend-mode: screen;
+    transform: translateX(-100%);
+    animation: emblem-shine 4.5s ease-in-out 1s infinite;
+  }
+  @keyframes emblem-shine {
+    0% { transform: translateX(-100%); }
+    30% { transform: translateX(100%); }
+    100% { transform: translateX(100%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .emblem-shine { animation: none; opacity: 0; }
+  }
+
   /* Champs de connexion : visibles sur la carte sombre */
   .neon-orange-input {
     border-color: rgb(255 255 255 / 0.22);

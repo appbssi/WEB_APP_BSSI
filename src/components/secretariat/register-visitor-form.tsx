@@ -15,7 +15,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, Timestamp } from 'firebase/firestore';
+import { collection, Timestamp } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Loader2 } from 'lucide-react';

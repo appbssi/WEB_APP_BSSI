@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, doc, Timestamp } from 'firebase/firestore';
+import { addDoc, setDoc } from '@/lib/firestore-fast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useToast } from '@/hooks/use-toast';
 import type { Agent, Explication } from '@/lib/types';

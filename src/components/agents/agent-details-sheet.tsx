@@ -23,7 +23,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { getDisplayStatus } from '@/lib/missions';
 import Image from 'next/image';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, Timestamp } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useRole } from '@/hooks/use-role';
 import { useToast } from '@/hooks/use-toast';

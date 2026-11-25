@@ -17,7 +17,8 @@ import {
 import { Loader2, User, X, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToDataUrl } from '@/lib/image-compress';
-import { addDoc, collection, Timestamp } from 'firebase/firestore';
+import { collection, Timestamp } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { logActivity } from '@/lib/activity-logger';

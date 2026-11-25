@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { addDoc, collection, Timestamp } from 'firebase/firestore';
+import { collection, Timestamp } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';

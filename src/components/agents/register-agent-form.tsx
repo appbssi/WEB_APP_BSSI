@@ -28,7 +28,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToDataUrl } from '@/lib/image-compress';
-import { addDoc, collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { useFirestore, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Loader2, User, X } from 'lucide-react';

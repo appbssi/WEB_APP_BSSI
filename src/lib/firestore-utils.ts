@@ -1,7 +1,8 @@
 
 'use client';
 
-import { collection, getDocs, writeBatch, Firestore, doc, deleteDoc, WriteBatch, query, orderBy, where, updateDoc } from "firebase/firestore";
+import { collection, getDocs, Firestore, doc, WriteBatch, query, orderBy, where } from 'firebase/firestore';
+import { writeBatch, deleteDoc, updateDoc } from '@/lib/firestore-fast';
 import type { Agent, Mission } from "./types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";

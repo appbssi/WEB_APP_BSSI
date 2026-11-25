@@ -20,7 +20,8 @@ import {
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useDoc } from '@/firebase/firestore/use-doc';
-import { collection, query, where, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, doc } from 'firebase/firestore';
+import { setDoc } from '@/lib/firestore-fast';
 import type { Demande, Agent, Mission } from '@/lib/types';
 import { AgentQRBadgeDialog } from '../agents/agent-qr-badge-dialog';
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
+import { updateDoc } from '@/lib/firestore-fast';
 import { Check, KeyRound, MessageCircle, Phone } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';

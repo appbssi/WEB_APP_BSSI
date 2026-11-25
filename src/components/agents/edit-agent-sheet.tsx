@@ -28,7 +28,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToDataUrl } from '@/lib/image-compress';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs } from 'firebase/firestore';
+import { updateDoc } from '@/lib/firestore-fast';
 import { useFirestore, useAuth, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Availability } from '@/lib/types';

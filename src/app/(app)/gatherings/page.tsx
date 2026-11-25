@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, deleteDoc, doc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
+import { deleteDoc } from '@/lib/firestore-fast';
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Agent, Gathering } from '@/lib/types';

@@ -41,7 +41,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, orderBy, doc, updateDoc, Timestamp, deleteDoc, increment, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, doc, Timestamp, increment } from 'firebase/firestore';
+import { updateDoc, deleteDoc, writeBatch } from '@/lib/firestore-fast';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useDetachement } from '@/context/detachement-context';
 import type { Weapon, WeaponAssignment, Agent, Mission } from '@/lib/types';

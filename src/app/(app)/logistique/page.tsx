@@ -22,7 +22,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, orderBy, doc, updateDoc, Timestamp, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
+import { updateDoc, addDoc, deleteDoc } from '@/lib/firestore-fast';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Vehicle, VehicleAnomaly } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';

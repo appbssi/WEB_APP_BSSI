@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useMemo } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { setDoc } from '@/lib/firestore-fast';
 import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { useRole } from '@/hooks/use-role';

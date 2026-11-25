@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { collection, deleteDoc, doc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
+import { deleteDoc } from '@/lib/firestore-fast';
 import { Loader2, MoreHorizontal, PlusCircle, Search } from 'lucide-react';
 
 import { ClientOnly } from '@/components/layout/client-only';

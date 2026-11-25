@@ -17,7 +17,8 @@ import {
   Check 
 } from 'lucide-react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit, addDoc, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, Timestamp, doc } from 'firebase/firestore';
+import { addDoc, updateDoc } from '@/lib/firestore-fast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useRole } from '@/hooks/use-role';
 import { useUser } from '@/firebase';

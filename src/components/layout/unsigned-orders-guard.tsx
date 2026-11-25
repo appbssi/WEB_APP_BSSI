@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { writeBatch } from '@/lib/firestore-fast';
 
 import { useFirestore } from '@/firebase';
 import { useRole } from '@/hooks/use-role';

@@ -22,7 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search, RefreshCw, Plus, Minus, Save, CheckCircle2, Shield } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { updateDoc, writeBatch } from '@/lib/firestore-fast';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity } from '@/lib/activity-logger';
 

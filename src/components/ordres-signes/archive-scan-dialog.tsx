@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { collection, deleteField, doc, getDocs, Timestamp, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDocs, Timestamp } from 'firebase/firestore';
+import { writeBatch } from '@/lib/firestore-fast';
 import { FileText, Loader2, Upload, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';

@@ -36,7 +36,8 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { doc, increment, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
+import { doc, increment, Timestamp } from 'firebase/firestore';
+import { updateDoc, writeBatch } from '@/lib/firestore-fast';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity } from '@/lib/activity-logger';
 import Link from 'next/link';

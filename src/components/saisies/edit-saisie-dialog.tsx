@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { doc, updateDoc, Timestamp, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { doc, Timestamp, serverTimestamp, collection } from 'firebase/firestore';
+import { updateDoc, addDoc } from '@/lib/firestore-fast';
 import { useFirestore } from '@/firebase';
 import {
   Dialog,

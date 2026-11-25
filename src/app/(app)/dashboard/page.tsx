@@ -68,7 +68,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, doc, setDoc, addDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, doc, Timestamp } from 'firebase/firestore';
+import { setDoc, addDoc, deleteDoc } from '@/lib/firestore-fast';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Agent, Mission, MissionStatus, Detainee, Demande, Explication, Saisie } from '@/lib/types';
 import { useMemo, useState, useEffect } from 'react';

@@ -31,7 +31,8 @@ import {
 import { differenceInDays, isSameDay } from 'date-fns';
 import type { MissionWithDisplayStatus } from '@/lib/missions';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc, Timestamp, addDoc } from 'firebase/firestore';
+import { collection, doc, Timestamp } from 'firebase/firestore';
+import { updateDoc, addDoc } from '@/lib/firestore-fast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';

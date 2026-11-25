@@ -1,6 +1,7 @@
 'use client';
 
-import { addDoc, collection, Timestamp, Firestore } from "firebase/firestore";
+import { collection, Timestamp, Firestore } from 'firebase/firestore';
+import { addDoc } from '@/lib/firestore-fast';
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 

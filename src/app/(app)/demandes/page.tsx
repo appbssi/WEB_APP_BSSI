@@ -4,20 +4,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import {
-  collection,
-  query,
-  where,
-  limit,
-  onSnapshot,
-  addDoc,
-  doc,
-  setDoc,
-  deleteDoc,
-  serverTimestamp,
-  Timestamp,
-  writeBatch,
-} from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { addDoc, setDoc, deleteDoc, writeBatch } from '@/lib/firestore-fast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { useRole } from '@/hooks/use-role';

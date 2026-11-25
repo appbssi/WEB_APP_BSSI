@@ -35,7 +35,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, Timestamp } from 'firebase/firestore';
+import { deleteDoc, updateDoc } from '@/lib/firestore-fast';
 import { useFirestore, useMemoFirebase, errorEmitter } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {

@@ -3,7 +3,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, DocumentData } from 'firebase/firestore';
+import { doc, DocumentData } from 'firebase/firestore';
+import { setDoc } from '@/lib/firestore-fast';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase/provider';
 

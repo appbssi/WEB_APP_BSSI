@@ -207,6 +207,12 @@ export type Saisie = {
   interpelle?: string | boolean | null;
   pvNumber?: string;
   status: SaisieStatus;
+  /** Personne à qui la saisie a été restituée (statut « Restitué ») */
+  restitueA?: string | null;
+  /** Parquet auquel la saisie a été transférée (statut « Transféré au Parquet ») */
+  parquet?: string | null;
+  /** Personne à qui la garde de la saisie est confiée (statut « Gardien de Saisie ») */
+  gardien?: string | null;
   notes?: string;
   createdAt?: Timestamp;
 };

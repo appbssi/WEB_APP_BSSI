@@ -176,6 +176,9 @@ export default function SaisiesPage() {
       return (
         item.designation.toLowerCase().includes(q) ||
         (item.pvNumber || '').toLowerCase().includes(q) ||
+        (item.restitueA || '').toLowerCase().includes(q) ||
+        (item.parquet || '').toLowerCase().includes(q) ||
+        (item.gardien || '').toLowerCase().includes(q) ||
         (item.missionOrderNumber || '').toLowerCase().includes(q) ||
         (item.agentName || '').toLowerCase().includes(q) ||
         (item.services || []).join(' ').toLowerCase().includes(q) ||
@@ -259,6 +262,9 @@ export default function SaisiesPage() {
       'Lieu / Mission': s.location || 'N/A',
       'Référence PV / Scellé': s.pvNumber || 'N/A',
       Statut: s.status,
+      'Restitué à': s.restitueA || '',
+      Parquet: s.parquet || '',
+      'Gardien de la saisie': s.gardien || '',
       Observations: s.notes || '',
     }));
 
@@ -593,7 +599,22 @@ export default function SaisiesPage() {
                           )}
                         </TableCell>
 
-                        <TableCell>{getStatusBadge(saisie.status)}</TableCell>
+                        <TableCell>
+                          {getStatusBadge(saisie.status)}
+                          {saisie.status === 'Restitué' && saisie.restitueA && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              à <span className="font-medium text-foreground">{saisie.restitueA}</span>
+                            </p>
+                          )}
+                          {saisie.status === 'Transféré au Parquet' && saisie.parquet && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">{saisie.parquet}</p>
+                          )}
+                          {saisie.status === 'Gardien de Saisie' && saisie.gardien && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              confiée à <span className="font-medium text-foreground">{saisie.gardien}</span>
+                            </p>
+                          )}
+                        </TableCell>
 
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-0.5">

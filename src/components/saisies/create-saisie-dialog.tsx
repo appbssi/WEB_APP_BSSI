@@ -71,7 +71,20 @@ const saisieSchema = z.object({
   interpelles: z.array(personneSchema).default([]),
   pvNumber: z.string().optional(),
   status: z.string().default('En Dépôt / Scellé'),
+  restitueA: z.string().optional(),
+  parquet: z.string().optional(),
+  gardien: z.string().optional(),
   notes: z.string().optional(),
+}).superRefine((v, ctx) => {
+  if (v.status === 'Restitué' && (v.restitueA || '').trim().length < 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['restitueA'], message: 'Indiquez à qui la saisie a été restituée.' });
+  }
+  if (v.status === 'Transféré au Parquet' && (v.parquet || '').trim().length < 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['parquet'], message: 'Indiquez le parquet.' });
+  }
+  if (v.status === 'Gardien de Saisie' && (v.gardien || '').trim().length < 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['gardien'], message: 'Indiquez le nom du gardien de la saisie.' });
+  }
 });
 
 type SaisieFormValues = z.infer<typeof saisieSchema>;
@@ -117,6 +130,9 @@ export function CreateSaisieDialog({
       interpelles: [],
       pvNumber: '',
       status: 'En Dépôt / Scellé',
+      restitueA: '',
+      parquet: '',
+      gardien: '',
       notes: '',
     },
   });
@@ -161,6 +177,9 @@ export function CreateSaisieDialog({
         detaineeName: cleanPersons(values.contrevenants).map((p) => p.nom).join(', ') || null,
         pvNumber: values.pvNumber?.trim() || null,
         status: values.status as SaisieStatus,
+        restitueA: values.status === 'Restitué' ? values.restitueA?.trim() || null : null,
+        parquet: values.status === 'Transféré au Parquet' ? values.parquet?.trim() || null : null,
+        gardien: values.status === 'Gardien de Saisie' ? values.gardien?.trim() || null : null,
         notes: values.notes?.trim() || null,
         createdAt: serverTimestamp(),
       });
@@ -285,6 +304,58 @@ export function CreateSaisieDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Restitution : à qui la saisie a été rendue */}
+          {form.watch('status') === 'Restitué' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Restitué à <span className="text-rose-400">*</span>
+              </Label>
+              <Input
+                autoFocus
+                placeholder="Nom et prénoms de la personne à qui la saisie a été restituée"
+                className="focus:border-emerald-500"
+                {...form.register('restitueA')}
+              />
+              {form.formState.errors.restitueA && (
+                <p className="text-[11px] text-rose-400 font-medium">{form.formState.errors.restitueA.message}</p>
+              )}
+            </div>
+          )}
+
+          {/* Transfert : nom du parquet */}
+          {form.watch('status') === 'Transféré au Parquet' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Parquet <span className="text-rose-400">*</span>
+              </Label>
+              <Input
+                placeholder="Ex : Parquet du Tribunal de Première Instance d'Abidjan-Plateau"
+                className="focus:border-emerald-500"
+                {...form.register('parquet')}
+              />
+              {form.formState.errors.parquet && (
+                <p className="text-[11px] text-rose-400 font-medium">{form.formState.errors.parquet.message}</p>
+              )}
+            </div>
+          )}
+
+          {/* Gardien de saisie : à qui la garde est confiée */}
+          {form.watch('status') === 'Gardien de Saisie' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Gardien de la saisie <span className="text-rose-400">*</span>
+              </Label>
+              <Input
+                placeholder="Nom et prénoms de la personne à qui la saisie est confiée"
+                className="focus:border-emerald-500"
+                {...form.register('gardien')}
+              />
+              {form.formState.errors.gardien && (
+                <p className="text-[11px] text-rose-400 font-medium">{form.formState.errors.gardien.message}</p>
+              )}
+            </div>
+          )}
 
           {/* Date & Heure */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

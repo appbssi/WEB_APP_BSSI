@@ -137,7 +137,7 @@ export type Detainee = {
   arrestReason: string;
 }
 
-export type SaisieStatus = 'En Dépôt / Scellé' | 'Transféré au Parquet' | 'Restitué' | 'Détruit' | 'En Dépôt Coffre-Fort' | 'Gardien de Saisie';
+export type SaisieStatus = 'En Dépôt / Scellé' | 'Transféré au Parquet' | 'Restitué' | 'Détruit' | 'En Dépôt Coffre-Fort' | 'Gardien de Saisie' | 'Vendu';
 
 export type Saisie = {
   id: string;
@@ -155,6 +155,8 @@ export type Saisie = {
   agentName?: string;
   /** Qualité de l'agent saisissant : officier ou agent de police judiciaire */
   agentQualite?: 'OPJ' | 'APJ' | null;
+  /** Service(s) ayant effectué la saisie (une saisie peut être conjointe) */
+  services?: string[];
   /** Contrevenants (une saisie peut en avoir plusieurs) */
   contrevenants?: string[];
   /** Personnes interpellées */
@@ -166,6 +168,34 @@ export type Saisie = {
   pvNumber?: string;
   status: SaisieStatus;
   notes?: string;
+  createdAt?: Timestamp;
+};
+
+/** Vente d'une saisie : en local (cession directe) ou aux enchères publiques. */
+export type VenteType = 'locale' | 'encheres';
+
+export type Vente = {
+  id: string;
+  type: VenteType;
+  /** Saisie vendue (facultatif : une vente peut porter sur un lot hors registre) */
+  saisieId?: string | null;
+  /** Désignation de l'objet vendu, recopiée pour rester lisible si la saisie est supprimée */
+  designation: string;
+  quantity: number;
+  unit?: string;
+  dateVente: Timestamp;
+  lieu?: string | null;
+  /** Acheteur (vente locale) ou adjudicataire (enchères) */
+  acheteur?: string | null;
+  /** Mise à prix (enchères) */
+  prixDepart?: number | null;
+  /** Prix de vente ou d'adjudication, en FCFA */
+  montant: number;
+  /** N° du PV de vente / procès-verbal d'adjudication, ou n° de quittance */
+  reference?: string | null;
+  /** Commissaire-priseur ou organisateur de la vente aux enchères */
+  organisateur?: string | null;
+  notes?: string | null;
   createdAt?: Timestamp;
 };
 

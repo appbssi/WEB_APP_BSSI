@@ -18,12 +18,13 @@ export type SaisieProcedureValues = {
   agentId: string;
   agentQualite: '' | 'OPJ' | 'APJ';
   missionOrderNumber: string;
+  services: string[];
   contrevenants: string[];
   interpelles: string[];
 };
 
 type TextField = 'agentId' | 'agentQualite' | 'missionOrderNumber';
-type ListField = 'contrevenants' | 'interpelles';
+type ListField = 'services' | 'contrevenants' | 'interpelles';
 
 interface SaisieProcedureFieldsProps {
   agents: Agent[];
@@ -79,7 +80,7 @@ function NameListField({
   focusClass: string;
 }) {
   // Toujours au moins une ligne à remplir
-  const rows = names.length > 0 ? names : [''];
+  const rows = names && names.length > 0 ? names : [''];
 
   const update = (index: number, value: string) => onNamesChange(rows.map((n, i) => (i === index ? value : n)));
   const remove = (index: number) => onNamesChange(rows.filter((_, i) => i !== index));
@@ -179,7 +180,7 @@ export function SaisieProcedureFields({
         </Select>
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
+      <div className="space-y-1.5">
         <Label className="text-xs font-semibold">N° d&apos;ordre de mission</Label>
         <Input
           placeholder="Ex : 045/BSSI/2026"
@@ -188,6 +189,15 @@ export function SaisieProcedureFields({
           onChange={(e) => onChange('missionOrderNumber', e.target.value)}
         />
       </div>
+
+      <NameListField
+        label="Service(s)"
+        addLabel="Ajouter un service"
+        placeholder="Ex : BSSI, Douanes, Gendarmerie…"
+        names={values.services}
+        onNamesChange={(list) => onListChange('services', list)}
+        focusClass={focusClass}
+      />
 
       <NameListField
         label="Contrevenant(s)"

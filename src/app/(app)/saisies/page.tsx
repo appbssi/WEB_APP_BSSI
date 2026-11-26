@@ -163,6 +163,7 @@ export default function SaisiesPage() {
         (item.pvNumber || '').toLowerCase().includes(q) ||
         (item.missionOrderNumber || '').toLowerCase().includes(q) ||
         (item.agentName || '').toLowerCase().includes(q) ||
+        (item.services || []).join(' ').toLowerCase().includes(q) ||
         getContrevenants(item).join(' ').toLowerCase().includes(q) ||
         getInterpelles(item).join(' ').toLowerCase().includes(q) ||
         (item.location || '').toLowerCase().includes(q) ||
@@ -230,6 +231,7 @@ export default function SaisiesPage() {
       'OPJ/APJ': s.agentName || 'N/A',
       Qualité: s.agentQualite || 'N/A',
       "N° d'ordre de mission": s.missionOrderNumber || 'N/A',
+      'Service(s)': namesLabel(s.services || []),
       Saisies: s.designation,
       Quantité: s.quantity,
       Unité: s.unit || 'Unité(s)',
@@ -289,6 +291,7 @@ export default function SaisiesPage() {
         .filter(Boolean)
         .join(' — '),
       s.missionOrderNumber || '—',
+      (s.services || []).join('\n') || '—',
       s.designation,
       `${s.quantity} ${s.unit || ''}`.trim(),
       getContrevenants(s).join('\n') || '—',
@@ -300,7 +303,7 @@ export default function SaisiesPage() {
 
     autoTable(docPdf, {
       startY: 25,
-      head: [['OPJ/APJ', "N° d'ordre de mission", 'Saisies', 'Quantité', 'Contrevenant(s)', 'Interpellé(s)', 'Date']],
+      head: [['OPJ/APJ', "N° d'ordre de mission", 'Service(s)', 'Saisies', 'Quantité', 'Contrevenant(s)', 'Interpellé(s)', 'Date']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
@@ -317,6 +320,7 @@ export default function SaisiesPage() {
     'En Dépôt / Scellé': 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400',
     'En Dépôt Coffre-Fort': 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400',
     'Gardien de Saisie': 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-400',
+    'Vendu': 'bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-500/10 dark:text-violet-400',
     'Transféré au Parquet': 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-500/10 dark:text-indigo-400',
     'Restitué': 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400',
     'Détruit': 'bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-400',
@@ -427,7 +431,7 @@ export default function SaisiesPage() {
           <div className="relative w-full md:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Saisie, OPJ/APJ, ordre de mission, contrevenant…"
+              placeholder="Saisie, OPJ/APJ, service, contrevenant…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-9 pl-9 text-sm"
@@ -458,6 +462,7 @@ export default function SaisiesPage() {
                 <SelectItem value="Détruit">Détruit</SelectItem>
                 <SelectItem value="En Dépôt Coffre-Fort">En Dépôt Coffre-Fort</SelectItem>
                 <SelectItem value="Gardien de Saisie">Gardien de Saisie</SelectItem>
+                <SelectItem value="Vendu">Vendu</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -494,6 +499,7 @@ export default function SaisiesPage() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="text-xs font-semibold">OPJ/APJ</TableHead>
                     <TableHead className="text-xs font-semibold">N° d&apos;ordre de mission</TableHead>
+                    <TableHead className="text-xs font-semibold">Service(s)</TableHead>
                     <TableHead className="text-xs font-semibold">Saisies</TableHead>
                     <TableHead className="text-xs font-semibold">Quantité</TableHead>
                     <TableHead className="text-xs font-semibold">Contrevenant(s)</TableHead>
@@ -531,6 +537,10 @@ export default function SaisiesPage() {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
+                        </TableCell>
+
+                        <TableCell className="text-xs">
+                          <NameList names={saisie.services || []} />
                         </TableCell>
 
                         <TableCell>

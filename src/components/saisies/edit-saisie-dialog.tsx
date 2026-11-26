@@ -66,6 +66,7 @@ const STATUSES: SaisieStatus[] = [
   'Détruit',
   'En Dépôt Coffre-Fort',
   'Gardien de Saisie',
+  'Vendu',
 ];
 
 const editSaisieSchema = z.object({
@@ -78,6 +79,7 @@ const editSaisieSchema = z.object({
   agentId: z.string().optional(),
   agentQualite: z.string().optional(),
   missionOrderNumber: z.string().optional(),
+  services: z.array(z.string()).default([]),
   contrevenants: z.array(z.string()).default([]),
   interpelles: z.array(z.string()).default([]),
   pvNumber: z.string().optional(),
@@ -117,6 +119,7 @@ export function EditSaisieDialog({
       agentId: 'none',
       agentQualite: '',
       missionOrderNumber: '',
+      services: [],
       contrevenants: [],
       interpelles: [],
       pvNumber: '',
@@ -142,6 +145,7 @@ export function EditSaisieDialog({
         agentId: saisie.agentId || 'none',
         agentQualite: saisie.agentQualite || '',
         missionOrderNumber: saisie.missionOrderNumber || '',
+        services: saisie.services || [],
         contrevenants: getContrevenants(saisie),
         interpelles: getInterpelles(saisie),
         pvNumber: saisie.pvNumber || '',
@@ -187,6 +191,7 @@ export function EditSaisieDialog({
         section: agentSection,
         agentQualite: qualiteFromForm(values.agentQualite),
         missionOrderNumber: values.missionOrderNumber?.trim() || null,
+        services: cleanNames(values.services),
         contrevenants: cleanNames(values.contrevenants),
         interpelles: cleanNames(values.interpelles),
         // Ancien champ, gardé lisible pour les écrans qui n'affichent qu'un nom
@@ -245,6 +250,7 @@ export function EditSaisieDialog({
               agentId: form.watch('agentId') || 'none',
               agentQualite: (form.watch('agentQualite') || '') as '' | 'OPJ' | 'APJ',
               missionOrderNumber: form.watch('missionOrderNumber') || '',
+              services: form.watch('services') || [],
               contrevenants: form.watch('contrevenants') || [],
               interpelles: form.watch('interpelles') || [],
             }}

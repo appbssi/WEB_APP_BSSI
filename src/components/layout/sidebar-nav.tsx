@@ -17,6 +17,7 @@ import {
   Radar,
   ScanSearch,
   FileSignature,
+  Gavel,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -55,6 +56,7 @@ const navItems: NavItem[] = [
   { href: '/logistique', label: 'Logistique', icon: Truck },
   { href: '/gav', label: 'GAV', icon: Lock },
   { href: '/saisies', label: 'Saisies', icon: PackageCheck },
+  { href: '/ventes', label: 'Ventes', icon: Gavel },
   { href: '/informations', label: 'Informations', icon: Radar },
   { href: '/renseignements', label: 'Renseignements', icon: ScanSearch },
   { href: '/secretariat', label: 'Secrétariat', icon: BookUser },

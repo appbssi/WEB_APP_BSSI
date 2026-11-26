@@ -17,6 +17,7 @@ export const RESTRICTED_ADMIN_ALLOWED_PATHS = [
   '/logistique',
   '/gav',
   '/saisies',
+  '/ventes',
 ] as const;
 
 export const SECRETARIAT_ALLOWED_PATHS = [
@@ -25,6 +26,7 @@ export const SECRETARIAT_ALLOWED_PATHS = [
   '/gatherings',
   '/gav',
   '/saisies',
+  '/ventes',
 ] as const;
 
 export const AGENT_ALLOWED_PATHS = ['/demandes'] as const;

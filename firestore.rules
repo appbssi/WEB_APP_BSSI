@@ -118,6 +118,7 @@ service cloud.firestore {
     match /gatherings/{id}    { allow read, write: if isSecretariat(); }
     match /detainees/{id}     { allow read, write: if isSecretariat(); }
     match /saisies/{id}       { allow read, write: if isSecretariat(); }
+    match /ventes/{id}        { allow read, write: if isSecretariat(); }
     match /activity_logs/{id} { allow create: if isSecretariat(); }
     // Journal d'activité : le secrétariat peut y ajouter une ligne, pas le lire ni le modifier
     match /activities/{id}    { allow create: if isSecretariat(); }

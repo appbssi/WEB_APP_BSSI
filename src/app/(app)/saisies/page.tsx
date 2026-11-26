@@ -232,7 +232,7 @@ export default function SaisiesPage() {
       Qualité: s.agentQualite || 'N/A',
       "N° d'ordre de mission": s.missionOrderNumber || 'N/A',
       'Service(s)': namesLabel(s.services || []),
-      Saisies: s.designation,
+      'Nature de Saisie': s.designation,
       Quantité: s.quantity,
       Unité: s.unit || 'Unité(s)',
       'Contrevenant(s)': namesLabel(getContrevenants(s)),
@@ -303,7 +303,7 @@ export default function SaisiesPage() {
 
     autoTable(docPdf, {
       startY: 25,
-      head: [['OPJ/APJ', "N° d'ordre de mission", 'Service(s)', 'Saisies', 'Quantité', 'Contrevenant(s)', 'Interpellé(s)', 'Date']],
+      head: [['OPJ/APJ', "N° d'ordre de mission", 'Service(s)', 'Nature de Saisie', 'Quantité', 'Contrevenant(s)', 'Interpellé(s)', 'Date']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
@@ -500,7 +500,7 @@ export default function SaisiesPage() {
                     <TableHead className="text-xs font-semibold">OPJ/APJ</TableHead>
                     <TableHead className="text-xs font-semibold">N° d&apos;ordre de mission</TableHead>
                     <TableHead className="text-xs font-semibold">Service(s)</TableHead>
-                    <TableHead className="text-xs font-semibold">Saisies</TableHead>
+                    <TableHead className="text-xs font-semibold">Nature de Saisie</TableHead>
                     <TableHead className="text-xs font-semibold">Quantité</TableHead>
                     <TableHead className="text-xs font-semibold">Contrevenant(s)</TableHead>
                     <TableHead className="text-xs font-semibold">Interpellé(s)</TableHead>

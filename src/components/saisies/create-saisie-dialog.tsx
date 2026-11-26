@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { PackageCheck, Loader2 } from 'lucide-react';
 import type { Agent, SaisieStatus } from '@/lib/types';
+import { SaisieUnitField } from './saisie-unit-field';
 import { SaisieProcedureFields, cleanNames, qualiteFromForm } from './saisie-procedure-fields';
 
 const CATEGORIES = [
@@ -41,17 +42,6 @@ const CATEGORIES = [
   'Autre',
 ];
 
-const UNITS = [
-  'Unité(s)',
-  'Kg',
-  'Grammes',
-  'Litre(s)',
-  'Carton(s)',
-  'Sachet(s)',
-  'Lot(s)',
-  'Pièce(s)',
-  'Balle(s) / Munitions',
-];
 
 const STATUSES: SaisieStatus[] = [
   'En Dépôt / Scellé',
@@ -153,7 +143,7 @@ export function CreateSaisieDialog({
       await addDoc(collection(firestore, 'saisies'), {
         designation: values.designation.trim(),
         quantity: Number(values.quantity),
-        unit: values.unit,
+        unit: values.unit?.trim() || 'Unité(s)',
         category: values.category,
         dateSaisie: Timestamp.fromDate(saisieDate),
         location: values.location?.trim() || 'Non spécifié',
@@ -232,7 +222,7 @@ export function CreateSaisieDialog({
           {/* Designation */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">
-              Saisies <span className="text-rose-400">*</span>
+              Nature de Saisie <span className="text-rose-400">*</span>
             </Label>
             <Input
               placeholder="Ex: Sacs de cannabis, Arme blanche, Billets de banque d'origine suspecte..."
@@ -265,24 +255,12 @@ export function CreateSaisieDialog({
               )}
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Unité de mesure</Label>
-              <Select
-                value={form.watch('unit')}
-                onValueChange={(val) => form.setValue('unit', val)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner l'unité" />
-                </SelectTrigger>
-                <SelectContent>
-                  {UNITS.map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SaisieUnitField
+              label="Unité de mesure"
+              value={form.watch('unit') || ''}
+              onChange={(val) => form.setValue('unit', val)}
+              focusClass="focus:border-emerald-500"
+            />
           </div>
 
           {/* Statut du Scellé */}

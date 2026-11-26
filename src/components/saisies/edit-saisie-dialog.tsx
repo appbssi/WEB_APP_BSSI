@@ -29,6 +29,13 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { PackageCheck, Loader2 } from 'lucide-react';
 import type { Agent, Saisie, SaisieStatus } from '@/lib/types';
+import {
+  SaisieProcedureFields,
+  cleanNames,
+  getContrevenants,
+  getInterpelles,
+  qualiteFromForm,
+} from './saisie-procedure-fields';
 
 const CATEGORIES = [
   'Stupéfiants & Drogues',
@@ -58,6 +65,7 @@ const STATUSES: SaisieStatus[] = [
   'Restitué',
   'Détruit',
   'En Dépôt Coffre-Fort',
+  'Gardien de Saisie',
 ];
 
 const editSaisieSchema = z.object({
@@ -68,7 +76,10 @@ const editSaisieSchema = z.object({
   dateSaisie: z.string().min(1, 'La date est obligatoire'),
   location: z.string().optional(),
   agentId: z.string().optional(),
-  detaineeName: z.string().optional(),
+  agentQualite: z.string().optional(),
+  missionOrderNumber: z.string().optional(),
+  contrevenants: z.array(z.string()).default([]),
+  interpelles: z.array(z.string()).default([]),
   pvNumber: z.string().optional(),
   status: z.string(),
   notes: z.string().optional(),
@@ -104,7 +115,10 @@ export function EditSaisieDialog({
       dateSaisie: '',
       location: '',
       agentId: 'none',
-      detaineeName: '',
+      agentQualite: '',
+      missionOrderNumber: '',
+      contrevenants: [],
+      interpelles: [],
       pvNumber: '',
       status: 'En Dépôt / Scellé',
       notes: '',
@@ -126,7 +140,10 @@ export function EditSaisieDialog({
         dateSaisie: dateStr,
         location: saisie.location || '',
         agentId: saisie.agentId || 'none',
-        detaineeName: saisie.detaineeName || '',
+        agentQualite: saisie.agentQualite || '',
+        missionOrderNumber: saisie.missionOrderNumber || '',
+        contrevenants: getContrevenants(saisie),
+        interpelles: getInterpelles(saisie),
         pvNumber: saisie.pvNumber || '',
         status: saisie.status || 'En Dépôt / Scellé',
         notes: saisie.notes || '',
@@ -144,7 +161,10 @@ export function EditSaisieDialog({
 
       let agentName = saisie.agentName || '';
       let agentSection = (saisie as any).section || null;
-      if (values.agentId && values.agentId !== 'none') {
+      if (values.agentId === 'none' && saisie.agentId) {
+        // OPJ/APJ retiré : on n'affiche plus l'ancien nom
+        agentName = 'Agent Non Spécifié';
+      } else if (values.agentId && values.agentId !== 'none') {
         const found = agentList.find((a) => a.id === values.agentId);
         if (found) {
           agentName = `${found.rank ? found.rank + ' ' : ''}${found.fullName}`;
@@ -165,7 +185,14 @@ export function EditSaisieDialog({
         agentId: values.agentId === 'none' ? null : values.agentId,
         agentName: agentName,
         section: agentSection,
-        detaineeName: values.detaineeName?.trim() || null,
+        agentQualite: qualiteFromForm(values.agentQualite),
+        missionOrderNumber: values.missionOrderNumber?.trim() || null,
+        contrevenants: cleanNames(values.contrevenants),
+        interpelles: cleanNames(values.interpelles),
+        // Ancien champ, gardé lisible pour les écrans qui n'affichent qu'un nom
+        detaineeName: cleanNames(values.contrevenants).join(', ') || null,
+        // Remplacé par la liste « interpelles »
+        interpelle: null,
         pvNumber: values.pvNumber?.trim() || null,
         status: values.status as SaisieStatus,
         notes: values.notes?.trim() || null,
@@ -210,9 +237,24 @@ export function EditSaisieDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          {/* Procédure : OPJ/APJ, ordre de mission, contrevenant, interpellation */}
+          <SaisieProcedureFields
+            agents={agentList}
+            focusClass="focus:border-amber-500"
+            values={{
+              agentId: form.watch('agentId') || 'none',
+              agentQualite: (form.watch('agentQualite') || '') as '' | 'OPJ' | 'APJ',
+              missionOrderNumber: form.watch('missionOrderNumber') || '',
+              contrevenants: form.watch('contrevenants') || [],
+              interpelles: form.watch('interpelles') || [],
+            }}
+            onChange={(field, value) => form.setValue(field, value)}
+            onListChange={(field, list) => form.setValue(field, list)}
+          />
+
           {/* Designation */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Désignation de la Saisie</Label>
+            <Label className="text-xs font-semibold">Saisies</Label>
             <Input
               className="focus:border-amber-500"
               {...form.register('designation')}

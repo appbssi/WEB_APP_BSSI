@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { deleteDoc } from '@/lib/firestore-fast';
+import { collection, query, orderBy, doc, getDocs } from 'firebase/firestore';
+import { deleteDoc, writeBatch } from '@/lib/firestore-fast';
+import { logActivity } from '@/lib/activity-logger';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useRole } from '@/hooks/use-role';
@@ -56,6 +57,7 @@ import {
 
 import { CreateSaisieDialog } from '@/components/saisies/create-saisie-dialog';
 import { EditSaisieDialog } from '@/components/saisies/edit-saisie-dialog';
+import { getContrevenants, getInterpelles, namesLabel } from '@/components/saisies/saisie-procedure-fields';
 
 const CATEGORIES = [
   'Toutes les catégories',
@@ -67,6 +69,21 @@ const CATEGORIES = [
   'Documents / Faux Papiers',
   'Autre',
 ];
+
+
+/** Noms empilés dans une cellule du tableau (un par ligne). */
+function NameList({ names }: { names: string[] }) {
+  if (names.length === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <ul className="space-y-0.5">
+      {names.map((name, i) => (
+        <li key={i} className="font-medium text-foreground">
+          {name}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function SaisiesPage() {
   const firestore = useFirestore();
@@ -81,6 +98,10 @@ export default function SaisiesPage() {
   const [editingSaisie, setEditingSaisie] = useState<Saisie | null>(null);
   const [deletingSaisie, setDeletingSaisie] = useState<Saisie | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+  const isAdmin = role === 'admin';
 
   // Firestore Queries
   const saisiesQuery = useMemoFirebase(
@@ -140,8 +161,10 @@ export default function SaisiesPage() {
       return (
         item.designation.toLowerCase().includes(q) ||
         (item.pvNumber || '').toLowerCase().includes(q) ||
+        (item.missionOrderNumber || '').toLowerCase().includes(q) ||
         (item.agentName || '').toLowerCase().includes(q) ||
-        (item.detaineeName || '').toLowerCase().includes(q) ||
+        getContrevenants(item).join(' ').toLowerCase().includes(q) ||
+        getInterpelles(item).join(' ').toLowerCase().includes(q) ||
         (item.location || '').toLowerCase().includes(q) ||
         (item.category || '').toLowerCase().includes(q)
       );
@@ -172,6 +195,30 @@ export default function SaisiesPage() {
     }
   };
 
+  // Vider tout le registre (admin uniquement) : toute la collection, pas seulement la liste filtrée
+  const handleClearAll = async () => {
+    if (!firestore || !isAdmin) return;
+    setIsClearing(true);
+    try {
+      const snap = await getDocs(collection(firestore, 'saisies'));
+      const ids = snap.docs.map((d) => d.id);
+      for (let i = 0; i < ids.length; i += 450) {
+        const batch = writeBatch(firestore);
+        ids.slice(i, i + 450).forEach((id) => batch.delete(doc(firestore, 'saisies', id)));
+        await batch.commit();
+      }
+      logActivity(firestore, `Registre des saisies vidé (${ids.length} saisie(s) supprimée(s)).`, 'Général', '/saisies');
+      toast({ title: 'Registre vidé', description: `${ids.length} saisie(s) supprimée(s).` });
+      setIsClearOpen(false);
+      setClearConfirmText('');
+    } catch (error) {
+      console.error('Erreur lors du vidage du registre des saisies:', error);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de vider le registre des saisies.' });
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   // Export to Excel
   const exportToExcel = async () => {
     if (!filteredSaisies || filteredSaisies.length === 0) {
@@ -180,16 +227,19 @@ export default function SaisiesPage() {
     }
 
     const exportData = filteredSaisies.map((s) => ({
-      Désignation: s.designation,
+      'OPJ/APJ': s.agentName || 'N/A',
+      Qualité: s.agentQualite || 'N/A',
+      "N° d'ordre de mission": s.missionOrderNumber || 'N/A',
+      Saisies: s.designation,
       Quantité: s.quantity,
       Unité: s.unit || 'Unité(s)',
+      'Contrevenant(s)': namesLabel(getContrevenants(s)),
+      'Interpellé(s)': namesLabel(getInterpelles(s)),
       Catégorie: s.category,
       'Date de Saisie': s.dateSaisie && (s.dateSaisie as any).toDate
         ? format((s.dateSaisie as any).toDate(), 'dd/MM/yyyy HH:mm', { locale: fr })
         : 'N/A',
       'Lieu / Mission': s.location || 'N/A',
-      'Agent Saisissant': s.agentName || 'N/A',
-      'Mis en cause / Titulaire': s.detaineeName || 'N/A',
       'Référence PV / Scellé': s.pvNumber || 'N/A',
       Statut: s.status,
       Observations: s.notes || '',
@@ -235,8 +285,14 @@ export default function SaisiesPage() {
     );
 
     const tableData = filteredSaisies.map((s) => [
+      [s.agentQualite, s.agentName && s.agentName !== 'Agent Non Spécifié' ? s.agentName : '—']
+        .filter(Boolean)
+        .join(' — '),
+      s.missionOrderNumber || '—',
       s.designation,
-      `${s.quantity}`,
+      `${s.quantity} ${s.unit || ''}`.trim(),
+      getContrevenants(s).join('\n') || '—',
+      getInterpelles(s).join('\n') || '—',
       s.dateSaisie && (s.dateSaisie as any).toDate
         ? format((s.dateSaisie as any).toDate(), 'dd/MM/yyyy', { locale: fr })
         : 'N/A',
@@ -244,7 +300,7 @@ export default function SaisiesPage() {
 
     autoTable(docPdf, {
       startY: 25,
-      head: [['Désignation', 'Quantité', 'Date']],
+      head: [['OPJ/APJ', "N° d'ordre de mission", 'Saisies', 'Quantité', 'Contrevenant(s)', 'Interpellé(s)', 'Date']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
@@ -260,6 +316,7 @@ export default function SaisiesPage() {
   const STATUS_TONES: Record<string, string> = {
     'En Dépôt / Scellé': 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400',
     'En Dépôt Coffre-Fort': 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400',
+    'Gardien de Saisie': 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-400',
     'Transféré au Parquet': 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-500/10 dark:text-indigo-400',
     'Restitué': 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400',
     'Détruit': 'bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-400',
@@ -288,12 +345,12 @@ export default function SaisiesPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* En-tête */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+          <div className="shrink-0 rounded-xl bg-primary/10 p-2.5 text-primary">
             <PackageCheck className="h-6 w-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight">Registre des saisies &amp; scellés</h1>
             <p className="text-sm text-muted-foreground">
               Enregistrement et suivi des marchandises et objets saisis.
@@ -301,19 +358,47 @@ export default function SaisiesPage() {
           </div>
         </div>
 
+        {/* Action principale à gauche, exports regroupés, vidage (admin) à l'écart à droite */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={exportToExcel} variant="outline" size="sm" className="gap-1.5">
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            Excel
-          </Button>
-          <Button onClick={exportToPDF} variant="outline" size="sm" className="gap-1.5">
-            <FileText className="h-4 w-4 text-rose-600" />
-            PDF
-          </Button>
           <Button onClick={() => setIsCreateOpen(true)} size="sm" className="gap-1.5 font-semibold">
             <Plus className="h-4 w-4" />
             Enregistrer une saisie
           </Button>
+
+          <div className="inline-flex items-center rounded-md border bg-background soft-shadow">
+            <span className="hidden px-2.5 text-xs font-medium text-muted-foreground sm:inline">Exporter</span>
+            <Button
+              onClick={exportToExcel}
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 rounded-r-none sm:rounded-none sm:border-l"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              Excel
+            </Button>
+            <Button
+              onClick={exportToPDF}
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 rounded-l-none border-l"
+            >
+              <FileText className="h-4 w-4 text-rose-600" />
+              PDF
+            </Button>
+          </div>
+
+          {isAdmin && (
+            <Button
+              onClick={() => setIsClearOpen(true)}
+              variant="ghost"
+              size="sm"
+              disabled={!saisies || saisies.length === 0}
+              className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive sm:ml-auto xl:ml-0"
+            >
+              <Trash2 className="h-4 w-4" />
+              Vider le registre
+            </Button>
+          )}
         </div>
       </div>
 
@@ -342,7 +427,7 @@ export default function SaisiesPage() {
           <div className="relative w-full md:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Désignation, PV, agent, lieu…"
+              placeholder="Saisie, OPJ/APJ, ordre de mission, contrevenant…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-9 pl-9 text-sm"
@@ -372,6 +457,7 @@ export default function SaisiesPage() {
                 <SelectItem value="Restitué">Restitué</SelectItem>
                 <SelectItem value="Détruit">Détruit</SelectItem>
                 <SelectItem value="En Dépôt Coffre-Fort">En Dépôt Coffre-Fort</SelectItem>
+                <SelectItem value="Gardien de Saisie">Gardien de Saisie</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -406,10 +492,13 @@ export default function SaisiesPage() {
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold">Désignation</TableHead>
+                    <TableHead className="text-xs font-semibold">OPJ/APJ</TableHead>
+                    <TableHead className="text-xs font-semibold">N° d&apos;ordre de mission</TableHead>
+                    <TableHead className="text-xs font-semibold">Saisies</TableHead>
                     <TableHead className="text-xs font-semibold">Quantité</TableHead>
+                    <TableHead className="text-xs font-semibold">Contrevenant(s)</TableHead>
+                    <TableHead className="text-xs font-semibold">Interpellé(s)</TableHead>
                     <TableHead className="text-xs font-semibold">Date &amp; lieu</TableHead>
-                    <TableHead className="text-xs font-semibold">Agent saisissant</TableHead>
                     <TableHead className="text-xs font-semibold">Scellé / PV</TableHead>
                     <TableHead className="text-xs font-semibold">Statut</TableHead>
                     <TableHead className="w-20 text-right text-xs font-semibold">Actions</TableHead>
@@ -423,11 +512,31 @@ export default function SaisiesPage() {
 
                     return (
                       <TableRow key={saisie.id} className="group">
-                        <TableCell className="py-3">
+                        <TableCell className="py-3 text-xs">
+                          {saisie.agentName && saisie.agentName !== 'Agent Non Spécifié' ? (
+                            <span className="font-medium text-foreground">{saisie.agentName}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                          {saisie.agentQualite && (
+                            <span className="mt-1 block w-fit rounded bg-primary/10 px-1.5 py-px text-[10px] font-bold text-primary">
+                              {saisie.agentQualite}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {saisie.missionOrderNumber ? (
+                            <span className="font-mono text-[11px] text-foreground">{saisie.missionOrderNumber}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
                           <p className="text-sm font-semibold text-foreground">{saisie.designation}</p>
-                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
                             <span className="rounded bg-muted px-1.5 py-px">{saisie.category}</span>
-                            {saisie.detaineeName && <span>Mis en cause : {saisie.detaineeName}</span>}
                           </p>
                         </TableCell>
 
@@ -436,17 +545,17 @@ export default function SaisiesPage() {
                           <span className="text-xs text-muted-foreground">{saisie.unit || 'unité(s)'}</span>
                         </TableCell>
 
-                        <TableCell className="whitespace-nowrap text-xs">
-                          <p className="text-foreground">{formattedDate}</p>
-                          <p className="text-muted-foreground">{saisie.location || 'Lieu non spécifié'}</p>
+                        <TableCell className="text-xs">
+                          <NameList names={getContrevenants(saisie)} />
                         </TableCell>
 
                         <TableCell className="text-xs">
-                          {saisie.agentName && saisie.agentName !== 'Agent Non Spécifié' ? (
-                            <span className="font-medium text-foreground">{saisie.agentName}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                          <NameList names={getInterpelles(saisie)} />
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap text-xs">
+                          <p className="text-foreground">{formattedDate}</p>
+                          <p className="text-muted-foreground">{saisie.location || 'Lieu non spécifié'}</p>
                         </TableCell>
 
                         <TableCell className="text-xs">
@@ -515,6 +624,54 @@ export default function SaisiesPage() {
         saisie={editingSaisie}
         agents={agents || []}
       />
+
+      {/* Confirmation du vidage complet du registre */}
+      <AlertDialog
+        open={isClearOpen}
+        onOpenChange={(open) => {
+          if (isClearing) return;
+          setIsClearOpen(open);
+          if (!open) setClearConfirmText('');
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Vider tout le registre des saisies ?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Les <span className="font-semibold text-foreground">{saisies?.length ?? 0} saisie(s)</span> enregistrée(s)
+                  seront supprimées définitivement, quels que soient les filtres. Cette action est irréversible.
+                </p>
+                <p>Pensez à exporter le registre (Excel ou PDF) avant de le vider.</p>
+                <p>
+                  Tapez <span className="font-mono font-semibold text-foreground">VIDER</span> pour confirmer.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={clearConfirmText}
+            onChange={(e) => setClearConfirmText(e.target.value)}
+            placeholder="VIDER"
+            autoComplete="off"
+            className="font-mono"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearing}>Annuler</AlertDialogCancel>
+            <Button
+              onClick={handleClearAll}
+              disabled={isClearing || clearConfirmText.trim().toUpperCase() !== 'VIDER'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearing ? 'Suppression…' : 'Vider le registre'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmation de suppression */}
       <AlertDialog open={!!deletingSaisie} onOpenChange={(open) => !open && setDeletingSaisie(null)}>

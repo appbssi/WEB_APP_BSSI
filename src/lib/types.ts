@@ -137,7 +137,7 @@ export type Detainee = {
   arrestReason: string;
 }
 
-export type SaisieStatus = 'En Dépôt / Scellé' | 'Transféré au Parquet' | 'Restitué' | 'Détruit' | 'En Dépôt Coffre-Fort';
+export type SaisieStatus = 'En Dépôt / Scellé' | 'Transféré au Parquet' | 'Restitué' | 'Détruit' | 'En Dépôt Coffre-Fort' | 'Gardien de Saisie';
 
 export type Saisie = {
   id: string;
@@ -148,9 +148,21 @@ export type Saisie = {
   dateSaisie: Timestamp;
   location?: string;
   missionId?: string;
+  /** N° de l'ordre de mission sous lequel la saisie a été faite */
+  missionOrderNumber?: string;
+  /** OPJ/APJ ayant procédé à la saisie */
   agentId?: string;
   agentName?: string;
+  /** Qualité de l'agent saisissant : officier ou agent de police judiciaire */
+  agentQualite?: 'OPJ' | 'APJ' | null;
+  /** Contrevenants (une saisie peut en avoir plusieurs) */
+  contrevenants?: string[];
+  /** Personnes interpellées */
+  interpelles?: string[];
+  /** Ancien champ à un seul contrevenant — gardé pour les anciennes saisies, rempli avec la liste jointe */
   detaineeName?: string;
+  /** Ancien champ interpellé (texte ou oui/non) — lu seulement pour les anciennes saisies */
+  interpelle?: string | boolean | null;
   pvNumber?: string;
   status: SaisieStatus;
   notes?: string;

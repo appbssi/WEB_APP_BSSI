@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { PackageCheck, Loader2 } from 'lucide-react';
 import type { Agent, SaisieStatus } from '@/lib/types';
+import { SaisieProcedureFields, cleanNames, qualiteFromForm } from './saisie-procedure-fields';
 
 const CATEGORIES = [
   'Stupéfiants & Drogues',
@@ -58,6 +59,7 @@ const STATUSES: SaisieStatus[] = [
   'Restitué',
   'Détruit',
   'En Dépôt Coffre-Fort',
+  'Gardien de Saisie',
 ];
 
 const saisieSchema = z.object({
@@ -69,7 +71,10 @@ const saisieSchema = z.object({
   timeSaisie: z.string().default('12:00'),
   location: z.string().optional(),
   agentId: z.string().optional(),
-  detaineeName: z.string().optional(),
+  agentQualite: z.string().optional(),
+  missionOrderNumber: z.string().optional(),
+  contrevenants: z.array(z.string()).default([]),
+  interpelles: z.array(z.string()).default([]),
   pvNumber: z.string().optional(),
   status: z.string().default('En Dépôt / Scellé'),
   notes: z.string().optional(),
@@ -111,7 +116,10 @@ export function CreateSaisieDialog({
       timeSaisie: nowTimeStr,
       location: '',
       agentId: currentAgentId || 'none',
-      detaineeName: '',
+      agentQualite: '',
+      missionOrderNumber: '',
+      contrevenants: [],
+      interpelles: [],
       pvNumber: '',
       status: 'En Dépôt / Scellé',
       notes: '',
@@ -149,7 +157,12 @@ export function CreateSaisieDialog({
         agentId: values.agentId === 'none' ? null : values.agentId,
         agentName: agentName || 'Agent Non Spécifié',
         section: agentSection,
-        detaineeName: values.detaineeName?.trim() || null,
+        agentQualite: qualiteFromForm(values.agentQualite),
+        missionOrderNumber: values.missionOrderNumber?.trim() || null,
+        contrevenants: cleanNames(values.contrevenants),
+        interpelles: cleanNames(values.interpelles),
+        // Ancien champ, gardé lisible pour les écrans qui n'affichent qu'un nom
+        detaineeName: cleanNames(values.contrevenants).join(', ') || null,
         pvNumber: values.pvNumber?.trim() || null,
         status: values.status as SaisieStatus,
         notes: values.notes?.trim() || null,
@@ -196,10 +209,25 @@ export function CreateSaisieDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          {/* Procédure : OPJ/APJ, ordre de mission, contrevenant, interpellation */}
+          <SaisieProcedureFields
+            agents={agentList}
+            focusClass="focus:border-emerald-500"
+            values={{
+              agentId: form.watch('agentId') || 'none',
+              agentQualite: (form.watch('agentQualite') || '') as '' | 'OPJ' | 'APJ',
+              missionOrderNumber: form.watch('missionOrderNumber') || '',
+              contrevenants: form.watch('contrevenants') || [],
+              interpelles: form.watch('interpelles') || [],
+            }}
+            onChange={(field, value) => form.setValue(field, value)}
+            onListChange={(field, list) => form.setValue(field, list)}
+          />
+
           {/* Designation */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">
-              Désignation de la Saisie <span className="text-rose-400">*</span>
+              Saisies <span className="text-rose-400">*</span>
             </Label>
             <Input
               placeholder="Ex: Sacs de cannabis, Arme blanche, Billets de banque d'origine suspecte..."

@@ -131,13 +131,53 @@ export type Detainee = {
   lastName: string;
   firstName: string;
   birthDate: Timestamp;
+  /** Absente pour les gardes à vue enregistrées avant l'ajout du champ */
+  nationalite?: string | null;
+  /** Service qui a interpellé et amené la personne (BSSI ou un autre service) */
+  service?: string | null;
   photo?: string;
   entryTime: Timestamp;
   arrestLocation: string;
   arrestReason: string;
+  /** Toute personne en GAV est interpellée ; certaines sont ensuite déférées. Absent = interpellé. */
+  statut?: DetaineeStatut;
+  /** Date et heure du déferrement */
+  defereAt?: Timestamp | null;
+  /** Parquet / juridiction devant lequel la personne est déférée */
+  defereParquet?: string | null;
+  defereObservation?: string | null;
+  /** PV de déferrement (collection gav_pvs) ; un PV peut concerner plusieurs personnes */
+  pvId?: string | null;
+  pvNumero?: string | null;
 }
 
+export type DetaineeStatut = 'interpelle' | 'defere';
+
+/**
+ * PV rédigé pour le déferrement d'une ou plusieurs personnes en GAV.
+ * Collection `gav_pvs/{id}` ; les pages scannées sont dans la sous-collection `files`
+ * (un document par page, pour rester sous la limite de 1 Mo par document Firestore).
+ */
+export type GavPv = {
+  id: string;
+  numero: string;
+  defereAt: Timestamp;
+  parquet: string;
+  observation?: string | null;
+  detaineeIds: string[];
+  /** Noms recopiés pour rester lisibles si une fiche GAV est supprimée */
+  detaineeNames: string[];
+  fileCount: number;
+  createdAt?: Timestamp;
+};
+
 export type SaisieStatus = 'En Dépôt / Scellé' | 'Transféré au Parquet' | 'Restitué' | 'Détruit' | 'En Dépôt Coffre-Fort' | 'Gardien de Saisie' | 'Vendu';
+
+/** Personne citée dans une saisie (contrevenant, interpellé). */
+export type Personne = {
+  nom: string;
+  nationalite?: string | null;
+};
 
 export type Saisie = {
   id: string;
@@ -157,10 +197,10 @@ export type Saisie = {
   agentQualite?: 'OPJ' | 'APJ' | null;
   /** Service(s) ayant effectué la saisie (une saisie peut être conjointe) */
   services?: string[];
-  /** Contrevenants (une saisie peut en avoir plusieurs) */
-  contrevenants?: string[];
+  /** Contrevenants (une saisie peut en avoir plusieurs). Les premières saisies stockaient de simples noms. */
+  contrevenants?: (Personne | string)[];
   /** Personnes interpellées */
-  interpelles?: string[];
+  interpelles?: (Personne | string)[];
   /** Ancien champ à un seul contrevenant — gardé pour les anciennes saisies, rempli avec la liste jointe */
   detaineeName?: string;
   /** Ancien champ interpellé (texte ou oui/non) — lu seulement pour les anciennes saisies */

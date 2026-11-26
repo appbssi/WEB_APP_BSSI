@@ -117,6 +117,10 @@ service cloud.firestore {
     match /broadcasts/{id}    { allow read, write: if isSecretariat(); }
     match /gatherings/{id}    { allow read, write: if isSecretariat(); }
     match /detainees/{id}     { allow read, write: if isSecretariat(); }
+    match /gav_pvs/{id} {
+      allow read, write: if isSecretariat();
+      match /files/{fileId} { allow read, write: if isSecretariat(); }
+    }
     match /saisies/{id}       { allow read, write: if isSecretariat(); }
     match /ventes/{id}        { allow read, write: if isSecretariat(); }
     match /activity_logs/{id} { allow create: if isSecretariat(); }

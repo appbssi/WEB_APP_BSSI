@@ -7,7 +7,7 @@ import { logActivity } from '@/lib/activity-logger';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useRole } from '@/hooks/use-role';
-import type { Saisie, Agent, SaisieStatus } from '@/lib/types';
+import type { Saisie, Agent, SaisieStatus, Personne } from '@/lib/types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -57,7 +57,7 @@ import {
 
 import { CreateSaisieDialog } from '@/components/saisies/create-saisie-dialog';
 import { EditSaisieDialog } from '@/components/saisies/edit-saisie-dialog';
-import { getContrevenants, getInterpelles, namesLabel } from '@/components/saisies/saisie-procedure-fields';
+import { getContrevenants, getInterpelles, namesLabel, personLabel } from '@/components/saisies/saisie-procedure-fields';
 
 const CATEGORIES = [
   'Toutes les catégories',
@@ -79,6 +79,21 @@ function NameList({ names }: { names: string[] }) {
       {names.map((name, i) => (
         <li key={i} className="font-medium text-foreground">
           {name}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Personnes empilées dans une cellule : nom, puis nationalité en petit. */
+function PersonList({ persons }: { persons: Personne[] }) {
+  if (persons.length === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <ul className="space-y-1">
+      {persons.map((p, i) => (
+        <li key={i} className="leading-tight">
+          <span className="font-medium text-foreground">{p.nom}</span>
+          {p.nationalite && <span className="block text-[11px] text-muted-foreground">{p.nationalite}</span>}
         </li>
       ))}
     </ul>
@@ -164,8 +179,8 @@ export default function SaisiesPage() {
         (item.missionOrderNumber || '').toLowerCase().includes(q) ||
         (item.agentName || '').toLowerCase().includes(q) ||
         (item.services || []).join(' ').toLowerCase().includes(q) ||
-        getContrevenants(item).join(' ').toLowerCase().includes(q) ||
-        getInterpelles(item).join(' ').toLowerCase().includes(q) ||
+        getContrevenants(item).map(personLabel).join(' ').toLowerCase().includes(q) ||
+        getInterpelles(item).map(personLabel).join(' ').toLowerCase().includes(q) ||
         (item.location || '').toLowerCase().includes(q) ||
         (item.category || '').toLowerCase().includes(q)
       );
@@ -294,8 +309,8 @@ export default function SaisiesPage() {
       (s.services || []).join('\n') || '—',
       s.designation,
       `${s.quantity} ${s.unit || ''}`.trim(),
-      getContrevenants(s).join('\n') || '—',
-      getInterpelles(s).join('\n') || '—',
+      getContrevenants(s).map(personLabel).join('\n') || '—',
+      getInterpelles(s).map(personLabel).join('\n') || '—',
       s.dateSaisie && (s.dateSaisie as any).toDate
         ? format((s.dateSaisie as any).toDate(), 'dd/MM/yyyy', { locale: fr })
         : 'N/A',
@@ -556,11 +571,11 @@ export default function SaisiesPage() {
                         </TableCell>
 
                         <TableCell className="text-xs">
-                          <NameList names={getContrevenants(saisie)} />
+                          <PersonList persons={getContrevenants(saisie)} />
                         </TableCell>
 
                         <TableCell className="text-xs">
-                          <NameList names={getInterpelles(saisie)} />
+                          <PersonList persons={getInterpelles(saisie)} />
                         </TableCell>
 
                         <TableCell className="whitespace-nowrap text-xs">

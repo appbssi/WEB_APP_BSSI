@@ -25,11 +25,25 @@ import { logActivity } from '@/lib/activity-logger';
 import Image from 'next/image';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
+import { NATIONALITES } from '@/lib/nationalites';
+
+/** Services proposés (la saisie reste libre) : d'autres services peuvent amener des personnes en GAV. */
+const GAV_SERVICES = [
+  'BSSI',
+  'Police nationale',
+  'Gendarmerie nationale',
+  'Douanes',
+  'Eaux et Forêts',
+  'Brigade minière',
+  'Unité de lutte contre la criminalité transnationale',
+];
 
 const detaineeSchema = z.object({
   lastName: z.string().min(2, 'Le nom est requis (min 2 caractères).'),
   firstName: z.string().min(2, 'Le prénom est requis (min 2 caractères).'),
   birthDate: z.string().min(1, 'La date de naissance est requise.'),
+  nationalite: z.string().trim().min(2, 'La nationalité est requise.'),
+  service: z.string().trim().min(2, 'Le service est requis.'),
   arrestLocation: z.string().min(2, "Le lieu d'arrestation est obligatoire."),
   arrestReason: z.string().min(5, "Le motif d'arrestation est obligatoire."),
 });
@@ -54,6 +68,8 @@ export function RegisterDetaineeForm({ onSuccess }: RegisterDetaineeFormProps) {
       firstName: '',
       lastName: '',
       birthDate: '',
+      nationalite: '',
+      service: 'BSSI',
       arrestLocation: '',
       arrestReason: '',
     },
@@ -90,10 +106,13 @@ export function RegisterDetaineeForm({ onSuccess }: RegisterDetaineeFormProps) {
         lastName: data.lastName.trim().toUpperCase(),
         firstName: data.firstName.trim(),
         birthDate: Timestamp.fromDate(birthDateObj),
+        nationalite: data.nationalite.trim(),
+        service: data.service.trim(),
         photo: photo,
         entryTime: Timestamp.now(),
         arrestLocation: data.arrestLocation.trim(),
         arrestReason: data.arrestReason.trim(),
+        statut: 'interpelle',
       };
 
       await addDoc(collection(firestore, 'detainees'), detaineeData);
@@ -232,6 +251,45 @@ export function RegisterDetaineeForm({ onSuccess }: RegisterDetaineeFormProps) {
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="nationalite"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nationalité <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex: Ivoirienne" list="gav-nationalites" autoComplete="off" {...field} />
+                  </FormControl>
+                  <datalist id="gav-nationalites">
+                    {NATIONALITES.map((n) => (
+                      <option key={n} value={n} />
+                    ))}
+                  </datalist>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="service"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex: BSSI, Gendarmerie…" list="gav-services" autoComplete="off" {...field} />
+                  </FormControl>
+                  <datalist id="gav-services">
+                    {GAV_SERVICES.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
                   <FormMessage />
                 </FormItem>
               )}

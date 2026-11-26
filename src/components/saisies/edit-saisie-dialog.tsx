@@ -33,6 +33,7 @@ import { SaisieUnitField } from './saisie-unit-field';
 import {
   SaisieProcedureFields,
   cleanNames,
+  cleanPersons,
   getContrevenants,
   getInterpelles,
   qualiteFromForm,
@@ -59,6 +60,8 @@ const STATUSES: SaisieStatus[] = [
   'Vendu',
 ];
 
+const personneSchema = z.object({ nom: z.string(), nationalite: z.string().nullable().optional() });
+
 const editSaisieSchema = z.object({
   designation: z.string().min(2, 'La désignation est obligatoire'),
   quantity: z.coerce.number().min(1, 'La quantité doit être supérieure à 0'),
@@ -70,8 +73,8 @@ const editSaisieSchema = z.object({
   agentQualite: z.string().optional(),
   missionOrderNumber: z.string().optional(),
   services: z.array(z.string()).default([]),
-  contrevenants: z.array(z.string()).default([]),
-  interpelles: z.array(z.string()).default([]),
+  contrevenants: z.array(personneSchema).default([]),
+  interpelles: z.array(personneSchema).default([]),
   pvNumber: z.string().optional(),
   status: z.string(),
   notes: z.string().optional(),
@@ -182,10 +185,10 @@ export function EditSaisieDialog({
         agentQualite: qualiteFromForm(values.agentQualite),
         missionOrderNumber: values.missionOrderNumber?.trim() || null,
         services: cleanNames(values.services),
-        contrevenants: cleanNames(values.contrevenants),
-        interpelles: cleanNames(values.interpelles),
+        contrevenants: cleanPersons(values.contrevenants),
+        interpelles: cleanPersons(values.interpelles),
         // Ancien champ, gardé lisible pour les écrans qui n'affichent qu'un nom
-        detaineeName: cleanNames(values.contrevenants).join(', ') || null,
+        detaineeName: cleanPersons(values.contrevenants).map((p) => p.nom).join(', ') || null,
         // Remplacé par la liste « interpelles »
         interpelle: null,
         pvNumber: values.pvNumber?.trim() || null,
@@ -246,6 +249,7 @@ export function EditSaisieDialog({
             }}
             onChange={(field, value) => form.setValue(field, value)}
             onListChange={(field, list) => form.setValue(field, list)}
+            onPersonsChange={(field, list) => form.setValue(field, list)}
           />
 
           {/* Designation */}

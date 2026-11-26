@@ -10,7 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Users, Search, FileDown, CheckCircle, Database, Eye, Pencil, XCircle, Trash2, Eraser } from 'lucide-react';
+import { MoreHorizontal, Plus, Rocket, Users, Search, FileDown, CheckCircle, Database, Eye, Pencil, XCircle, Trash2, Eraser } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   saveMissionsOfflineCache,
@@ -194,7 +195,7 @@ const AssignedAgentsDialog = ({ agents, missionName }: { agents: Agent[], missio
                     </div>
                      <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
-                            <button className="button-13"><FileDown className="mr-2 h-4 w-4" /> Exporter</button>
+                            <Button variant="outline" size="sm" className="gap-1.5"><FileDown className="h-4 w-4" /> Exporter</Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                             <DropdownMenuLabel>Choisir un format</DropdownMenuLabel>
@@ -537,28 +538,39 @@ function MissionsContent() {
   const isActiveMission = (s: MissionStatus) => s === 'En cours' || s === 'Planification' || s === 'En attente';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">Missions</h1>
-          {isUsingOfflineCache && (
+    <div className="space-y-6 pb-12">
+      <PageHeader
+        icon={Rocket}
+        title="Missions"
+        description="Planification, validation et suivi des missions."
+        meta={
+          isUsingOfflineCache ? (
             <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs gap-1 font-semibold py-0.5">
               <Database className="w-3.5 h-3.5" />
               <span>Cache Hors-Ligne ({formattedSyncTime})</span>
             </Badge>
-          )}
-        </div>
+          ) : null
+        }
+      >
         {!isObserver && (
-          // Secondaires à gauche, action principale « Créer une mission » à droite ; en mobile, pleine largeur
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-2 w-full sm:w-auto">
-            <Button variant="outline" className="gap-2" onClick={() => setAgentStatsOpen(true)}>
-              <Users className="h-4 w-4" />
-              Compteurs d'agents
-            </Button>
-
+          <>
+            <Dialog open={isCreateMissionOpen} onOpenChange={setCreateMissionOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1.5 font-semibold">
+                  <Plus className="h-4 w-4" />
+                  Créer une mission
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Créer une nouvelle mission</DialogTitle>
+                </DialogHeader>
+                <CreateMissionForm onMissionCreated={handleMissionCreated}/>
+              </DialogContent>
+            </Dialog>
             <Dialog open={isRecordCompletedOpen} onOpenChange={setRecordCompletedOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                <Button variant="outline" size="sm" className="gap-1.5 border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
                   <CheckCircle2 className="h-4 w-4" />
                   Mission effectuée
                 </Button>
@@ -579,24 +591,24 @@ function MissionsContent() {
                 />
               </DialogContent>
             </Dialog>
-
-            <Dialog open={isCreateMissionOpen} onOpenChange={setCreateMissionOpen}>
-              <DialogTrigger asChild>
-                <Button className="col-span-2 gap-2 font-semibold">
-                  <PlusCircle className="h-4 w-4" />
-                  Créer une mission
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Créer une nouvelle mission</DialogTitle>
-                </DialogHeader>
-                <CreateMissionForm onMissionCreated={handleMissionCreated}/>
-              </DialogContent>
-            </Dialog>
-          </div>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAgentStatsOpen(true)}>
+              <Users className="h-4 w-4" />
+              Compteurs d'agents
+            </Button>
+          </>
         )}
-      </div>
+        {!isObserver && closedMissions.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => { setAdjustCounters(false); setPurgeOpen(true); }}
+          >
+            <Eraser className="h-4 w-4" />
+            Nettoyer l&apos;historique ({closedMissions.length})
+          </Button>
+        )}
+      </PageHeader>
 
       {/* Bannière d'alerte pour missions en attente de validation */}
       {pendingMissionsCount > 0 && (
@@ -648,16 +660,6 @@ function MissionsContent() {
                 </Select>
             </div>
         </div>
-        {!isObserver && closedMissions.length > 0 && (
-          <Button
-            variant="outline"
-            className="w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 sm:w-auto"
-            onClick={() => { setAdjustCounters(false); setPurgeOpen(true); }}
-          >
-            <Eraser className="h-4 w-4" />
-            Nettoyer l&apos;historique ({closedMissions.length})
-          </Button>
-        )}
         </div>
 
       <div className="border rounded-lg overflow-x-auto">

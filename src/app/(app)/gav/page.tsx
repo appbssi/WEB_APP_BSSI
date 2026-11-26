@@ -11,7 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Search, User, Camera, Trash2, Loader2, Scale, FileText } from 'lucide-react';
+import { MoreHorizontal, Plus, Search, User, Trash2, Loader2, Scale, FileText, Lock } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,14 +212,18 @@ function GAVContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Garde À Vue (GAV)</h1>
+    <div className="space-y-6 pb-12">
+      <PageHeader
+        icon={Lock}
+        title="Garde à vue (GAV)"
+        description="Personnes interpellées, puis déférées au parquet avec leur PV."
+      >
         {!isObserver && (
           <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Nouvel Enregistrement
+              <Button size="sm" className="gap-1.5 font-semibold">
+                <Plus className="h-4 w-4" />
+                Enregistrer une personne
               </Button>
             </DialogTrigger>
             <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
@@ -229,7 +234,7 @@ function GAVContent() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+      </PageHeader>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <Tabs value={filtre} onValueChange={(v) => setFiltre(v as Filtre)}>

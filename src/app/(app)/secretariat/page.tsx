@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/table';
 import { 
   MoreHorizontal, 
-  PlusCircle, 
+  Plus, 
+  BookUser, 
   Search, 
   Trash2, 
   Loader2, 
@@ -24,6 +25,7 @@ import {
   User,
   ExternalLink
 } from 'lucide-react';
+import { PageHeader, PageHeaderGroup } from '@/components/layout/page-header';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -250,15 +252,41 @@ function SecretariatContent() {
   return (
     <div className="space-y-6">
       
-      {/* Title block */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Secrétariat Général</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gestion administrative et registre d'accueil des visiteurs externes.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={BookUser}
+        title="Secrétariat général"
+        description="Gestion administrative et registre d'accueil des visiteurs externes."
+      >
+        {!isObserver && (
+          <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1.5 font-semibold">
+                <Plus className="h-4 w-4" />
+                Enregistrer un visiteur
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
+              <DialogHeader>
+                <DialogTitle>Enregistrer un nouveau visiteur</DialogTitle>
+                <DialogDescription>
+                  Remplissez les détails du visiteur pour l'enregistrer au registre de garde.
+                </DialogDescription>
+              </DialogHeader>
+              <RegisterVisitorForm onVisitorRegistered={() => setRegisterOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        )}
+        <PageHeaderGroup label="Exporter">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={handleExportXLSX}>
+            <FileDown className="h-4 w-4 text-emerald-600" />
+            Excel
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={handleExportPDF}>
+            <FileDown className="h-4 w-4 text-rose-600" />
+            PDF
+          </Button>
+        </PageHeaderGroup>
+      </PageHeader>
 
       {/* Registre des visiteurs */}
       <section className="space-y-4">
@@ -272,41 +300,6 @@ function SecretariatContent() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-            </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-               <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <button 
-                      className="button-13 flex items-center justify-center text-sm font-medium border-none text-white hover:opacity-90 transition-opacity"
-                      style={{ backgroundColor: '#4d5d43', color: '#ffffff' }}
-                    >
-                      <FileDown className="mr-2 h-4 w-4" /> Exporter
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onSelect={handleExportPDF}>Exporter en PDF</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={handleExportXLSX}>Exporter en XLSX</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-              {!isObserver && (
-                 <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
-                    <DialogTrigger asChild>
-                        <button className="button-13 flex items-center justify-center !w-auto px-4 text-sm font-medium">
-                            <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer un Visiteur
-                        </button>
-                    </DialogTrigger>
-                    <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
-                        <DialogHeader>
-                            <DialogTitle>Enregistrer un nouveau visiteur</DialogTitle>
-                            <DialogDescription>
-                                Remplissez les détails du visiteur pour l'enregistrer au registre de garde.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <RegisterVisitorForm onVisitorRegistered={() => setRegisterOpen(false)} />
-                    </DialogContent>
-                </Dialog>
-              )}
             </div>
           </div>
 

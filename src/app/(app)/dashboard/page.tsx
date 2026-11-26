@@ -34,19 +34,15 @@ import {
   WifiOff,
   Briefcase,
   ChevronRight,
+  LayoutDashboard,
 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import {
   saveDashboardOfflineCache,
   getDashboardOfflineCache,
   type DashboardOfflineData,
   useOfflineStatus,
 } from '@/lib/offline-cache';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -544,65 +540,52 @@ function DashboardContent() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
-            {isUsingOfflineCache && (
-              <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs gap-1 font-semibold py-0.5">
-                <Database className="w-3.5 h-3.5" />
-                <span>Cache Hors-Ligne ({formattedSyncTime})</span>
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 font-medium">
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Tableau de bord"
+        meta={
+          isUsingOfflineCache ? (
+            <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs gap-1 font-semibold py-0.5">
+              <Database className="w-3.5 h-3.5" />
+              <span>Cache Hors-Ligne ({formattedSyncTime})</span>
+            </Badge>
+          ) : null
+        }
+        description={
+          <span className="flex items-center gap-1.5">
             <Shield className="h-4 w-4 text-primary shrink-0" />
-            Détachement actif : <span className="font-bold text-foreground">{selectedDetachement === 'ALL' ? 'Tous les détachements' : selectedDetachement}</span>
-          </p>
-        </div>
-
+            Détachement actif :{' '}
+            <span className="font-bold text-foreground">
+              {selectedDetachement === 'ALL' ? 'Tous les détachements' : selectedDetachement}
+            </span>
+          </span>
+        }
+      >
         {role === 'admin' && (
-          <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowResetCountersConfirm(true)}
-                    disabled={isResettingCounters}
-                    className="h-8 w-8 text-amber-600 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-500/20 transition-all rounded-lg"
-                    aria-label="Reset Compteurs Missions"
-                  >
-                    <RotateCcw className={`h-4 w-4 ${isResettingCounters ? 'animate-spin' : ''}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs font-semibold">
-                  Reset Compteurs Missions
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowClearHistoriesConfirm(true)}
-                    disabled={isClearingHistories}
-                    className="h-8 w-8 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive dark:text-red-400 dark:hover:bg-red-500/20 transition-all rounded-lg"
-                    aria-label="Réinitialiser les Historiques"
-                  >
-                    <Trash2 className={`h-4 w-4 ${isClearingHistories ? 'animate-spin' : ''}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs font-semibold">
-                  Réinitialiser les Historiques
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowResetCountersConfirm(true)}
+              disabled={isResettingCounters}
+              className="gap-1.5 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400"
+            >
+              <RotateCcw className={`h-4 w-4 ${isResettingCounters ? 'animate-spin' : ''}`} />
+              Remettre les compteurs à zéro
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowClearHistoriesConfirm(true)}
+              disabled={isClearingHistories}
+              className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className={`h-4 w-4 ${isClearingHistories ? 'animate-spin' : ''}`} />
+              Vider les historiques
+            </Button>
+          </>
         )}
-      </div>
+      </PageHeader>
 
       {/* Codes « mot de passe oublié » à transmettre aux agents */}
       <PasswordResetRequests />

@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { collection, doc } from 'firebase/firestore';
 import { deleteDoc } from '@/lib/firestore-fast';
-import { Loader2, MoreHorizontal, PlusCircle, Search } from 'lucide-react';
+import { Loader2, MoreHorizontal, Plus, Radar, Search } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 
 import { ClientOnly } from '@/components/layout/client-only';
 import { RegisterInformationForm } from '@/components/informations/register-information-form';
@@ -127,13 +128,13 @@ function InformationsContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold tracking-tight">Informations</h1>
+    <div className="space-y-6 pb-12">
+      <PageHeader icon={Radar} title="Informations" description="Informations reçues : source, objet et degré de priorité.">
         <Dialog open={isCreateOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" /> Nouvelle information
+            <Button size="sm" className="gap-1.5 font-semibold">
+              <Plus className="h-4 w-4" />
+              Enregistrer une information
             </Button>
           </DialogTrigger>
           <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
@@ -144,7 +145,7 @@ function InformationsContent() {
             <RegisterInformationForm onSuccess={() => setCreateOpen(false)} />
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHeader>
 
       {/* Compteurs par priorité : un clic filtre la liste */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

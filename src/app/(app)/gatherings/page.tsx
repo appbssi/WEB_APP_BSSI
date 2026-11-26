@@ -11,7 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, UserCheck, UserX, Users, ListChecks, QrCode, FileDown, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Plus, UserCheck, UserX, Users, ListChecks, QrCode, FileDown, Trash2, CalendarClock } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,15 +218,15 @@ function GatheringsContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Rassemblements</h1>
+    <div className="space-y-6 pb-12">
+      <PageHeader icon={CalendarClock} title="Rassemblements" description="Rassemblements des agents et suivi des présences.">
         {!isObserver && (
           <Dialog open={isCreateOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <button className="button-13 flex items-center justify-center !w-auto px-4">
-                <PlusCircle className="mr-2 h-4 w-4" /> Créer un rassemblement
-              </button>
+              <Button size="sm" className="gap-1.5 font-semibold">
+                <Plus className="h-4 w-4" />
+                Créer un rassemblement
+              </Button>
             </DialogTrigger>
             <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
                 <DialogTitle className="sr-only">Créer un nouveau rassemblement</DialogTitle>
@@ -233,7 +234,7 @@ function GatheringsContent() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+      </PageHeader>
 
       <div className="border rounded-lg overflow-x-auto">
         <Table>

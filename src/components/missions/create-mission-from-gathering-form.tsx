@@ -350,11 +350,11 @@ export function CreateMissionFromGatheringForm({ agents, onMissionCreated, onCan
             />
 
             <div className="flex justify-between pt-4">
-                <button type="button" className="button-13" onClick={onCancel}>Annuler</button>
-                <button type="submit" className="button-13" disabled={isSubmitting}>
+                <Button type="button" variant="outline" onClick={onCancel}>Annuler</Button>
+                <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Créer la mission
-                </button>
+                </Button>
             </div>
         </form>
       </Form>

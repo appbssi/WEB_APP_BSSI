@@ -13,7 +13,7 @@ import {
   AlertCircle, 
   Settings, 
   Search, 
-  PlusCircle, 
+  Plus, 
   History, 
   CheckCircle2, 
   Wrench,
@@ -21,6 +21,7 @@ import {
   Edit,
   Trash2
 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, orderBy, doc, Timestamp } from 'firebase/firestore';
 import { updateDoc, addDoc, deleteDoc } from '@/lib/firestore-fast';
@@ -142,16 +143,12 @@ function LogistiqueContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Logistique</h1>
-          <p className="text-muted-foreground">Gestion de la flotte automobile et équipements.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
+      <PageHeader icon={Truck} title="Logistique" description="Gestion de la flotte automobile et équipements.">
           <Dialog open={isAddVehicleOpen} onOpenChange={setAddVehicleOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <PlusCircle className="mr-2 h-4 w-4" /> Nouveau Véhicule
+              <Button size="sm" className="gap-1.5 font-semibold">
+                <Plus className="h-4 w-4" />
+                Enregistrer un véhicule
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -164,8 +161,13 @@ function LogistiqueContent() {
             if (!open) setPreselectedVehicleId(undefined);
           }}>
             <DialogTrigger asChild>
-              <Button variant="destructive">
-                <AlertCircle className="mr-2 h-4 w-4" /> Signaler Anomalie
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-amber-600/30 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              >
+                <AlertCircle className="h-4 w-4" />
+                Signaler une anomalie
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -177,8 +179,7 @@ function LogistiqueContent() {
               />
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+      </PageHeader>
 
       <Tabs defaultValue="fleet" className="space-y-4">
         <TabsList>

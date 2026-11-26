@@ -55,6 +55,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
+import { PageHeader, PageHeaderGroup } from '@/components/layout/page-header';
 import { CreateSaisieDialog } from '@/components/saisies/create-saisie-dialog';
 import { EditSaisieDialog } from '@/components/saisies/edit-saisie-dialog';
 import { getContrevenants, getInterpelles, namesLabel, personLabel } from '@/components/saisies/saisie-procedure-fields';
@@ -370,62 +371,38 @@ export default function SaisiesPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* En-tête */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="shrink-0 rounded-xl bg-primary/10 p-2.5 text-primary">
-            <PackageCheck className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Registre des saisies &amp; scellés</h1>
-            <p className="text-sm text-muted-foreground">
-              Enregistrement et suivi des marchandises et objets saisis.
-            </p>
-          </div>
-        </div>
-
-        {/* Action principale à gauche, exports regroupés, vidage (admin) à l'écart à droite */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => setIsCreateOpen(true)} size="sm" className="gap-1.5 font-semibold">
-            <Plus className="h-4 w-4" />
-            Enregistrer une saisie
+      <PageHeader
+        icon={PackageCheck}
+        title="Registre des saisies & scellés"
+        description="Enregistrement et suivi des marchandises et objets saisis."
+      >
+        <Button onClick={() => setIsCreateOpen(true)} size="sm" className="gap-1.5 font-semibold">
+          <Plus className="h-4 w-4" />
+          Enregistrer une saisie
+        </Button>
+        <PageHeaderGroup label="Exporter">
+          <Button onClick={exportToExcel} variant="ghost" size="sm" className="gap-1.5">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            Excel
           </Button>
-
-          <div className="inline-flex items-center rounded-md border bg-background soft-shadow">
-            <span className="hidden px-2.5 text-xs font-medium text-muted-foreground sm:inline">Exporter</span>
-            <Button
-              onClick={exportToExcel}
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 rounded-r-none sm:rounded-none sm:border-l"
-            >
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-              Excel
-            </Button>
-            <Button
-              onClick={exportToPDF}
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 rounded-l-none border-l"
-            >
-              <FileText className="h-4 w-4 text-rose-600" />
-              PDF
-            </Button>
-          </div>
-
-          {isAdmin && (
-            <Button
-              onClick={() => setIsClearOpen(true)}
-              variant="ghost"
-              size="sm"
-              disabled={!saisies || saisies.length === 0}
-              className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive sm:ml-auto xl:ml-0"
-            >
-              <Trash2 className="h-4 w-4" />
-              Vider le registre
-            </Button>
-          )}
-        </div>
-      </div>
+          <Button onClick={exportToPDF} variant="ghost" size="sm" className="gap-1.5">
+            <FileText className="h-4 w-4 text-rose-600" />
+            PDF
+          </Button>
+        </PageHeaderGroup>
+        {isAdmin && (
+          <Button
+            onClick={() => setIsClearOpen(true)}
+            variant="ghost"
+            size="sm"
+            disabled={!saisies || saisies.length === 0}
+            className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+            Vider le registre
+          </Button>
+        )}
+      </PageHeader>
 
       {/* Indicateurs */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">

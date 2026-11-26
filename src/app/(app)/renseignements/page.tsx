@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc } from 'firebase/firestore';
 import { deleteDoc } from '@/lib/firestore-fast';
-import { FileText, Loader2, MoreHorizontal, PlusCircle, Search } from 'lucide-react';
+import { FileText, Loader2, MoreHorizontal, Plus, ScanSearch, Search } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 
 import { ClientOnly } from '@/components/layout/client-only';
 import { OpenRenseignementForm } from '@/components/renseignements/open-renseignement-form';
@@ -153,16 +154,17 @@ function RenseignementsContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Renseignements</h1>
-          <p className="text-sm text-muted-foreground">Vérification des informations enregistrées, puis compte rendu.</p>
-        </div>
-        <Button onClick={() => setOpenForInformation('')}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Nouveau renseignement
+    <div className="space-y-6 pb-12">
+      <PageHeader
+        icon={ScanSearch}
+        title="Renseignements"
+        description="Vérification des informations enregistrées, puis compte rendu."
+      >
+        <Button size="sm" className="gap-1.5 font-semibold" onClick={() => setOpenForInformation('')}>
+          <Plus className="h-4 w-4" />
+          Nouveau renseignement
         </Button>
-      </div>
+      </PageHeader>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>

@@ -29,6 +29,7 @@ import {
 import { Banknote, Edit, FileSpreadsheet, Gavel, Plus, RefreshCw, Search, Store, Trash2 } from 'lucide-react';
 
 import { VenteDialog, VENTE_TYPE_LABELS } from '@/components/ventes/vente-dialog';
+import { PageHeader, PageHeaderGroup } from '@/components/layout/page-header';
 
 type Onglet = 'toutes' | VenteType;
 
@@ -142,27 +143,22 @@ export default function VentesPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* En-tête */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="shrink-0 rounded-xl bg-primary/10 p-2.5 text-primary">
-            <Gavel className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Ventes des saisies</h1>
-            <p className="text-sm text-muted-foreground">Ventes en local et ventes aux enchères des objets saisis.</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => setIsCreateOpen(true)} size="sm" className="gap-1.5 font-semibold">
-            <Plus className="h-4 w-4" />
-            Enregistrer une vente
-          </Button>
-          <Button onClick={exportToExcel} variant="outline" size="sm" className="gap-1.5">
+      <PageHeader
+        icon={Gavel}
+        title="Ventes des saisies"
+        description="Ventes en local et ventes aux enchères des objets saisis."
+      >
+        <Button onClick={() => setIsCreateOpen(true)} size="sm" className="gap-1.5 font-semibold">
+          <Plus className="h-4 w-4" />
+          Enregistrer une vente
+        </Button>
+        <PageHeaderGroup label="Exporter">
+          <Button onClick={exportToExcel} variant="ghost" size="sm" className="gap-1.5">
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             Excel
           </Button>
-        </div>
-      </div>
+        </PageHeaderGroup>
+      </PageHeader>
 
       {/* Indicateurs */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

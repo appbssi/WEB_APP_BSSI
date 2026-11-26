@@ -21,6 +21,8 @@ import {
   Clock,
   X,
 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
 
 const MapView = dynamic(() => import('@/components/cartographie/map-view'), {
   ssr: false,
@@ -188,29 +190,16 @@ export default function CartographiePage() {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-10">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-primary/10 text-primary">
-              <MapIcon className="h-6 w-6" />
-            </span>
-            Cartographie des Équipements
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Suivi géographique en temps réel des terminaux et appareils connectés sur le terrain.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={triggerManualPositionUpdate}
-          disabled={refreshing}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium shadow-sm disabled:opacity-50 cursor-pointer self-start sm:self-center"
-        >
+      <PageHeader
+        icon={MapIcon}
+        title="Cartographie des équipements"
+        description="Suivi géographique en temps réel des terminaux et appareils connectés sur le terrain."
+      >
+        <Button size="sm" className="gap-1.5 font-semibold" onClick={triggerManualPositionUpdate} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Actualisation...' : 'Actualiser ma position'}
-        </button>
-      </div>
+          {refreshing ? 'Actualisation…' : 'Actualiser ma position'}
+        </Button>
+      </PageHeader>
 
       {/* Unified KPI Strip */}
       <div className="bg-card border border-border rounded-xl shadow-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-border overflow-hidden">

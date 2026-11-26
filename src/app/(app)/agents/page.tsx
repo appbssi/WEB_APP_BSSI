@@ -12,15 +12,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { FileUp, MoreHorizontal, PlusCircle, Search, FileDown, Shield, RefreshCw, Trash2, User, HelpCircle, Pencil, Calendar, QrCode, ChevronDown, X, Layers } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { FileUp, Plus, Search, FileDown, Shield, RefreshCw, Trash2, User, Users, HelpCircle, Pencil, Calendar, QrCode, X, Layers } from 'lucide-react';
+import { PageHeader, PageHeaderGroup } from '@/components/layout/page-header';
 import {
   Select,
   SelectContent,
@@ -535,13 +528,56 @@ function AgentsContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Agents</h1>
-        <span className="text-sm text-muted-foreground">
-          {filteredAgents.length} affiché{filteredAgents.length > 1 ? 's' : ''} sur {sortedAgents.length}
-        </span>
-      </div>
+    <div className="space-y-6 pb-12">
+      <PageHeader
+        icon={Users}
+        title="Agents"
+        meta={
+          <span className="text-sm text-muted-foreground">
+            {filteredAgents.length} affiché{filteredAgents.length > 1 ? 's' : ''} sur {sortedAgents.length}
+          </span>
+        }
+        description="Fiches des agents, sections et disponibilité."
+      >
+        {!isObserver && (
+          <Button size="sm" className="gap-1.5 font-semibold" onClick={() => setRegisterOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Enregistrer un agent
+          </Button>
+        )}
+        {!isObserver && (
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setImportOpen(true)}>
+            <FileUp className="h-4 w-4" />
+            Importer
+          </Button>
+        )}
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setScannerOpen(true)}>
+          <QrCode className="h-4 w-4" />
+          Scanner QR
+        </Button>
+        <PageHeaderGroup label="Exporter">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={handleExportXLSX}>
+            <FileDown className="h-4 w-4 text-emerald-600" />
+            Excel
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={handleExportPDF}>
+            <FileDown className="h-4 w-4 text-rose-600" />
+            PDF
+          </Button>
+        </PageHeaderGroup>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCleanDuplicates}
+            disabled={isCleaning}
+            className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            {isCleaning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Nettoyer les doublons
+          </Button>
+        )}
+      </PageHeader>
 
       {/* Barre d'outils : recherche, section, actions, puis filtres de disponibilité */}
       <div className="rounded-xl border bg-card/40 p-3 sm:p-4 space-y-3">
@@ -585,54 +621,7 @@ function AgentsContent() {
                 <SelectItem value="Non assigné">NON ASSIGNÉ</SelectItem>
               </SelectContent>
             </Select>
-              {/* Toutes les actions regroupées dans un seul menu déroulant.
-                  modal={false} : évite que la page reste bloquée quand une fenêtre s'ouvre depuis le menu. */}
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button className="h-10 shrink-0 gap-2 px-4 font-semibold">
-                    {isCleaning ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
-                    Actions
-                    <ChevronDown className="h-4 w-4 opacity-80" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {!isObserver && (
-                    <>
-                      <DropdownMenuItem onSelect={() => setRegisterOpen(true)}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Enregistrer un agent
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setImportOpen(true)}>
-                        <FileUp className="mr-2 h-4 w-4" /> Importer
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  <DropdownMenuItem onSelect={() => setScannerOpen(true)}>
-                    <QrCode className="mr-2 h-4 w-4" /> Scanner QR
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Exporter</DropdownMenuLabel>
-                  <DropdownMenuItem onSelect={handleExportPDF}>
-                    <FileDown className="mr-2 h-4 w-4" /> Exporter en PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={handleExportXLSX}>
-                    <FileDown className="mr-2 h-4 w-4" /> Exporter en XLSX
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onSelect={handleCleanDuplicates}
-                        disabled={isCleaning}
-                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" /> Nettoyer les doublons
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Fenêtres ouvertes depuis le menu */}
+              {/* Fenêtres ouvertes depuis l’en-tête */}
               {!isObserver && (
                 <Dialog open={isRegisterOpen} onOpenChange={setRegisterOpen}>
                   <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">

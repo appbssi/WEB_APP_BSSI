@@ -68,7 +68,9 @@ import {
   Paperclip,
   Camera,
   X,
+  CalendarClock,
 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import type {
   Demande,
   Agent,
@@ -1376,15 +1378,11 @@ function DemandesContent() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
-      {/* Page Title */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          Mon Espace Agent
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Situation administrative, demandes de permission, ordres de mission et documents officiels.
-        </p>
-      </div>
+      <PageHeader
+        icon={CalendarClock}
+        title="Mon espace agent"
+        description="Situation administrative, demandes de permission, ordres de mission et documents officiels."
+      />
 
       {/* Single Clean Identity Card + Personal QR Preview */}
       {currentAgent && currentAgentWithDetails && (

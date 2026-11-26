@@ -549,7 +549,7 @@ export function CreateMissionForm({
                     />
 
                     <div className="flex justify-end pt-4">
-                        <button type="button" onClick={handleNextStep} className="button-13">Suivant</button>
+                        <Button type="button" onClick={handleNextStep}>Suivant</Button>
                     </div>
                 </div>
             )}
@@ -716,13 +716,13 @@ export function CreateMissionForm({
                 )}
                 
                 <div className="flex justify-between pt-4">
-                  <button type="button" className="button-13" onClick={() => setCurrentStep(1)}>Précédent</button>
-                  <button type="submit" className="button-13" disabled={isSubmitting}>
+                  <Button type="button" variant="outline" onClick={() => setCurrentStep(1)}>Précédent</Button>
+                  <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {initialStatus === 'Terminée' 
                       ? 'Enregistrer la mission terminée' 
                       : (isAdmin && form.watch('adminImmediateValidation') ? 'Valider et créer la mission' : 'Soumettre pour validation')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

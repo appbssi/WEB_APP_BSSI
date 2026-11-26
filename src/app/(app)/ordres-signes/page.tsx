@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { collection, deleteField, doc, getDocs, increment, query, Timestamp, where } from 'firebase/firestore';
 import { setDoc, writeBatch } from '@/lib/firestore-fast';
 import { Eye, FileSignature, Loader2, MoreHorizontal, Printer, Search, Upload } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 
 import { ClientOnly } from '@/components/layout/client-only';
 import { ArchiveScanDialog } from '@/components/ordres-signes/archive-scan-dialog';
@@ -192,13 +193,12 @@ function OrdresSignesContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ordres de mission signés</h1>
-        <p className="text-sm text-muted-foreground">
-          1. Imprimez l’ordre généré · 2. Faites-le signer · 3. Scannez-le et archivez-le ici.
-        </p>
-      </div>
+    <div className="space-y-6 pb-12">
+      <PageHeader
+        icon={FileSignature}
+        title="Ordres de mission signés"
+        description="1. Imprimez l’ordre généré · 2. Faites-le signer · 3. Scannez-le et archivez-le ici."
+      />
 
       {/* Onglets sur une seule ligne (défilement horizontal sur petit écran), recherche compacte à droite */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">

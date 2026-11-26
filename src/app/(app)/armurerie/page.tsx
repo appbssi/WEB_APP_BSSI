@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
-  PlusCircle, 
+  Plus, 
   Search, 
   Sword, 
   UserPlus, 
@@ -21,6 +21,7 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-react';
+import { PageHeader, PageHeaderGroup } from '@/components/layout/page-header';
 import { 
   Dialog, 
   DialogContent, 
@@ -269,19 +270,12 @@ function ArmurerieContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Armurerie</h1>
-          <p className="text-muted-foreground">Gestion du matériel, des munitions et de la maintenance.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
-          <Button variant="outline" onClick={generateDailyReport}>
-            <FileText className="mr-2 h-4 w-4" /> Rapport Quotidien
-          </Button>
+      <PageHeader icon={Sword} title="Armurerie" description="Gestion du matériel, des munitions et de la maintenance.">
           <Dialog open={isAddWeaponOpen} onOpenChange={setAddWeaponOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Nouvel Équipement
+              <Button size="sm" className="gap-1.5 font-semibold">
+                <Plus className="h-4 w-4" />
+                Enregistrer un équipement
               </Button>
             </DialogTrigger>
             <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
@@ -291,8 +285,9 @@ function ArmurerieContent() {
           </Dialog>
           <Dialog open={isAssignOpen} onOpenChange={setAssignOpen}>
             <DialogTrigger asChild>
-              <Button variant="secondary">
-                <UserPlus className="mr-2 h-4 w-4" /> Attribuer
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <UserPlus className="h-4 w-4" />
+                Attribuer du matériel
               </Button>
             </DialogTrigger>
             <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
@@ -306,8 +301,13 @@ function ArmurerieContent() {
               />
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+          <PageHeaderGroup label="Exporter">
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={generateDailyReport}>
+              <FileText className="h-4 w-4 text-rose-600" />
+              Rapport quotidien
+            </Button>
+          </PageHeaderGroup>
+      </PageHeader>
 
       <Tabs defaultValue="inventory" className="space-y-4">
         <TabsList>
